@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { validate } from '@/middleware/validation.middleware';
-import { AuthController } from '@/controllers/auth.controller';
-import { authenticate, authorize } from '@/middleware/auth.middleware';
-import { UserType } from '@/utils/enums/user.enum';
+import { validate } from '../middleware/validation.middleware.js';
+import { AuthController } from '../controllers/auth.controller.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { UserType } from '../utils/enums/user.enum.js';
 
 const router = Router();
 

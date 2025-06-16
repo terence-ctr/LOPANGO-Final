@@ -10,10 +10,11 @@
   "_moduleAliases": {
     "@": "./server",
     "@config": "./server/config",
-    "@middleware": "./server/middleware",
-    "@routes": "./server/routes",
-    "@utils": "./server/utils",
-    "@types": "./server/types"
+    "@middleware": "./middleware",
+    "@routes": "./routes",
+    "@controllers": "./controllers",
+    "@utils": "./utils",
+    "@types": "./types"
   },
   "scripts": {
     "dev:client": "vite",

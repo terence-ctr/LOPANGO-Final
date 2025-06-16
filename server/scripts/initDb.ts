@@ -1,7 +1,7 @@
-import { sequelize } from '../config/database';
-import { User } from '../models/User';
-import logger from '../utils/logger';
-import { generateUserId } from '../utils/idGenerator';
+import { sequelize } from '../config/database.js';
+import { User } from '../models/User.js';
+import logger from '../utils/logger.js';
+import { generateUserId } from '../utils/idGenerator.js';
 
 // Fonction pour initialiser la base de données avec des utilisateurs de test
 const initializeDatabase = async (): Promise<void> => {
