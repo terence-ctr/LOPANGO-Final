@@ -150,7 +150,6 @@ src/
 └── views/          # Pages de l'application
 ```
 
-
 ## 🔒 Sécurité
 
 - Authentification JWT
@@ -167,6 +166,47 @@ src/
 - [Documentation Pinia](https://pinia.vuejs.org/)
 - [Documentation Tailwind CSS](https://tailwindcss.com/)
 
+## 🔧 Dépannage
+
+### Problème 1 : Échec de l'inscription - Contrainte de genre non respectée
+
+**Symptôme**  
+
+```text
+Erreur: SQLITE_CONSTRAINT: CHECK constraint failed: gender
+```
+
+**Cause**  
+
+- La table `users` a une contrainte CHECK qui n'accepte que les valeurs : 'male', 'female' ou 'other' (en minuscules)
+- Le frontend envoyait 'Male' (avec une majuscule)
+- La validation côté backend n'était pas assez stricte
+
+**Solution**  
+
+1. Normalisation du genre en minuscules côté backend
+2. Validation stricte des valeurs autorisées
+3. Meilleurs messages d'erreur
+
+### Problème 2 : Échec de création d'adresse - Clé étrangère invalide
+
+**Symptôme**  
+
+```text
+SQLITE_CONSTRAINT: FOREIGN KEY constraint failed
+```
+
+**Cause**  
+
+- L'ID utilisateur était mal extrait après l'insertion
+- La valeur était envoyée sous forme d'objet `{"id":1}` au lieu d'un nombre simple `1`
+
+**Solution**  
+
+1. Meilleure gestion du retour d'insertion SQLite
+2. Vérification et conversion explicite en nombre
+3. Logs détaillés pour le débogage
+
 ## 🤝 Contribution
 
 1. Forkez le projet
@@ -176,6 +216,29 @@ src/
 5. Ouvrez une Pull Request
 
 ## 🗃️ Base de Données et Migrations
+
+### Schéma des Contraintes
+
+#### Table `users`
+
+- `gender` : CHECK (gender IN ('male', 'female', 'other'))
+- `user_type` : CHECK (user_type IN ('tenant', 'landlord', 'agent', 'admin'))
+
+#### Table `addresses`
+
+- Contrainte de clé étrangère sur `user_id` référençant `users(id)`
+
+### Scripts Utiles
+
+#### Vérification du schéma
+
+```bash
+# Voir la structure de la table users
+node scripts/check-users-schema.ts
+
+# Tester les contraintes de genre
+node scripts/check-gender-constraint.ts
+```
 
 ### Schéma de la Base de Données
 

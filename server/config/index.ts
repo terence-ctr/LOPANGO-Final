@@ -12,7 +12,7 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 // Configuration de l'application
 const config = {
   // Configuration du serveur
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 5173,
   nodeEnv: process.env.NODE_ENV || 'development',
   
   // Configuration JWT
@@ -65,7 +65,7 @@ const config = {
   },
   
   // Configuration du frontend
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000'
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
 };
 
 export default config;

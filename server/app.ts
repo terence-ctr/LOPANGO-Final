@@ -18,7 +18,7 @@ class App {
 
   constructor(port?: number) {
     this.app = express();
-    this.port = port || config.port;
+    this.port = port || +config.port;
     this.server = createServer(this.app);
 
     this.initializeDatabase();
@@ -42,13 +42,79 @@ class App {
     // Middleware de sécurité
     this.app.use(helmet());
     
-    // Middleware CORS
-    this.app.use(cors({
+    // Log de la configuration CORS
+    console.log('Configuration CORS chargée :', {
       origin: config.cors.origin,
       methods: config.cors.methods,
-      allowedHeaders: config.cors.allowedHeaders,
-      credentials: true
-    }));
+      allowedHeaders: config.cors.allowedHeaders
+    });
+    
+    // Middleware CORS avec logging avancé
+    const corsOptions = {
+      origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+        console.log('[CORS] Origin reçue:', origin);
+        
+        // Autoriser les requêtes sans origine (comme les applications mobiles ou curl)
+        if (!origin) {
+          console.log('[CORS] Aucune origine détectée, autorisation accordée');
+          return callback(null, true);
+        }
+        
+        const allowedOrigins = [
+          'http://localhost:5173', // Port par défaut de Vite
+          'http://127.0.0.1:5173',
+          config.frontendUrl,
+          ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : [])
+        ];
+
+        console.log('[CORS] Origines autorisées:', allowedOrigins);
+
+        if (allowedOrigins.includes(origin) || config.cors.origin === '*') {
+          console.log('[CORS] Origine autorisée:', origin);
+          callback(null, true);
+        } else {
+          console.error('[CORS] Origine non autorisée:', origin);
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'x-requested-with',
+        'x-request-id',
+        ...(config.cors.allowedHeaders || [])
+      ],
+      exposedHeaders: ['Content-Length', 'x-request-id'],
+      credentials: true,
+      optionsSuccessStatus: 200,
+      maxAge: 86400 // 24 heures
+    };
+    
+    // Middleware de logging pour les requêtes CORS
+    this.app.use((req, res, next) => {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+      console.log('[Headers]', req.headers);
+      if (req.method === 'OPTIONS') {
+        console.log('[CORS] Pré-vol OPTIONS détecté');
+        console.log('[CORS] Headers de la requête:', req.headers);
+        console.log('[CORS] Headers de réponse:', {
+          'Access-Control-Allow-Origin': req.headers.origin || '*',
+          'Access-Control-Allow-Methods': corsOptions.methods.join(', '),
+          'Access-Control-Allow-Headers': corsOptions.allowedHeaders.join(', '),
+          'Access-Control-Allow-Credentials': 'true'
+        });
+      }
+      next();
+    });
+    
+    // Activer CORS pour toutes les routes
+    this.app.use(cors(corsOptions));
+    this.app.options('*', cors(corsOptions)); // Activer le pré-vol pour toutes les routes
+    
+    // Parse JSON request bodies
+    this.app.use(express.json());
+    this.app.use(express.urlencoded({ extended: true }));
     
     // Middleware de journalisation
     this.app.use(morgan('dev'));
@@ -90,7 +156,9 @@ class App {
 
   private initializeErrorHandling() {
     // Gestionnaire d'erreurs global
-    this.app.use(errorHandler);
+    this.app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+      errorHandler(err, req, res, next);
+    });
   }
 
   public listen() {

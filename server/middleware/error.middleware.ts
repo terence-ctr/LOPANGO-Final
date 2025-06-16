@@ -1,6 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import { ValidationError } from 'joi';
+
+/**
+ * Importation de Joi pour la validation de schémas
+ * Note: Dans les versions récentes de Joi, ValidationError doit être extrait de l'objet Joi par défaut
+ * plutôt que d'être importé directement comme un export nommé.
+ */
 import Joi from 'joi';
+const { ValidationError } = Joi;
 
 export const errorHandler = (
   err: any,
@@ -8,6 +14,14 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
+  console.error('\n===== ERREUR =====');
+  console.error('Date:', new Date().toISOString());
+  console.error('URL:', req.originalUrl);
+  console.error('Méthode:', req.method);
+  console.error('Headers:', req.headers);
+  console.error('Body:', req.body);
+  console.error('Erreur complète:', err);
+  console.error('===== FIN ERREUR =====\n');
   console.error('Erreur:', err);
 
   // Erreur de validation Joi

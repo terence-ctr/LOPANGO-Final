@@ -158,7 +158,7 @@ const authService = {
           verified: false
         },
         dateOfBirth: new Date().toISOString().split('T')[0],
-        gender: 'Male'
+        gender: 'male'
       };
       
       console.log('[authService] Envoi de la requête d\'inscription');

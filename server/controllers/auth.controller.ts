@@ -41,6 +41,29 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Email déjà utilisé' });
     }
 
+    // Définir les genres valides exactement comme dans la base de données
+    const validGenders = ['male', 'female', 'other'] as const;
+    type ValidGender = typeof validGenders[number];
+    
+    // Normaliser le genre en minuscules et supprimer les espaces
+    const normalizedGender = userData.gender 
+      ? String(userData.gender).toLowerCase().trim() as ValidGender 
+      : null;
+    
+    // Vérifier si le genre est valide
+    if (!normalizedGender || !validGenders.includes(normalizedGender)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Genre invalide', 
+        details: `Le genre doit être l'une des valeurs suivantes : ${validGenders.join(', ')}`,
+        received: userData.gender,
+        normalized: normalizedGender || 'null'
+      });
+    }
+    
+    // S'assurer que la valeur est bien en minuscules pour la base de données
+    userData.gender = normalizedGender;
+
     // Hasher le mot de passe
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(userData.password, salt);
@@ -49,8 +72,10 @@ export const register = async (req: Request, res: Response) => {
     const trx = await db.transaction();
 
     try {
+      console.log('Début de la création de l\'utilisateur...');
       // Créer l'utilisateur
-      const [userId] = await trx('users').insert({
+      console.log('Insertion de l\'utilisateur dans la base de données...');
+      const result = await trx('users').insert({
         email: userData.email,
         password: hashedPassword,
         first_name: userData.firstName,
@@ -63,11 +88,26 @@ export const register = async (req: Request, res: Response) => {
         is_active: true,
         created_at: new Date(),
         updated_at: new Date()
-      }).returning('id');
+      });
+      
+      // Pour SQLite, le résultat est un tableau avec l'ID inséré
+      const userId = Array.isArray(result) ? result[0] : result;
+      
+      console.log('Résultat de l\'insertion utilisateur:', { result, userId });
+      
+      // S'assurer que l'ID est un nombre
+      const parsedUserId = typeof userId === 'object' && userId !== null ? userId.id : userId;
+      const finalUserId = Number(parsedUserId);
+      
+      if (isNaN(finalUserId)) {
+        throw new Error(`ID utilisateur invalide: ${JSON.stringify(userId)}`);
+      }
+      
+      console.log('ID utilisateur final:', finalUserId);
 
-      // Créer l'adresse
-      await trx('addresses').insert({
-        user_id: userId,
+      // Créer l'adresse avec l'ID utilisateur final
+      const addressData = {
+        user_id: finalUserId,
         street: userData.address.street,
         city: userData.address.city,
         postal_code: userData.address.postalCode,
@@ -75,11 +115,22 @@ export const register = async (req: Request, res: Response) => {
         additional_info: userData.address.additionalInfo || null,
         created_at: new Date(),
         updated_at: new Date()
-      });
+      };
+      
+      console.log('Création de l\'adresse avec les données:', addressData);
+      
+      try {
+        console.log('Tentative d\'insertion de l\'adresse avec les données:', JSON.stringify(addressData, null, 2));
+        await trx('addresses').insert(addressData);
+        console.log('Adresse créée avec succès');
+      } catch (error) {
+        console.error('Erreur lors de la création de l\'adresse:', error);
+        throw error; // Relancer l'erreur pour qu'elle soit gérée par le bloc catch externe
+      }
 
       // Créer l'identité
       await trx('identities').insert({
-        user_id: userId,
+        user_id: finalUserId,
         document_type: userData.identity.documentType,
         national_id: userData.identity.nationalId,
         document_front_url: userData.identity.documentFrontUrl || null,
@@ -93,7 +144,7 @@ export const register = async (req: Request, res: Response) => {
       await trx.commit();
 
       // Générer les tokens
-      const { accessToken, refreshToken } = generateTokens(userId, userData.userType);
+      const { accessToken, refreshToken } = generateTokens(finalUserId, userData.userType);
 
       // Enregistrer le refresh token en base de données
       await db('refresh_tokens').insert({
