@@ -13,6 +13,7 @@ const initializeDatabase = async (): Promise<void> => {
     logger.info('Modèles synchronisés avec succès');
     
     // Création des utilisateurs de test
+    /*
     const testUsers = [
       {
         id: generateUserId('admin'),
@@ -75,23 +76,28 @@ const initializeDatabase = async (): Promise<void> => {
         phoneVerified: true,
       },
     ];
+    */
 
     // Création des utilisateurs dans la base de données
+    /*
     for (const userData of testUsers) {
       const user = User.build(userData);
       await user.save();
       logger.info(`Utilisateur créé: ${user.email} (${user.id})`);
     }
+    */
 
     logger.info('Base de données initialisée avec succès !');
     
     // Afficher les identifiants de test
+    /*
     console.log('\n=== IDENTIFIANTS DE TEST ===');
     console.log('Admin: admin@lopango.com / Admin123!');
     console.log('Agent: agent@lopango.com / Agent123!');
     console.log('Propriétaire: proprietaire@lopango.com / Landlord123!');
     console.log('Locataire: locataire@lopango.com / Tenant123!');
     console.log('Locataire (en attente): locataire2@lopango.com / Tenant123!\n');
+    */
     
     process.exit(0);
   } catch (error) {

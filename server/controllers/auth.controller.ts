@@ -108,8 +108,8 @@ export class AuthController {
         profile_image: '',
         preferred_language: 'fr',
         timezone: 'Afrique/kinshasa',
-        accepted_terms: false,
-        accepted_privacy_policy: false,
+        accepted_terms: req.body.acceptedTerms,
+        accepted_privacy_policy: req.body.acceptedPrivacyPolicy,
         gender: null
       }, { transaction });
 
