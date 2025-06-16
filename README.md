@@ -175,6 +175,117 @@ src/
 4. Poussez vers la branche (`git push origin feature/AmazingFeature`)
 5. Ouvrez une Pull Request
 
+## 🗃️ Base de Données et Migrations
+
+### Schéma de la Base de Données
+
+La base de données utilise SQLite avec les tables suivantes :
+
+#### 1. Table `users`
+- `id` : Clé primaire auto-incrémentée
+- `email` : Email unique de l'utilisateur
+- `password` : Mot de passe hashé
+- `first_name` : Prénom
+- `last_name` : Nom de famille
+- `phone` : Numéro de téléphone
+- `date_of_birth` : Date de naissance
+- `gender` : Genre (male/female/other)
+- `user_type` : Type d'utilisateur (tenant/landlord/agent/admin)
+- `email_verified` : Statut de vérification de l'email
+- `is_active` : Statut actif/désactivé
+- `last_login` : Date de dernière connexion
+- `created_at` : Date de création
+- `updated_at` : Date de mise à jour
+
+#### 2. Table `addresses`
+- `id` : Clé primaire auto-incrémentée
+- `user_id` : Clé étrangère vers `users.id`
+- `street` : Rue
+- `city` : Ville
+- `postal_code` : Code postal
+- `country` : Pays
+- `additional_info` : Informations complémentaires
+- `created_at` : Date de création
+- `updated_at` : Date de mise à jour
+
+#### 3. Table `identities`
+- `id` : Clé primaire auto-incrémentée
+- `user_id` : Clé étrangère vers `users.id`
+- `document_type` : Type de document (permis_conduire/passeport/carte_identite)
+- `national_id` : Numéro d'identification national
+- `document_front_url` : URL du recto du document
+- `document_back_url` : URL du verso du document
+- `verified` : Statut de vérification
+- `verified_at` : Date de vérification
+- `verified_by` : ID de l'administrateur ayant vérifié
+- `verification_comment` : Commentaire de vérification
+- `created_at` : Date de création
+- `updated_at` : Date de mise à jour
+
+#### 4. Table `refresh_tokens`
+- `id` : Clé primaire auto-incrémentée
+- `user_id` : Clé étrangère vers `users.id`
+- `token` : Jeton de rafraîchissement unique
+- `expires_at` : Date d'expiration
+- `revoked` : Statut de révocation
+- `revoked_at` : Date de révocation
+- `replaced_by_token` : Nouveau jeton de remplacement
+- `ip_address` : Adresse IP de la requête
+- `user_agent` : User-Agent du navigateur
+- `created_at` : Date de création
+- `updated_at` : Date de mise à jour
+
+### Gestion des Migrations
+
+#### Configuration
+
+Le projet utilise Knex.js pour la gestion des migrations. La configuration se trouve dans `knexfile.js`.
+
+#### Commandes de Migration
+
+1. **Créer une nouvelle migration** :
+   ```bash
+   npx knex migrate:make nom_de_la_migration
+   ```
+
+2. **Exécuter les migrations** :
+   ```bash
+   node run-migration.js
+   ```
+   Ce script va :
+   - Se connecter à la base de données
+   - Annuler les migrations existantes
+   - Exécuter toutes les migrations disponibles
+   - Afficher les tables créées
+
+3. **Annuler la dernière migration** :
+   ```bash
+   npx knex migrate:rollback
+   ```
+
+4. **Voir le statut des migrations** :
+   ```bash
+   npx knex migrate:status
+   ```
+
+#### Structure des Fichiers de Migration
+
+Les migrations sont stockées dans `server/database/migrations/` et suivent le format :
+`YYYYMMDDHHmmss_nom_de_la_migration.cjs`
+
+Chaque migration doit exporter deux fonctions :
+- `up` : Pour appliquer la migration
+- `down` : Pour annuler la migration
+
+### Environnements
+
+La base de données prend en charge trois environnements :
+1. **Développement** : `server/database/lopango_dev.sqlite3`
+2. **Test** : `server/database/test.sqlite3`
+3. **Production** : `server/database/lopango_prod.sqlite3`
+
+L'environnement est défini par la variable d'environnement `NODE_ENV`.
+
 ## 📄 Licence
 
 Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
