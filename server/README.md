@@ -19,6 +19,7 @@ This directory contains the backend server code for the LOPANGO application. It'
        - `changePassword` (`/auth/change-password`)
        - `getAllUsers` (`/auth/users`, admin only)
      - The method signatures within `AuthController` have been standardized (e.g., returning `Promise<void>`) to ensure proper integration with the Express.js framework and to resolve previous type conflicts.
+     - The `register` method ensures that user acceptance of terms and privacy policy (validated as `true` in the request) is correctly persisted.
 - **`middleware/`**: Contains Express middleware for various tasks like authentication, input validation, and error handling.
 - **`migrations/`**: Database migration files managed by Sequelize.
 - **`models/`**: Sequelize models defining the database schema and relationships.
@@ -117,6 +118,7 @@ The server uses Sequelize ORM to interact with the database.
 - Migrations are located in `server/migrations/`.
 - Models are in `server/models/`.
 - Database configuration is in `server/config/database.ts` (or `.js`) and `config/config.json`.
+- The `server/scripts/initDb.ts` script is used for database schema synchronization (e.g., creating tables based on models). It no longer seeds default test user accounts; user creation should be performed via the registration API.
 
 Ensure your database is set up and the connection details in the configuration files are correct. To run migrations:
 ```bash

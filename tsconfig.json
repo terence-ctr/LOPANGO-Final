@@ -3,6 +3,6 @@
   "references": [
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" },
-    { "path": "./server/tsconfig.json" }
+    { "path": "./server/tsconfig.json" } // Enables IDEs and build tools to correctly resolve path aliases defined in server/tsconfig.json
   ]
 }
