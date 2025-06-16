@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
 import { validate } from '@/middleware/validation.middleware';
-import { AuthController } from '@/controllers/auth.controller';
+import { AuthController } from '@/controllers/auth.controller.js';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import { UserType } from '@/utils/enums/user.enum';
 
