@@ -6,6 +6,19 @@ This directory contains the backend server code for the LOPANGO application. It'
 
 - **`config/`**: Contains configuration files for the server, database, authentication, etc.
 - **`controllers/`**: Houses the controllers that handle incoming requests, process data, and interact with services and models.
+
+   #### Key Controllers
+
+   - **`AuthController.ts`**: Manages all aspects of user authentication.
+     - Core functionalities such as user registration (`/auth/register`), login (`/auth/login`), fetching the current user (`/auth/me`), and logout (`/auth/logout`) are implemented.
+     - Several other authentication-related methods are currently provided as stubs and will return a `501 Not Implemented` status. These include:
+       - `refreshToken` (`/auth/refresh-token`)
+       - `forgotPassword` (`/auth/forgot-password`)
+       - `resetPassword` (`/auth/reset-password`)
+       - `updateProfile` (`/auth/me` with PUT)
+       - `changePassword` (`/auth/change-password`)
+       - `getAllUsers` (`/auth/users`, admin only)
+     - The method signatures within `AuthController` have been standardized (e.g., returning `Promise<void>`) to ensure proper integration with the Express.js framework and to resolve previous type conflicts.
 - **`middleware/`**: Contains Express middleware for various tasks like authentication, input validation, and error handling.
 - **`migrations/`**: Database migration files managed by Sequelize.
 - **`models/`**: Sequelize models defining the database schema and relationships.
