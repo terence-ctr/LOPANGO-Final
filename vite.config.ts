@@ -10,21 +10,18 @@ export default defineConfig({
           // Suppression de l'avertissement pour Suspense
           isCustomElement: (tag) => false,
           // Désactivation des commentaires dans le template
-          comments: false
+          comments: false,
+          // Suppression des avertissements pour Suspense
+          onWarn: (warning) => {
+            if (warning.toString().includes('Suspense')) return;
+            console.warn(warning);
+          }
         }
       },
       script: {
         // Désactivation de defineModel et de la déstructuration des props
         defineModel: false,
         propsDestructure: false
-      },
-      // Configuration pour supprimer les avertissements de fonctionnalités expérimentales
-      compilerOptions: {
-        // Suppression des avertissements pour Suspense
-        warnHandler: (warning, warn) => {
-          if (warning.toString().includes('Suspense')) return;
-          warn(warning);
-        }
       }
     })
   ],
