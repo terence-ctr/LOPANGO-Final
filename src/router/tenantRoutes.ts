@@ -1,4 +1,4 @@
-import DashboardLayout from '@/layouts/DashboardLayout.vue';
+import DashboardLayout from '../layouts/DashboardLayout.vue';
 
 export const tenantRoutes = [
   {

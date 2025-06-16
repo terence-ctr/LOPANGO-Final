@@ -1,14 +1,14 @@
 import { RouteRecordRaw } from 'vue-router';
-import DashboardLayout from '@/layouts/DashboardLayout.vue';
+import DashboardLayout from '../layouts/DashboardLayout.vue';
 
 // Vues d'administration
-import AdminDashboard from '@/views/admin/DashboardView.vue';
-import AdminUsers from '@/views/admin/UsersView.vue';
-import AdminProperties from '@/views/admin/PropertiesView.vue';
-import AdminContracts from '@/views/admin/ContractsView.vue';
-import AdminPayments from '@/views/admin/PaymentsView.vue';
-import AdminTaxes from '@/views/admin/TaxesView.vue';
-import AdminComplaints from '@/views/admin/ComplaintsView.vue';
+import AdminDashboard from '../views/admin/DashboardView.vue';
+import AdminUsers from '../views/admin/UsersView.vue';
+import AdminProperties from '../views/admin/PropertiesView.vue';
+import AdminContracts from '../views/admin/ContractsView.vue';
+import AdminPayments from '../views/admin/PaymentsView.vue';
+import AdminTaxes from '../views/admin/TaxesView.vue';
+import AdminComplaints from '../views/admin/ComplaintsView.vue';
 
 const adminRoutes: RouteRecordRaw[] = [
   {
