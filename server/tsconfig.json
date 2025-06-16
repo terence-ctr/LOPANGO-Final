@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "node16",

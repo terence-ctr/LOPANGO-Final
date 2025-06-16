@@ -1,216 +1,122 @@
-# LOPANGO - API Backend
+# Server Documentation
 
-Ce dépôt contient le code source de l'API backend pour la plateforme immobilière LOPANGO, développée avec Node.js, Express.js, TypeScript et MySQL.
+This directory contains the backend server code for the LOPANGO application. It's built using Node.js and TypeScript.
 
-## Prérequis
+## Structure
 
-- Node.js (version 16 ou supérieure)
-- npm (version 8 ou supérieure) ou yarn
-- MySQL (version 8.0 ou supérieure)
-- Git
+- **`config/`**: Contains configuration files for the server, database, authentication, etc.
+- **`controllers/`**: Houses the controllers that handle incoming requests, process data, and interact with services and models.
+- **`middleware/`**: Contains Express middleware for various tasks like authentication, input validation, and error handling.
+- **`migrations/`**: Database migration files managed by Sequelize.
+- **`models/`**: Sequelize models defining the database schema and relationships.
+- **`routes/`**: Defines the API routes and maps them to controller actions.
+- **`scripts/`**: Utility scripts for tasks like database initialization or synchronization.
+- **`src/`**: Main source code for the application, including `app.ts` (Express app setup) and `index.ts` (server entry point).
+- **`types/`**: TypeScript type definitions and interfaces.
+- **`utils/`**: Utility functions, helper classes, and enums.
+- **`validators/`**: Validation schemas and functions, often used with `express-validator`.
+- **`tsconfig.json`**: TypeScript configuration file for the server project.
+
+## Prerequisites
+
+- Node.js (version specified in project's `.nvmrc` or `package.json`, e.g., v18+)
+- npm or yarn
 
 ## Installation
 
-1. **Cloner le dépôt**
-
-   ```bash
-   git clone https://github.com/votre-utilisateur/lopango-backend.git
-   cd lopango-backend
-   ```
-
-2. **Installer les dépendances**
-
+1. Navigate to the root of the project.
+2. Install dependencies:
    ```bash
    npm install
-   # ou
+   # or
    yarn install
    ```
 
-3. **Configurer l'environnement**
+## Running the Server
 
-   Créez un fichier `.env` à la racine du projet en copiant le fichier d'exemple :
+### Development Mode
 
-   ```bash
-   cp .env.example .env
-   ```
-
-   Puis modifiez les variables d'environnement dans le fichier `.env` selon votre configuration.
-
-4. **Configurer la base de données**
-
-   Assurez-vous que MySQL est en cours d'exécution, puis créez une base de données vide :
-
-   ```sql
-   CREATE DATABASE lopango CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   ```
-
-5. **Exécuter les migrations**
-
-   ```bash
-   npm run db:migrate
-   # ou
-   yarn db:migrate
-   ```
-
-6. **Lancer le serveur en mode développement**
-
-   ```bash
-   npm run dev
-   # ou
-   yarn dev
-   ```
-
-Le serveur démarrera sur `http://localhost:3001` par défaut.
-
-## Commandes utiles
-
-- `npm run dev` - Lance le serveur en mode développement avec rechargement automatique
-- `npm run build` - Compile le code TypeScript en JavaScript
-- `npm start` - Lance le serveur en mode production
-- `npm run lint` - Exécute ESLint pour vérifier le code
-- `npm run test` - Exécute les tests
-- `npm run db:migrate` - Exécute les migrations de base de données
-- `npm run db:rollback` - Annule la dernière migration
-- `npm run db:seed` - Exécute les seeders pour peupler la base de données avec des données de test
-
-## Structure du projet
-
-```plaintext
-server/
-├── src/                    # Code source TypeScript
-│   ├── config/             # Fichiers de configuration
-│   ├── controllers/        # Contrôleurs pour gérer les requêtes
-│   ├── middleware/         # Middlewares personnalisés
-│   ├── models/             # Modèles de données
-│   ├── routes/             # Définition des routes
-│   ├── services/           # Logique métier
-│   ├── types/              # Définitions de types TypeScript
-│   ├── utils/              # Utilitaires et helpers
-│   ├── validators/         # Validateurs de données
-│   ├── app.ts              # Configuration de l'application Express
-│   └── server.ts           # Point d'entrée du serveur
-├── .env.example            # Exemple de fichier d'environnement
-├── .eslintrc.js            # Configuration ESLint
-├── .gitignore              # Fichiers à ignorer par Git
-├── package.json            # Dépendances et scripts
-├── README.md               # Ce fichier
-└── tsconfig.json           # Configuration TypeScript
-```
-
-## Variables d'environnement
-
-Le fichier `.env` doit contenir les variables suivantes :
-
-```env
-# Configuration du serveur
-PORT=3001
-NODE_ENV=development
-
-# Configuration de la session
-SESSION_SECRET=votre_secret_session_tres_securise
-
-# Configuration JWT
-JWT_SECRET=votre_cle_secrete_tres_securisee
-JWT_REFRESH_SECRET=votre_cle_rafraichissement_tres_securisee
-JWT_EXPIRES_IN=1h
-JWT_REFRESH_EXPIRES_IN=7d
-JWT_ISSUER=lopango-api
-JWT_AUDIENCE=lopango-app
-
-# Configuration de l'application
-APP_NAME=LOPANGO
-SUPPORT_EMAIL=support@lopango.com
-
-# Configuration de l'API
-API_URL=http://localhost:3001
-
-# Configuration du client
-CLIENT_URL=http://localhost:5173
-EMAIL_VERIFICATION_URL=http://localhost:5173/verify-email
-PASSWORD_RESET_URL=http://localhost:5173/reset-password
-
-# Configuration de sécurité
-MAX_LOGIN_ATTEMPTS=5
-ACCOUNT_LOCKOUT_TIME=15
-RESET_TOKEN_EXPIRES_IN=1h
-EMAIL_VERIFICATION_EXPIRES_IN=24h
-
-# Configuration du hachage de mot de passe
-BCRYPT_SALT_ROUNDS=12
-
-# Configuration de la base de données
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=lopango
-DB_USER=root
-DB_PASSWORD=
-DB_DIALECT=mysql
-```
-
-## Développement
-
-### Lancer le serveur en mode développement
+To run the server in development mode with automatic reloading on file changes (usually via `ts-node-dev` or similar):
 
 ```bash
+npm run dev:server
+# or yarn dev:server
+# (Note: Adjust script name based on actual package.json)
+```
+
+If a specific `dev:server` script doesn't exist in the root `package.json`, you might need to navigate to the `server` directory or use a command like:
+```bash
+cd server
 npm run dev
+# or npx ts-node-dev src/index.ts
+# (assuming ts-node-dev and server-specific scripts are configured)
 ```
 
-### Lancer les tests
+### Production Build & Run
 
+1.  **Build the TypeScript code:**
+    Navigate to the `server` directory (if not already there) or ensure your build script handles it from the root.
+    ```bash
+    # From root (if package.json script is configured for it)
+    npm run build:server
+    # Or from server directory
+    # cd server
+    # npm run build
+    # (This typically executes `tsc -p .` or `tsc -p tsconfig.json`)
+    ```
+    This will compile the TypeScript code into JavaScript, usually in a `dist` directory within the `server` folder.
+
+2.  **Run the compiled code:**
+    ```bash
+    # From root (if package.json script is configured for it)
+    npm run start:server
+    # Or from server directory
+    # cd server
+    # npm start
+    # (This typically executes `node dist/index.js`)
+    ```
+
+*(Please adapt the `npm run ...` commands above based on the actual scripts defined in your project's `package.json` files.)*
+
+## Path Aliases
+
+This server project uses TypeScript path aliases defined in `server/tsconfig.json` to simplify module imports. For example:
+
+- `@/controllers/*` maps to `server/controllers/*`
+- `@/middleware/*` maps to `server/middleware/*`
+- etc.
+
+These aliases help in avoiding long relative paths (e.g., `../../utils/someUtil`).
+
+### IDE Integration for Path Aliases
+
+Previously, there might have been issues with IDEs (like VS Code) not correctly recognizing these path aliases when the project was opened from the root directory. This was because the root `tsconfig.json` did not explicitly reference the `server/tsconfig.json` project.
+
+This has been **fixed** by:
+1.  Adding a project reference for `server/tsconfig.json` to the root `tsconfig.json`.
+2.  Ensuring `server/tsconfig.json` has `composite: true` in its `compilerOptions`.
+
+This change allows the TypeScript Language Service to correctly load the server's configuration and resolve path aliases, leading to a smoother development experience (e.g., correct auto-imports, go-to-definition).
+
+## Database
+
+The server uses Sequelize ORM to interact with the database.
+- Migrations are located in `server/migrations/`.
+- Models are in `server/models/`.
+- Database configuration is in `server/config/database.ts` (or `.js`) and `config/config.json`.
+
+Ensure your database is set up and the connection details in the configuration files are correct. To run migrations:
 ```bash
-npm test
+# Typically from the server directory or via a root package.json script
+npx sequelize-cli db:migrate
 ```
 
-### Vérifier le style de code
+## Linting and Formatting
 
+This project should be configured with ESLint for linting and Prettier for code formatting.
 ```bash
+# To lint (from root or server, depending on setup)
 npm run lint
+# To format (from root or server, depending on setup)
+npm run format
 ```
-
-### Générer la documentation de l'API
-
-```bash
-npm run docs
-```
-
-## Déploiement
-
-### Préparer pour la production
-
-1. Compilez le code TypeScript :
-
-   ```bash
-   npm run build
-   ```
-
-2. Configurez les variables d'environnement pour la production dans `.env`.
-
-3. Assurez-vous que la base de données est configurée et que les migrations ont été exécutées.
-
-### Avec PM2 (recommandé pour la production)
-
-1. Installez PM2 globalement :
-
-   ```bash
-   npm install -g pm2
-   ```
-
-2. Démarrez l'application avec PM2 :
-
-   ```bash
-   pm2 start dist/server.js --name lopango-api
-   ```
-
-Pour plus d'informations sur PM2, consultez la [documentation officielle](https://pm2.keymetrics.io/).
-
-## API Documentation
-
-Une fois le serveur démarré, vous pouvez accéder à la documentation de l'API à l'adresse :
-
-```bash
-http://localhost:3001/api-docs
-```
-
-## Licence
-
-Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
