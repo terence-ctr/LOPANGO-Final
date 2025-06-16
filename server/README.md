@@ -1,6 +1,6 @@
 # LOPANGO - API Backend
 
-Ce dépôt contient le code source de l'API backend pour la plateforme immobilière LOPANGO, développée avec Node.js, Express.js, TypeScript et MySQL.
+Ce dépôt contient le code source de l'API backend pour la plateforme immobilière LOPANGO, développée avec Node.js, Express.js, TypeScript et SQLITE.
 
 ## Prérequis
 
