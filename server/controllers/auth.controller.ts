@@ -499,4 +499,55 @@ export class AuthController {
         });
       }
     }
+
+    // Rafraîchir le token d'accès
+    static async refreshToken(req: Request, res: Response): Promise<Response> {
+      const { refreshToken } = req.body;
+      
+      if (!refreshToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'Refresh token is required'
+        });
+      }
+
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET || 'your-refresh-token-secret') as { userId: string };
+        
+        // Vérifier si l'utilisateur existe toujours
+        const user = await User.findByPk(decoded.userId);
+        
+        if (!user) {
+          return res.status(401).json({
+            success: false,
+            message: 'User not found'
+          });
+        }
+
+        // Générer de nouveaux tokens
+        const tokens = await AuthController.generateTokens(user);
+        
+        // Mettre à jour le refresh token dans la base de données
+        user.refresh_token = tokens.refreshToken;
+        await user.save();
+        
+        return res.status(200).json({
+          success: true,
+          ...tokens
+        });
+        
+      } catch (error) {
+        if (error instanceof jwt.TokenExpiredError) {
+          return res.status(401).json({
+            success: false,
+            message: 'Refresh token expired'
+          });
+        }
+        
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid refresh token'
+        });
+      }
+    }
   }
