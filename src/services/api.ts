@@ -36,6 +36,13 @@ export const getAuthHeaders = () => {
 // Intercepteur pour les requêtes sortantes
 api.interceptors.request.use(
   (config) => {
+    console.log('[API] Envoi de la requête:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      headers: config.headers
+    });
+    
     // Ajouter le token JWT s'il existe
     const token = getAuthToken();
     if (token) {
@@ -75,57 +82,72 @@ api.interceptors.response.use(
     if (import.meta.env.DEV) {
       console.log(`[API] Réponse ${response.status} ${response.config.url}`, response.data);
     }
+    
+    // Log détaillé pour le débogage
+    console.log('[API] Réponse reçue:', {
+      status: response.status,
+      url: response.config.url,
+      baseURL: response.config.baseURL,
+      data: response.data
+    });
+    
     return response;
   },
-  async (error: AxiosError) => {
-    if (!axios.isAxiosError(error)) {
-      throw error;
-    }
-    const toast = useToast();
+  async (error) => {
+    // Log détaillé pour le débogage
+    console.error('[API] Erreur complète:', error);
     
-    // Log des erreurs
-    const errorDetails = {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message,
-      config: {
-        headers: error.config?.headers,
-        data: error.config?.data
-      }
-    };
-    
-    console.error('[API] Erreur de réponse:', errorDetails);
-    
-    // Gestion des erreurs spécifiques
-    if (error.response) {
-      // Erreur 401 - Non autorisé
-      if (error.response.status === 401) {
-        handleUnauthorized();
-        removeAuthToken();
-        toast.error('Votre session a expiré. Veuillez vous reconnecter.');
-      } 
-      // Autres erreurs du serveur (400-500)
-      else {
-        const errorMessage = error.response.data?.message || 'Une erreur est survenue';
-        toast.error(errorMessage);
-      }
-      
-      // Ajouter les erreurs de validation si elles existent
-      if (error.response.data?.errors) {
-        error.validationErrors = error.response.data.errors;
-      }
+    // Log les détails de la requête qui a échoué
+    if (error.config) {
+      console.error('[API] Détails de la requête échouée:', {
+        method: error.config.method?.toUpperCase(),
+        url: error.config.url,
+        baseURL: error.config.baseURL,
+        headers: error.config.headers,
+        data: error.config.data
+      });
     } else if (error.request) {
-      // La requête a été faite mais aucune réponse n'a été reçue
-      console.error('[API] Aucune réponse du serveur:', error.request);
-      toast.error('Impossible de se connecter au serveur. Veuillez vérifier votre connexion.');
+      console.error('[API] Pas de réponse reçue. Détails de la requête:', error.request);
     } else {
-      // Une erreur s'est produite lors de la configuration de la requête
-      console.error('[API] Erreur de configuration:', error.message);
-      toast.error('Erreur de configuration de la requête');
+      console.error('[API] Erreur lors de la configuration de la requête:', error.message);
     }
-    
+
+    // Gestion des erreurs d'authentification
+    if (error.response?.status === 401) {
+      // Si le token a expiré, on tente de le rafraîchir
+      if (error.config.url !== '/auth/refresh' && error.config.url !== '/auth/login') {
+        try {
+          const newToken = await handleUnauthorized();
+          if (newToken) {
+            // On réessaie la requête avec le nouveau token
+            error.config.headers.Authorization = `Bearer ${newToken}`;
+            return api(error.config);
+          }
+        } catch (refreshError) {
+          console.error('Erreur lors du rafraîchissement du token:', refreshError);
+          // Si le rafraîchissement échoue, on déconnecte l'utilisateur
+          const authStore = useAuthStore();
+          authStore.logout();
+        }
+      }
+
+      // Rediriger vers la page de connexion si on est pas déjà sur la page de connexion
+      if (!window.location.pathname.includes('/auth/login')) {
+        window.location.href = '/auth/login?session=expired';
+      }
+    }
+
+    // Gestion des erreurs de validation
+    if (error.response?.status === 422) {
+      const toast = useToast();
+      const errors = error.response.data.errors || {};
+      
+      // Afficher la première erreur de validation
+      const firstError = Object.values(errors)[0];
+      if (firstError) {
+        toast.error(Array.isArray(firstError) ? firstError[0] : firstError);
+      }
+    }
     return Promise.reject(error);
   }
 );

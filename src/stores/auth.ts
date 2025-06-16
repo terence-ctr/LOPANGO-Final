@@ -27,6 +27,11 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuth = computed(() => isAuthenticated.value);
   const isLoading = computed(() => loading.value);
   const authError = computed(() => error.value);
+  
+  // Récupérer le type d'utilisateur en minuscules
+  const userType = computed(() => {
+    return user.value?.userType?.toString().toLowerCase().trim() || '';
+  });
 
   const setUser = (userData: User | null) => {
     user.value = userData;
@@ -116,14 +121,27 @@ export const useAuthStore = defineStore('auth', () => {
       });
       
       if (response?.data) {
+        // S'assurer que le userType est correctement défini
+        const userData = response.data;
+        
+        // Normaliser le userType
+        if (userData.userType) {
+          userData.userType = userData.userType.toString().toLowerCase().trim();
+        } else if (userData.user_type) {
+          userData.userType = userData.user_type.toString().toLowerCase().trim();
+          delete userData.user_type; // Nettoyer l'ancienne clé
+        }
+        
         console.log('Utilisateur authentifié avec succès:', {
-          userData: response.data,
-          userType: response.data.userType,
-          hasRole: !!response.data.userType
+          id: userData.id,
+          email: userData.email,
+          userType: userData.userType,
+          hasRole: !!userData.userType,
+          rawData: userData
         });
         
         // Mettre à jour l'état de l'utilisateur
-        user.value = response.data;
+        user.value = userData;
         isAuthenticated.value = true;
         
         // Vérifier si l'utilisateur a le bon rôle pour la route actuelle
@@ -133,11 +151,11 @@ export const useAuthStore = defineStore('auth', () => {
         const isLandlordPath = currentPath.startsWith('/landlord');
         
         // Rediriger vers le tableau de bord approprié si nécessaire
-        if (isAdminPath && response.data.userType !== 'admin') {
+        if (isAdminPath && userData.userType !== 'admin') {
           console.log('Redirection vers le tableau de bord approprié...');
-          window.location.href = `/${response.data.userType}/dashboard`;
-        } else if ((isTenantPath || isLandlordPath) && !currentPath.includes(response.data.userType)) {
-          window.location.href = `/${response.data.userType}/dashboard`;
+          window.location.href = `/${userData.userType}/dashboard`;
+        } else if ((isTenantPath || isLandlordPath) && !currentPath.includes(userData.userType)) {
+          window.location.href = `/${userData.userType}/dashboard`;
         }
         
         return true;
@@ -205,19 +223,57 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = userData;
       }
       
+      // Fonction pour normaliser les données utilisateur
+      const normalizeUserData = (userData: any) => {
+        if (!userData) return null;
+        
+        // Créer une copie de l'objet utilisateur
+        const normalizedUser = { ...userData };
+        
+        // Normaliser le userType
+        if (normalizedUser.userType) {
+          normalizedUser.userType = normalizedUser.userType.toString().toLowerCase().trim();
+        } else if (normalizedUser.user_type) {
+          normalizedUser.userType = normalizedUser.user_type.toString().toLowerCase().trim();
+          delete normalizedUser.user_type; // Nettoyer l'ancienne clé
+        } else if (credentials.userType) {
+          normalizedUser.userType = credentials.userType.toLowerCase().trim();
+        }
+        
+        // S'assurer que le nom est correctement formaté
+        if (!normalizedUser.name && (normalizedUser.firstName || normalizedUser.lastName)) {
+          normalizedUser.name = `${normalizedUser.firstName || ''} ${normalizedUser.lastName || ''}`.trim();
+        }
+        
+        return normalizedUser;
+      };
+      
       // Si la réponse contient les données utilisateur, les stocker
       if (response.user || (response.data && response.data.user)) {
-        user.value = response.user || response.data.user;
-        // Sauvegarder l'utilisateur dans le stockage local
-        localStorage.setItem('user', JSON.stringify(user.value));
-        console.log('Utilisateur connecté et sauvegardé:', user.value.email);
+        const userData = response.user || response.data.user;
+        const normalizedUser = normalizeUserData(userData);
+        
+        if (normalizedUser) {
+          user.value = normalizedUser;
+          // Sauvegarder l'utilisateur dans le stockage local
+          localStorage.setItem('user', JSON.stringify(normalizedUser));
+          console.log('Utilisateur connecté et sauvegardé:', {
+            email: normalizedUser.email,
+            userType: normalizedUser.userType,
+            id: normalizedUser.id
+          });
+        }
       } else {
         // Sinon, récupérer les informations utilisateur
         console.log('Récupération des informations utilisateur...');
         await checkAuth();
-        // Sauvegarder l'utilisateur après la vérification
+        // Normaliser les données utilisateur après la vérification
         if (user.value) {
-          localStorage.setItem('user', JSON.stringify(user.value));
+          const normalizedUser = normalizeUserData(user.value);
+          if (normalizedUser) {
+            user.value = normalizedUser;
+            localStorage.setItem('user', JSON.stringify(normalizedUser));
+          }
         }
       }
       
@@ -253,25 +309,6 @@ export const useAuthStore = defineStore('auth', () => {
       return false;
     } finally {
       loading.value = false;
-    }
-  };
-
-  // Charger l'état d'authentification depuis le stockage local
-  const loadStoredAuth = (): void => {
-    try {
-      const storedAuth = localStorage.getItem(STORAGE_KEY);
-      if (storedAuth) {
-        const { user: storedUser, token: storedToken } = JSON.parse(storedAuth) as AuthState;
-        if (storedToken && storedUser) {
-          user.value = storedUser;
-          isAuthenticated.value = true;
-          localStorage.setItem('token', storedToken);
-          console.log("État d'authentification chargé depuis le stockage local");
-        }
-      }
-    } catch (e) {
-      console.error('Erreur lors du chargement de l\'état d\'authentification:', e);
-      clearAuth();
     }
   };
 
@@ -428,6 +465,24 @@ export const useAuthStore = defineStore('auth', () => {
     };
   };
 
+  // Fonction pour charger l'état d'authentification stocké
+  const loadStoredAuth = () => {
+    const storedAuth = localStorage.getItem(STORAGE_KEY);
+    if (storedAuth) {
+      try {
+        const authState = JSON.parse(storedAuth) as AuthState;
+        if (authState.token && authState.user) {
+          user.value = authState.user;
+          isAuthenticated.value = authState.isAuthenticated;
+          console.log('État d\'authentification chargé depuis le stockage local');
+        }
+      } catch (err) {
+        console.error('Erreur lors du chargement de l\'état d\'authentification:', err);
+        clearAuth();
+      }
+    }
+  };
+
   if (typeof window !== 'undefined') {
     // Charger l'état d'authentification au démarrage
     loadStoredAuth();
@@ -454,18 +509,45 @@ export const useAuthStore = defineStore('auth', () => {
       cleanupSessionPersistence();
       cleanupSessionPersistence = undefined;
     }
-  }
+  };
 
   // Vérifier l'authentification stockée au démarrage
   const checkStoredAuth = async () => {
     try {
       const token = localStorage.getItem('token');
+      console.log('Vérification de l\'authentification stockée, token présent:', !!token);
+      
       if (token) {
         loading.value = true;
-        const userData = await authService.getCurrentUser();
-        if (userData) {
+        const response = await authService.getCurrentUser();
+        console.log('Réponse de getCurrentUser:', response);
+        
+        if (response?.data) {
+          // S'assurer que le userType est en minuscules pour la cohérence
+          const userData = response.data;
+          if (userData.userType) {
+            userData.userType = userData.userType.toString().toLowerCase().trim();
+          } else if (userData.user_type) {
+            // Gérer le cas où le champ s'appelle user_type au lieu de userType
+            userData.userType = userData.user_type.toString().toLowerCase().trim();
+            delete userData.user_type; // Nettoyer l'ancienne clé
+          }
+          
+          console.log('Utilisateur chargé avec succès:', {
+            id: userData.id,
+            email: userData.email,
+            userType: userData.userType,
+            rawData: userData // Ajouter les données brutes pour le débogage
+          });
+          
           user.value = userData;
           isAuthenticated.value = true;
+          
+          // Sauvegarder l'utilisateur dans le stockage local
+          localStorage.setItem('user', JSON.stringify(userData));
+        } else {
+          console.warn('Aucune donnée utilisateur dans la réponse');
+          clearAuth();
         }
       }
     } catch (error) {
@@ -477,7 +559,7 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   // Vérifier l'authentification au chargement initial
-  checkStoredAuth();
+  checkAuth();
 
   return {
     // State
@@ -491,6 +573,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuth,
     isLoading,
     authError,
+    userType,
     
     // Actions
     setUser,
@@ -504,7 +587,7 @@ export const useAuthStore = defineStore('auth', () => {
     
     // Méthodes internes exposées si nécessaire
     clearAuth
-  };
+  }
 });
 
 export default useAuthStore;

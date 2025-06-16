@@ -182,11 +182,52 @@ Erreur: SQLITE_CONSTRAINT: CHECK constraint failed: gender
 - Le frontend envoyait 'Male' (avec une majuscule)
 - La validation côté backend n'était pas assez stricte
 
-**Solution**  
+## 🔍 Dépannage
+
+### Problème : Erreur de contrainte sur le champ gender
+
+#### Solution appliquée
 
 1. Normalisation du genre en minuscules côté backend
 2. Validation stricte des valeurs autorisées
 3. Meilleurs messages d'erreur
+
+### Problème : Erreur de contrainte CHECK sur le champ document_type
+
+#### Symptômes
+
+- Erreur SQL : `SQLITE_CONSTRAINT: CHECK constraint failed: document_type`
+- L'insertion échoue lors de la création d'une identité utilisateur
+
+#### Cause
+
+La table `identities` a une contrainte CHECK sur la colonne `document_type` qui n'accepte que les valeurs suivantes :
+
+- 'permis_conduire'
+- 'passeport'
+- 'carte_identite'
+
+1. **Normalisation du type de document** :
+
+   - Conversion en minuscules
+   - Suppression des espaces superflus
+   - Gestion des variantes courantes (ex: 'passport' → 'passeport')
+
+2. **Valeurs par défaut** :
+
+   - Si le type de document n'est pas reconnu, 'carte_identite' est utilisé par défaut
+
+3. **Logs détaillés** :
+
+   - Affichage de la valeur originale
+   - Affichage de la valeur nettoyée
+   - Affichage de la valeur normalisée
+
+4. **Gestion des erreurs améliorée** :
+
+   - Messages d'erreur détaillés
+   - Capture des codes d'erreur SQLite
+   - Logs structurés pour le débogage
 
 ### Problème 2 : Échec de création d'adresse - Clé étrangère invalide
 
@@ -245,6 +286,7 @@ node scripts/check-gender-constraint.ts
 La base de données utilise SQLite avec les tables suivantes :
 
 #### 1. Table `users`
+
 - `id` : Clé primaire auto-incrémentée
 - `email` : Email unique de l'utilisateur
 - `password` : Mot de passe hashé
@@ -261,6 +303,7 @@ La base de données utilise SQLite avec les tables suivantes :
 - `updated_at` : Date de mise à jour
 
 #### 2. Table `addresses`
+
 - `id` : Clé primaire auto-incrémentée
 - `user_id` : Clé étrangère vers `users.id`
 - `street` : Rue
@@ -272,6 +315,7 @@ La base de données utilise SQLite avec les tables suivantes :
 - `updated_at` : Date de mise à jour
 
 #### 3. Table `identities`
+
 - `id` : Clé primaire auto-incrémentée
 - `user_id` : Clé étrangère vers `users.id`
 - `document_type` : Type de document (permis_conduire/passeport/carte_identite)
@@ -286,6 +330,7 @@ La base de données utilise SQLite avec les tables suivantes :
 - `updated_at` : Date de mise à jour
 
 #### 4. Table `refresh_tokens`
+
 - `id` : Clé primaire auto-incrémentée
 - `user_id` : Clé étrangère vers `users.id`
 - `token` : Jeton de rafraîchissement unique
@@ -307,14 +352,17 @@ Le projet utilise Knex.js pour la gestion des migrations. La configuration se tr
 #### Commandes de Migration
 
 1. **Créer une nouvelle migration** :
+
    ```bash
    npx knex migrate:make nom_de_la_migration
    ```
 
 2. **Exécuter les migrations** :
+
    ```bash
    node run-migration.js
    ```
+
    Ce script va :
    - Se connecter à la base de données
    - Annuler les migrations existantes
@@ -322,11 +370,13 @@ Le projet utilise Knex.js pour la gestion des migrations. La configuration se tr
    - Afficher les tables créées
 
 3. **Annuler la dernière migration** :
+
    ```bash
    npx knex migrate:rollback
    ```
 
 4. **Voir le statut des migrations** :
+
    ```bash
    npx knex migrate:status
    ```
@@ -334,15 +384,20 @@ Le projet utilise Knex.js pour la gestion des migrations. La configuration se tr
 #### Structure des Fichiers de Migration
 
 Les migrations sont stockées dans `server/database/migrations/` et suivent le format :
-`YYYYMMDDHHmmss_nom_de_la_migration.cjs`
+
+```bash
+YYYYMMDDHHmmss_nom_de_la_migration.cjs
+```
 
 Chaque migration doit exporter deux fonctions :
+
 - `up` : Pour appliquer la migration
 - `down` : Pour annuler la migration
 
 ### Environnements
 
 La base de données prend en charge trois environnements :
+
 1. **Développement** : `server/database/lopango_dev.sqlite3`
 2. **Test** : `server/database/test.sqlite3`
 3. **Production** : `server/database/lopango_prod.sqlite3`

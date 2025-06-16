@@ -1,4 +1,5 @@
 import api from './api';
+import apiConfig from '@/config/api.config';
 import type { 
   LoginCredentials, 
   RegisterData, 
@@ -211,7 +212,9 @@ const authService = {
         throw new Error('Aucun token d\'authentification trouvé');
       }
       
-      const response = await api.get('/auth/me');
+      // Utiliser le chemin complet avec le préfixe /api
+      const response = await api.get(`${apiConfig.endpoints.auth.me}`);
+      console.log('URL de la requête:', `${apiConfig.apiUrl}${apiConfig.endpoints.auth.me}`);
       
       // Vérifier si la réponse contient des données valides
       if (!response?.data?.data) {

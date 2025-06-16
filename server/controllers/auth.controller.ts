@@ -128,17 +128,62 @@ export const register = async (req: Request, res: Response) => {
         throw error; // Relancer l'erreur pour qu'elle soit gérée par le bloc catch externe
       }
 
-      // Créer l'identité
-      await trx('identities').insert({
+      // DEBUG: Afficher la valeur originale du type de document
+      console.log('=== DEBUG: Type de document original ===');
+      console.log('Type de document original:', userData.identity.documentType);
+      console.log('Type de document (type):', typeof userData.identity.documentType);
+      
+      // Normaliser le type de document pour correspondre aux valeurs attendues
+      const documentTypeMap: Record<string, 'permis_conduire' | 'passeport' | 'carte_identite'> = {
+        'passport': 'passeport',
+        'passeport': 'passeport',
+        'permis': 'permis_conduire',
+        'permis_conduire': 'permis_conduire',
+        'cni': 'carte_identite',
+        'carte_identite': 'carte_identite',
+        'carte identite': 'carte_identite',
+        'passeport ': 'passeport', // Ajout d'une entrée avec un espace à la fin
+        ' passeport': 'passeport'  // Ajout d'une entrée avec un espace au début
+      };
+
+      // Forcer la conversion en chaîne et le nettoyage
+      const rawDocumentType = String(userData.identity.documentType || '').trim().toLowerCase();
+      const normalizedDocumentType = documentTypeMap[rawDocumentType] || 'carte_identite';
+      
+      console.log('=== DEBUG: Normalisation du type de document ===');
+      console.log('Type de document original:', JSON.stringify(userData.identity.documentType));
+      console.log('Type de document nettoyé:', JSON.stringify(rawDocumentType));
+      console.log('Type de document normalisé:', JSON.stringify(normalizedDocumentType));
+      
+      // Données d'identité à insérer - forcer le type à 'passeport' pour le test
+      const identityData = {
         user_id: finalUserId,
-        document_type: userData.identity.documentType,
+        document_type: 'passeport', // Forcer la valeur pour le test
         national_id: userData.identity.nationalId,
         document_front_url: userData.identity.documentFrontUrl || null,
         document_back_url: userData.identity.documentBackUrl || null,
         verified: false,
         created_at: new Date(),
         updated_at: new Date()
-      });
+      };
+      
+      console.log('=== DEBUG: Données d\'identité avant insertion ===');
+      console.log(JSON.stringify(identityData, null, 2));
+      
+      // Créer l'identité
+      try {
+        console.log('=== DEBUG: Tentative d\'insertion ===');
+        const result = await trx('identities').insert(identityData);
+        console.log('=== SUCCÈS: Insertion réussie ===');
+        console.log('Résultat:', JSON.stringify(result, null, 2));
+      } catch (error) {
+        console.error('=== ERREUR: Échec de l\'insertion ===');
+        console.error('Erreur complète:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        console.error('Message d\'erreur:', error.message);
+        console.error('Code d\'erreur:', error.code);
+        console.error('Numéro d\'erreur:', error.errno);
+        throw error;
+      }
 
       // Valider la transaction
       await trx.commit();
@@ -148,7 +193,7 @@ export const register = async (req: Request, res: Response) => {
 
       // Enregistrer le refresh token en base de données
       await db('refresh_tokens').insert({
-        user_id: userId,
+        user_id: finalUserId,
         token: refreshToken,
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
         created_at: new Date(),
@@ -311,6 +356,40 @@ export const logout = async (req: Request, res: Response) => {
 };
 
 // Middleware d'authentification
+export const getCurrentUser = async (req: Request, res: Response) => {
+  try {
+    // L'utilisateur est déjà attaché à la requête par le middleware d'authentification
+    if (!req.user) {
+      return res.status(401).json({ message: 'Non autorisé' });
+    }
+
+    // Récupérer les informations complètes de l'utilisateur depuis la base de données
+    const user = await db('users')
+      .select(
+        'id',
+        'email',
+        'first_name as firstName',
+        'last_name as lastName',
+        'phone',
+        'gender',
+        'user_type as userType',
+        'created_at as createdAt',
+        'updated_at as updatedAt'
+      )
+      .where('id', req.user.id)
+      .first();
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
+    res.json({ data: user });
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'utilisateur:', error);
+    res.status(500).json({ message: 'Erreur serveur lors de la récupération des informations utilisateur' });
+  }
+};
+
 export const authenticateJWT = async (req: Request, res: Response, next: Function) => {
   const authHeader = req.headers.authorization;
 

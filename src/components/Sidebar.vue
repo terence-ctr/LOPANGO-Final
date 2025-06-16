@@ -158,8 +158,8 @@ const route = useRoute();
 const authStore = useAuthStore();
 const isCollapsed = ref(false);
 
-// Computed properties
-const userType = computed(() => authStore.user?.userType || '');
+// Utiliser directement le userType du store qui est déjà en minuscules
+const userType = computed(() => authStore.userType);
 const userName = computed(() => authStore.user?.name || '');
 const userInitials = computed(() => {
   const name = authStore.user?.name || '';

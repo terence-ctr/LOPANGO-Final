@@ -19,9 +19,17 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-const isAdmin = computed(() => authStore.user?.role === 'admin')
+const isAdmin = computed(() => {
+  console.log('[Sidebar] Rôle de l\'utilisateur:', authStore.user?.role);
+  return authStore.user?.role === 'admin';
+})
 
-const navigationItems = computed(() => [
+const navigationItems = computed(() => {
+  console.log('[Sidebar] Chargement des éléments de navigation pour le rôle:', authStore.user?.role);
+  console.log('[Sidebar] Utilisateur authentifié:', authStore.isAuthenticated);
+  console.log('[Sidebar] Données utilisateur:', authStore.user);
+  
+  return [
   { 
     name: 'Dashboard', 
     icon: 'home', 
@@ -62,12 +70,23 @@ const navigationItems = computed(() => [
     icon: 'cog', 
     route: 'landlord-custom-options' 
   },
-  ...isAdmin.value ? [{ 
+  ...(isAdmin.value ? [{ 
     name: 'Users', 
     icon: 'user-group', 
     route: 'users' 
-  }] : []
-])
+  }] : [])
+]);
+
+// Log quand les éléments de navigation changent
+watch(navigationItems, (newItems) => {
+  console.log('[Sidebar] Éléments de navigation mis à jour:', newItems);
+}, { immediate: true, deep: true });
+
+// Log quand l'utilisateur change
+watch(() => authStore.user, (newUser) => {
+  console.log('[Sidebar] Utilisateur mis à jour:', newUser);
+  console.log('[Sidebar] Type d\'utilisateur:', newUser?.role || 'Aucun');
+}, { immediate: true, deep: true });
 
 const isActive = (routeName: string) => {
   return route.name === routeName
