@@ -2,7 +2,7 @@ import { SanitizedUser } from '../../types';
 
 declare global {
   namespace Express {
-    inteface Request {
+    interface Request {
       user?: SanitizedUser;
       // Ajoutez d'autres propriétés personnalisées ici si nécessaire
     }

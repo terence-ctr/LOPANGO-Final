@@ -110,7 +110,7 @@ const initializeDatabase = async () => {
 const dbPromise = initializeDatabase();
 
 // Test de la connexion à la base de données
-const testConnection = async (): Promise<void> => {
+const testConnection = async (): Promise<boolean> => {
   const db = await dbPromise;
   return db.testConnection();
 };

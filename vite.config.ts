@@ -13,8 +13,6 @@ export default defineConfig({
           comments: false
         }
       },
-      // Désactivation de la transformation de réactivité
-      reactivityTransform: false,
       script: {
         // Désactivation de defineModel et de la déstructuration des props
         defineModel: false,

@@ -1,0 +1,23 @@
+{
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "node": "current"
+      }
+    }],
+    "@babel/preset-typescript"
+  ],
+  "plugins": [
+    ["module-resolver", {
+      "root": ["./"],
+      "alias": {
+        "@": "./src",
+        "@config": "./server/config",
+        "@middleware": "./server/middleware",
+        "@routes": "./server/routes",
+        "@utils": "./server/utils",
+        "@types": "./server/types"
+      }
+    }]
+  ]
+}
