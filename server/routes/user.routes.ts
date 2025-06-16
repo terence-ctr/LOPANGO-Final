@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import authController from '../controllers/auth.controller';
+import { AuthController } from '@/controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -22,12 +22,12 @@ const loginValidation = [
 ];
 
 // Public routes
-router.post('/register', registerValidation, authController.register);
-router.post('/login', loginValidation, authController.login);
+router.post('/register', registerValidation, AuthController.register);
+router.post('/login', loginValidation, AuthController.login);
 
 // Protected routes (require authentication)
-router.get('/me', authenticate, authController.getCurrentUser);
-router.put('/profile', authenticate, authController.updateProfile);
-router.put('/change-password', authenticate, authController.changePassword);
+router.get('/me', authenticate, AuthController.getCurrentUser);
+router.put('/profile', authenticate, AuthController.updateProfile);
+router.put('/change-password', authenticate, AuthController.changePassword);
 
 export default router;
