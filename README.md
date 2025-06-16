@@ -184,6 +184,69 @@ Erreur: SQLITE_CONSTRAINT: CHECK constraint failed: gender
 
 ## 🔍 Dépannage
 
+### Problème : Erreur de compilation dans le store d'authentification
+
+#### Description de l'erreur
+
+L'application rencontrait une erreur de compilation avec le message suivant :
+
+```
+GET http://localhost:5173/src/stores/auth.ts?t=1750093752687 net::ERR_ABORTED 500 (Internal Server Error)
+Transform failed with 1 error:
+C:/Users/teren/Music/LOPANGO Final/src/stores/auth.ts:160:6: ERROR: Unexpected "catch"
+C:/Users/teren/Music/LOPANGO Final/src/stores/auth.ts:160:6
+Unexpected "catch"
+158|        return false;
+159|        
+160|      } catch (err) {
+   |        ^
+161|        console.error('Erreur lors de la vérification de l\'authentification:', err);
+```
+
+#### Cause du problème
+
+L'erreur était due à une structure incorrecte dans la fonction `checkAuth` du store d'authentification. Plus précisément :
+
+1. Un bloc `catch` mal positionné qui n'était pas correctement associé à un bloc `try`
+2. Une mauvaise gestion des accolades ouvrantes et fermantes dans la fonction
+3. Une logique de gestion d'erreurs qui pouvait potentiellement masquer des problèmes sous-jacents
+
+#### Correctifs appliqués
+
+1. **Restructuration de la fonction `checkAuth`** :
+   - Réorganisation complète de la fonction pour une meilleure lisibilité
+   - Correction de l'imbrication des blocs `try/catch`
+   - Amélioration de la gestion des erreurs
+
+2. **Normalisation du `userType`** :
+   - Ajout d'une logique pour s'assurer que le `userType` est toujours en minuscules
+   - Gestion des cas où le champ s'appelle `user_type` au lieu de `userType`
+   - Nettoyage des anciennes clés après normalisation
+
+3. **Amélioration des logs** :
+   - Ajout de logs détaillés pour faciliter le débogage
+   - Affichage des données brutes des réponses pour une meilleure visibilité
+
+4. **Correction des références** :
+   - Utilisation cohérente des références aux données utilisateur
+   - Mise à jour des chemins de redirection en fonction du `userType`
+
+#### Prochaines étapes
+
+1. **Tests approfondis** :
+   - Tester la connexion avec différents types d'utilisateurs
+   - Vérifier que la barre latérale affiche les bons menus en fonction du rôle
+   - S'assurer que les redirections fonctionnent correctement
+
+2. **Améliorations potentielles** :
+   - Ajouter des tests unitaires pour le store d'authentification
+   - Implémenter une meilleure gestion des erreurs côté client
+   - Ajouter des validations supplémentaires pour les données utilisateur
+
+3. **Documentation** :
+   - Mettre à jour la documentation technique
+   - Documenter les flux d'authentification et les rôles utilisateurs
+
 ### Problème : Erreur de contrainte sur le champ gender
 
 #### Solution appliquée
