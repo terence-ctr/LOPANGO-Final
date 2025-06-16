@@ -1,0 +1,37 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist/server",
+    "rootDir": "./server",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./server/*"],
+      "@config/*": ["./server/config/*"],
+      "@middleware/*": ["./server/middleware/*"],
+      "@routes/*": ["./server/routes/*"],
+      "@utils/*": ["./server/utils/*"],
+      "@types/*": ["./server/types/*"]
+    },
+    "types": ["node"]
+  },
+  "include": [
+    "server/**/*.ts",
+    "server/**/*.tsx",
+    "server/**/*.vue"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.spec.ts",
+    "src",
+    "**/*.test.ts",
+    "dist"
+  ]
+}
