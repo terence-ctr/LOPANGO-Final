@@ -37,7 +37,7 @@ interface SanitizedUser {
 
 export class AuthController {
   // User registration
-  static async register(req: Request, res: Response): Promise<Response> {
+  static async register(req: Request, res: Response): Promise<void> {
     const startTime = Date.now();
     const requestId = Math.random().toString(36).substring(2, 10);
     
@@ -53,10 +53,11 @@ export class AuthController {
       if (!errors.isEmpty()) {
         await transaction.rollback();
         logger.warn(`[${requestId}] [REGISTER] Validation errors`, { errors: errors.array() });
-        return res.status(400).json({ 
+        res.status(400).json({
           success: false,
           errors: errors.array() 
         });
+        return;
       }
 
       const { 
@@ -75,11 +76,12 @@ export class AuthController {
 
       if (existingUser) {
         logger.warn(`[${requestId}] [REGISTER] Email already in use`, { email });
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           code: 'EMAIL_EXISTS',
           message: 'Email already registered'
         });
+        return;
       }
 
       // Hash password
@@ -153,7 +155,7 @@ export class AuthController {
         responseTime: `${responseTime}ms`
       });
 
-      return res.status(201).json({
+      res.status(201).json({
         success: true,
         message: 'Registration successful',
         user: userResponse,
@@ -162,6 +164,7 @@ export class AuthController {
           refreshToken
         }
       });
+      return;
 
     } catch (error) {
       // Rollback de la transaction en cas d'erreur
@@ -178,17 +181,18 @@ export class AuthController {
         stack: error instanceof Error ? error.stack : undefined
       });
 
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
         code: 'REGISTRATION_ERROR',
         message: 'An error occurred during registration',
         errorId
       });
+      return;
     }
   }
 
   // User login
-  static async login(req: Request, res: Response): Promise<Response> {
+  static async login(req: Request, res: Response): Promise<void> {
     const startTime = Date.now();
     const requestId = Math.random().toString(36).substring(2, 10);
     
@@ -199,10 +203,11 @@ export class AuthController {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
+      res.status(400).json({
         success: false, 
         errors: errors.array() 
       });
+      return;
     }
 
     const { email, password } = req.body;
@@ -220,11 +225,12 @@ export class AuthController {
         if (!user) {
           await transaction.rollback();
           logger.warn(`[${requestId}] [LOGIN] User not found`, { email });
-          return res.status(401).json({
+          res.status(401).json({
             success: false,
             message: 'Invalid credentials',
             code: 'INVALID_CREDENTIALS'
           });
+          return;
         }
 
         // Check if account is locked
@@ -238,12 +244,13 @@ export class AuthController {
             remainingTime: `${remainingTime}s`
           });
           
-          return res.status(403).json({
+          res.status(403).json({
             success: false,
             message: 'Account locked. Too many failed attempts.',
             code: 'ACCOUNT_LOCKED',
             retryAfter: remainingTime
           });
+          return;
         }
 
         // Verify password
@@ -269,12 +276,13 @@ export class AuthController {
             
             await transaction.commit();
             
-            return res.status(403).json({
+            res.status(403).json({
               success: false,
               message: 'Too many failed attempts. Account locked.',
               code: 'ACCOUNT_LOCKED',
               retryAfter: Math.ceil(lockoutTime / 1000)
             });
+            return;
           }
           
           // Update failed attempts
@@ -284,12 +292,13 @@ export class AuthController {
           
           await transaction.commit();
           
-          return res.status(401).json({ 
+          res.status(401).json({
             success: false,
             message: 'Invalid credentials',
             code: 'INVALID_CREDENTIALS',
             remainingAttempts: maxAttempts - newFailedAttempts
           });
+          return;
         }
 
         // Check if account is active
@@ -307,7 +316,8 @@ export class AuthController {
             response.verificationRequired = true;
           }
           
-          return res.status(403).json(response);
+          res.status(403).json(response);
+          return;
         }
 
         // Generate new tokens
@@ -357,7 +367,7 @@ export class AuthController {
           responseTime: `${responseTime}ms` 
         });
         
-        return res.json({
+        res.json({
           success: true,
           message: 'Login successful',
           user: userData,
@@ -366,6 +376,7 @@ export class AuthController {
             refreshToken
           }
         });
+        return;
 
       } catch (error) {
         await transaction.rollback();
@@ -377,13 +388,14 @@ export class AuthController {
           stack: error instanceof Error ? error.stack : undefined
         });
         
-        return res.status(500).json({
+        res.status(500).json({
           success: false,
           code: 'LOGIN_ERROR',
           message: 'Login failed',
           errorId,
           ...(process.env.NODE_ENV === 'development' && { error: errorMessage })
         });
+        return;
       }
     }
 
@@ -419,10 +431,11 @@ export class AuthController {
     }
 
     // Get current user profile
-    static async getCurrentUser(req: Request, res: Response): Promise<Response> {
+    static async getCurrentUser(req: Request, res: Response): Promise<void> {
       const userId = req.user?.id;
       if (!userId) {
-        return res.status(401).json({ success: false, code: 'UNAUTHORIZED', message: 'Not authenticated' });
+        res.status(401).json({ success: false, code: 'UNAUTHORIZED', message: 'Not authenticated' });
+        return;
       }
 
       try {
@@ -431,7 +444,8 @@ export class AuthController {
         });
 
         if (!user) {
-          return res.status(404).json({ success: false, code: 'USER_NOT_FOUND', message: 'User not found' });
+          res.status(404).json({ success: false, code: 'USER_NOT_FOUND', message: 'User not found' });
+          return;
         }
 
         // Convertir les noms de colonnes snake_case en camelCase
@@ -462,23 +476,26 @@ export class AuthController {
           gender: user.getDataValue('gender') || null
         };
 
-        return res.json({ success: true, data: userData });
+        res.json({ success: true, data: userData });
+        return;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error('Error getting current user:', { error: errorMessage });
-        return res.status(500).json({ 
+        res.status(500).json({
           success: false, 
           code: 'SERVER_ERROR', 
           message: 'An error occurred while fetching user profile' 
         });
+        return;
       }
     }
 
     // Logout user
-    static async logout(req: Request, res: Response): Promise<Response> {
+    static async logout(req: Request, res: Response): Promise<void> {
       const userId = req.user?.id;
       if (!userId) {
-        return res.status(401).json({ success: false, code: 'UNAUTHORIZED', message: 'Not authenticated' });
+        res.status(401).json({ success: false, code: 'UNAUTHORIZED', message: 'Not authenticated' });
+        return;
       }
 
       try {
@@ -488,15 +505,92 @@ export class AuthController {
         // Pour l'instant, on se contente de logger la déconnexion
         logger.info(`User ${userId} logged out`);
         
-        return res.json({ success: true, message: 'Logout successful' });
+        res.json({ success: true, message: 'Logout successful' });
+        return;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error('Error during logout:', { error: errorMessage });
-        return res.status(500).json({ 
+        res.status(500).json({
           success: false, 
           code: 'LOGOUT_ERROR', 
           message: 'An error occurred during logout' 
         });
+        return;
       }
     }
+
+  // Stub for Refresh Token
+  static async refreshToken(req: Request, res: Response): Promise<void> {
+    const requestId = Math.random().toString(36).substring(2, 10);
+    logger.info(`[${requestId}] [REFRESH_TOKEN] Stub called`, { ip: req.ip });
+    res.status(501).json({
+      success: false,
+      code: 'NOT_IMPLEMENTED',
+      message: 'Refresh token functionality is not implemented yet.'
+    });
+    return;
   }
+
+  // Stub for Forgot Password
+  static async forgotPassword(req: Request, res: Response): Promise<void> {
+    const requestId = Math.random().toString(36).substring(2, 10);
+    logger.info(`[${requestId}] [FORGOT_PASSWORD] Stub called`, { ip: req.ip, body: req.body });
+    res.status(501).json({
+      success: false,
+      code: 'NOT_IMPLEMENTED',
+      message: 'Forgot password functionality is not implemented yet.'
+    });
+    return;
+  }
+
+  // Stub for Reset Password
+  static async resetPassword(req: Request, res: Response): Promise<void> {
+    const requestId = Math.random().toString(36).substring(2, 10);
+    logger.info(`[${requestId}] [RESET_PASSWORD] Stub called`, { ip: req.ip, body: req.body });
+    res.status(501).json({
+      success: false,
+      code: 'NOT_IMPLEMENTED',
+      message: 'Reset password functionality is not implemented yet.'
+    });
+    return;
+  }
+
+  // Stub for Update Profile
+  static async updateProfile(req: Request, res: Response): Promise<void> {
+    const userId = req.user?.id;
+    const requestId = Math.random().toString(36).substring(2, 10);
+    logger.info(`[${requestId}] [UPDATE_PROFILE] Stub called for user ${userId}`, { ip: req.ip, body: req.body });
+    res.status(501).json({
+      success: false,
+      code: 'NOT_IMPLEMENTED',
+      message: 'Update profile functionality is not implemented yet.'
+    });
+    return;
+  }
+
+  // Stub for Change Password
+  static async changePassword(req: Request, res: Response): Promise<void> {
+    const userId = req.user?.id;
+    const requestId = Math.random().toString(36).substring(2, 10);
+    logger.info(`[${requestId}] [CHANGE_PASSWORD] Stub called for user ${userId}`, { ip: req.ip });
+    res.status(501).json({
+      success: false,
+      code: 'NOT_IMPLEMENTED',
+      message: 'Change password functionality is not implemented yet.'
+    });
+    return;
+  }
+
+  // Stub for Get All Users (Admin)
+  static async getAllUsers(req: Request, res: Response): Promise<void> {
+    const adminId = req.user?.id;
+    const requestId = Math.random().toString(36).substring(2, 10);
+    logger.info(`[${requestId}] [GET_ALL_USERS] Stub called by admin ${adminId}`, { ip: req.ip });
+    res.status(501).json({
+      success: false,
+      code: 'NOT_IMPLEMENTED',
+      message: 'Get all users functionality is not implemented yet.'
+    });
+    return;
+  }
+}
