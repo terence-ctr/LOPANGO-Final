@@ -76,7 +76,7 @@
         </div>
         <transition name="fade" mode="out-in">
           <div v-if="!isCollapsed" class="min-w-0">
-            <p class="font-medium truncate">{{ userName }}</p>
+            <p class="font-medium truncate text-blue-200"> {{ userName }}</p>
             <p class="text-sm text-blue-200 truncate">{{ userRole }}</p>
           </div>
         </transition>
@@ -160,10 +160,49 @@ const isCollapsed = ref(false);
 
 // Utiliser directement le userType du store qui est déjà en minuscules
 const userType = computed(() => authStore.userType);
-const userName = computed(() => authStore.user?.name || '');
+
+// Afficher les données de l'utilisateur pour le débogage
+// Propriétés réactives pour le nom et les initiales
+const userName = computed(() => {
+  const user = authStore.user;
+  
+  if (!user) {
+    console.log('Aucun utilisateur connecté');
+    return 'Utilisateur';
+  }
+  
+  // Utiliser first_name et last_name (avec underscore) qui sont les noms des champs dans l'API
+  const firstName = user.first_name || user.firstName || '';
+  const lastName = user.last_name || user.lastName || '';
+  
+  console.log('Données utilisateur disponibles:', {
+    firstName,
+    lastName,
+    email: user.email
+  });
+  
+  // Construire le nom complet
+  if (firstName || lastName) {
+    return `${firstName} ${lastName}`.trim();
+  }
+  
+  // Fallback sur l'email
+  if (user.email) {
+    return user.email.split('@')[0];
+  }
+  
+  return 'Utilisateur';
+});
+
+// Mettre à jour les initiales pour utiliser le même format de nom
 const userInitials = computed(() => {
-  const name = authStore.user?.name || '';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  const name = userName.value || '';
+  return name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
 });
 const userRole = computed(() => {
   const roles: Record<string, string> = {

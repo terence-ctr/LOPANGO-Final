@@ -14,6 +14,11 @@
         
         <!-- Actions -->
         <div class="flex items-center space-x-3">
+          <!-- Avatar utilisateur -->
+          <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+            {{ userInitials }}
+          </div>
+            
           <!-- Bouton d'action principal -->
           <button
             v-if="primaryAction"
@@ -156,6 +161,29 @@ const handleSecondaryAction = (action: Action) => {
   emit('secondary-action', action);
   action.handler();
 };
+
+// Initiales de l'utilisateur
+const authStore = useAuthStore();
+
+// Log pour déboguer
+console.log('AuthStore:', authStore);
+console.log('User data:', authStore.user);
+
+const userInitials = computed(() => {
+  const user = authStore.user || {};
+  const name = user.name || user.firstName || user.first_name || user.email || '';
+  console.log('Calculating initials for name:', name);
+  
+  const initials = name
+    .split(' ')
+    .map(n => n[0] || '')
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+    
+  console.log('Calculated initials:', initials || 'U');
+  return initials || 'U';
+});
 
 // Mettre à jour le titre du document
 const route = useRoute();

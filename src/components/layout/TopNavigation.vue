@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 defineProps({
   pageTitle: {
     type: String,
@@ -6,11 +8,39 @@ defineProps({
   },
   user: {
     type: Object,
-    required: true
+    required: true,
+    default: () => ({
+      first_name: '',
+      last_name: '',
+      email: ''
+    })
   }
 })
 
 defineEmits(['toggleSidebar'])
+
+// Fonction pour obtenir les initiales de l'utilisateur
+const getUserInitials = () => {
+  const user = props.user;
+  if (!user) return 'U';
+  
+  // Essayer d'abord avec first_name et last_name
+  if (user.first_name || user.last_name) {
+    return `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || 'U';
+  }
+  
+  // Sinon essayer avec le nom complet
+  if (user.name) {
+    return user.name.charAt(0).toUpperCase();
+  }
+  
+  // Sinon utiliser l'email
+  if (user.email) {
+    return user.email.charAt(0).toUpperCase();
+  }
+  
+  return 'U';
+}
 </script>
 
 <template>

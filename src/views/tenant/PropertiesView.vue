@@ -14,6 +14,7 @@
         Mes propriétés
       </h1>
       <button 
+        v-if="!isTenant"
         @click="handleAddProperty"
         class="bg-blue-800 hover:bg-blue-900 text-white text-sm font-semibold rounded px-4 py-2 flex items-center transition-colors duration-200"
       >
@@ -64,69 +65,118 @@
     </div>
     
     <!-- Table -->
-    <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-      <table class="w-full text-xs text-left text-gray-700 rounded-lg overflow-hidden">
-        <thead class="bg-white border-b border-gray-200 rounded-t-lg">
-          <tr>
-            <th class="py-2 px-3 font-semibold border-r border-gray-200 w-10 rounded-tl-lg">
-              #
-            </th>
-            <th class="py-2 px-3 font-semibold border-r border-gray-200">
-              Nom
-            </th>
-            <th class="py-2 px-3 font-semibold border-r border-gray-200">
-              Adresse
-            </th>
-            <th class="py-2 px-3 font-semibold border-r border-gray-200">
-              Bailleur
-            </th>
-            <th class="py-2 px-3 font-semibold border-r border-gray-200">
-              Loyer mensuel
-            </th>
-            <th class="py-2 px-3 font-semibold border-r border-gray-200">
-              Statut
-            </th>
-            <th class="py-2 px-3 font-semibold w-10 rounded-tr-lg">
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(property, index) in filteredProperties" :key="property.id" 
-              class="border-b border-gray-200 hover:bg-gray-50">
-            <td class="py-2 px-3 border-r border-gray-200">
-              {{ index + 1 }}
-            </td>
-            <td class="py-2 px-3 border-r border-gray-200">
-              {{ property.name }}
-            </td>
-            <td class="py-2 px-3 border-r border-gray-200">
-              {{ property.address }}
-            </td>
-            <td class="py-2 px-3 border-r border-gray-200">
-              <a class="text-blue-600 font-semibold hover:underline" href="#">
-                {{ property.landlord }}
-              </a>
-            </td>
-            <td class="py-2 px-3 border-r border-gray-200">
-              {{ property.rent }}$
-            </td>
-            <td :class="['py-2', 'px-3', 'border-r', 'border-gray-200', 'font-semibold', 
-                         property.status === 'Actif' ? 'text-green-600' : 'text-red-500']">
-              {{ property.status }}
-            </td>
-            <td class="py-2 px-3 text-center cursor-pointer select-none">
-              <button @click="openPropertyMenu(property)" class="p-1">
-                ...
-              </button>
-            </td>
-          </tr>
-          <tr v-if="filteredProperties.length === 0">
-            <td colspan="7" class="py-4 text-center text-gray-500">
-              Aucune propriété trouvée
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-semibold text-gray-900">Gestion des propriétés</h2>
+        <button 
+          v-if="!isTenant"
+          @click="handleAddProperty"
+          class="bg-blue-800 hover:bg-blue-900 text-white text-sm font-semibold rounded px-4 py-2 flex items-center transition-colors duration-200"
+        >
+          <font-awesome-icon icon="plus" class="mr-2 text-xs" />
+          Ajouter un logement
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border border-gray-200 rounded-lg text-left text-xs text-gray-600">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="py-2 px-3 font-semibold w-10">#</th>
+              <th class="py-2 px-3 font-semibold">Nom de la propriété</th>
+              <th class="py-2 px-3 font-semibold">Adresse</th>
+              <th class="py-2 px-3 font-semibold">Bailleur</th>
+              <th class="py-2 px-3 font-semibold">Loyer</th>
+              <th class="py-2 px-3 font-semibold">Statut</th>
+              <th class="py-2 px-3 w-16"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(property, index) in filteredProperties" :key="property.id" class="border-b border-gray-200">
+              <td class="py-2 px-3 font-mono text-gray-700">{{ String(index + 1).padStart(2, '0') }}</td>
+              <td class="py-2 px-3">{{ property.name }}</td>
+              <td class="py-2 px-3">{{ property.address }}</td>
+              <td class="py-2 px-3">
+                <a class="text-blue-600 hover:underline" href="#">
+                  {{ property.landlord }}
+                </a>
+              </td>
+              <td class="py-2 px-3">{{ property.rent }} $</td>
+              <td class="py-2 px-3">
+                <span :class="['font-semibold', property.status === 'Actif' ? 'text-green-600' : 'text-red-500']">
+                  {{ property.status }}
+                </span>
+              </td>
+              <td class="py-2 px-3">
+                <div class="relative flex justify-end">
+                  <!-- Bouton de menu pour les écrans larges -->
+                  <button 
+                    @click.stop="openPropertyMenu(property)" 
+                    class="p-2 text-gray-500 hover:text-blue-600 focus:outline-none"
+                    :class="{ 'text-blue-600': propertyMenuOpen === property.id }"
+                  >
+                    <i class="fas fa-ellipsis-v">...</i>
+                  </button>
+                  
+                  <!-- Menu déroulant pour les écrans larges -->
+                  <div 
+                    v-if="propertyMenuOpen === property.id" 
+                    class="absolute right-0 z-50 mt-1 w-48 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                    style="top: 100%;"
+                    @click.stop
+                  >
+                    <div class="py-1">
+                      <a 
+                        href="#"
+                        @click.prevent="viewProperty(property)" 
+                        class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      >
+                        <i class="fas fa-eye mr-2 text-gray-500 w-4"></i>
+                        Voir les détails
+                      </a>
+                      <a 
+                        href="#"
+                        @click.prevent="reportProperty(property)" 
+                        class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                        v-if="!isTenant"
+                      >
+                        <i class="fas fa-flag mr-2 text-yellow-500 w-4"></i>
+                        Signaler
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Boutons visibles uniquement sur mobile -->
+                <div class="md:hidden flex space-x-2">
+                  <a 
+                    href="#"
+                    @click.prevent="viewProperty(property)" 
+                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-full"
+                    title="Voir les détails"
+                  >
+                    <i class="fas fa-eye"></i>
+                  </a>
+                  <a 
+                    href="#"
+                    @click.prevent="reportProperty(property)" 
+                    class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-full"
+                    title="Signaler"
+                    v-if="!isTenant"
+                  >
+                    <i class="fas fa-flag"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="filteredProperties.length === 0">
+              <td colspan="7" class="py-4 text-center text-gray-500">
+                Aucune propriété trouvée
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     
     <!-- Pagination -->
@@ -155,34 +205,12 @@
         </button>
       </div>
     </div>
-    
-    <!-- Property Menu Modal -->
-    <div v-if="selectedProperty" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-4 w-64">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-bold">Actions</h3>
-          <button @click="selectedProperty = null" class="text-gray-500 hover:text-gray-700">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="space-y-2">
-          <button @click="viewProperty(selectedProperty)" class="w-full text-left px-4 py-2 hover:bg-gray-100 rounded">
-            Voir les détails
-          </button>
-          <button @click="editProperty(selectedProperty)" class="w-full text-left px-4 py-2 hover:bg-gray-100 rounded">
-            Modifier
-          </button>
-          <button @click="deleteProperty(selectedProperty)" class="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 rounded">
-            Supprimer
-          </button>
-        </div>
-      </div>
-    </div>
   </main>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 import PropertyForm from '@/components/tenant/properties/PropertyForm.vue';
 
 // User data
@@ -235,7 +263,15 @@ const searchQuery = ref('');
 const selectedProperty = ref(null);
 const currentPage = ref(1);
 const itemsPerPage = 10;
+const authStore = useAuthStore();
+// Inverser la logique pour afficher le bouton Signaler pour les locataires
+const isTenant = computed(() => authStore.user?.userType === 'tenant');
+
+// Gestion du menu déroulant des propriétés
+const propertyMenuOpen = ref(null);
+
 const showAddPropertyForm = ref(false);
+const showFilters = ref(false);
 
 // Computed properties
 const filteredProperties = computed(() => {
@@ -294,10 +330,6 @@ const handleSearch = () => {
   currentPage.value = 1; // Reset to first page on new search
 };
 
-const openPropertyMenu = (property) => {
-  selectedProperty.value = property;
-};
-
 const viewProperty = (property) => {
   console.log('View property:', property);
   selectedProperty.value = null;
@@ -343,10 +375,36 @@ const handlePropertyCreated = (newProperty) => {
   alert('Le logement a été ajouté avec succès !');
 };
 
+// Fonction pour signaler une propriété
+const reportProperty = (property) => {
+  console.log('Signalement de la propriété:', property);
+  // Ici, vous pouvez ajouter la logique pour signaler la propriété
+  // Par exemple, ouvrir un formulaire de signalement ou envoyer une requête API
+  alert(`Signalement de la propriété: ${property.name}`);
+};
+
+// Fonction pour ouvrir/fermer le menu d'une propriété
+const openPropertyMenu = (property) => {
+  propertyMenuOpen.value = propertyMenuOpen.value === property.id ? null : property.id;
+};
+
+// Gérer le clic en dehors du menu
+const handleClickOutside = (event) => {
+  if (!event.target.closest('.property-actions')) {
+    propertyMenuOpen.value = null;
+  }
+};
+
 // Lifecycle hooks
 onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+  
   // Fetch properties from API if needed
   // fetchProperties();
+  
+  return () => {
+    document.removeEventListener('click', handleClickOutside);
+  };
 });
 </script>
 

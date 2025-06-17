@@ -6,76 +6,12 @@
     <!-- Contenu principal -->
     <div class="flex-1 flex flex-col overflow-hidden">
       <!-- Barre de navigation supérieure -->
-      <header class="bg-white shadow-sm z-10">
-        <div class="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
-          <!-- Bouton pour afficher/masquer la sidebar (mobile) -->
-          <button 
-            @click="toggleSidebar"
-            class="text-gray-500 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 md:hidden"
-            aria-label="Ouvrir le menu"
-          >
-            <font-awesome-icon :icon="['fas', 'bars']" class="h-6 w-6" />
-          </button>
-          
-          <!-- Titre de la page -->
-          <h1 class="text-lg font-medium text-gray-900">
-            {{ route.meta.title || 'Tableau de bord' }}
-          </h1>
-          
-          <!-- Menu utilisateur -->
-          <div class="flex items-center space-x-4">
-            <div class="relative">
-              <button 
-                @click="toggleProfileMenu" 
-                class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                aria-label="Menu utilisateur"
-              >
-                <span class="sr-only">Ouvrir le menu utilisateur</span>
-                <div class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
-                  {{ userInitials }}
-                </div>
-              </button>
-              
-              <!-- Menu déroulant utilisateur -->
-              <transition
-                enter-active-class="transition ease-out duration-100"
-                enter-from-class="transform opacity-0 scale-95"
-                enter-to-class="transform opacity-100 scale-100"
-                leave-active-class="transition ease-in duration-75"
-                leave-from-class="transform opacity-100 scale-100"
-                leave-to-class="transform opacity-0 scale-95"
-              >
-                <div 
-                  v-show="isProfileMenuOpen" 
-                  v-click-outside="() => isProfileMenuOpen = false"
-                  class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50"
-                  role="menu"
-                  aria-orientation="vertical"
-                  aria-labelledby="user-menu"
-                >
-                  <router-link 
-                    to="/profile"
-                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    role="menuitem"
-                    @click="isProfileMenuOpen = false"
-                  >
-                    <font-awesome-icon :icon="['fas', 'user']" class="mr-2" />
-                    Mon profil
-                  </router-link>
-                  <button 
-                    @click="logout"
-                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                    role="menuitem"
-                  >
-                    <font-awesome-icon :icon="['fas', 'sign-out-alt']" class="mr-2" />
-                    Déconnexion
-                  </button>
-                </div>
-              </transition>
-            </div>
-          </div>
-        </div>
-      </header>
+     <TopNavigationBar
+        :user="authStore.user"
+        :pageTitle="route.meta.title || 'Tableau de bord'"
+        @toggleSidebar="toggleSidebar"
+        @logout="logout"
+      />  
 
       <!-- Contenu de la page -->
       <main class="flex-1 overflow-y-auto focus:outline-none bg-gray-50">
@@ -105,6 +41,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import Sidebar from '@/components/Sidebar.vue';
+import TopNavigationBar from '@/components/layout/TopNavigationBar.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -115,8 +52,11 @@ const isSidebarOpen = ref(false);
 // Initiales de l'utilisateur pour l'avatar
 const userInitials = computed(() => {
   if (!authStore.user) return '??';
-  const name = authStore.user.name || '';
-  return name
+  const firstName = authStore.user.firstName || '';
+  const lastName = authStore.user.lastName || '';
+  const fullName = `${firstName} ${lastName}`.trim();
+  if (!fullName) return '??';
+  return fullName
     .split(' ')
     .map(n => n[0])
     .join('')
