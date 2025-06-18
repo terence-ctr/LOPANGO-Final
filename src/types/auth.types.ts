@@ -15,9 +15,12 @@ export interface RegisterData {
   userType: 'tenant' | 'landlord' | 'agent' | 'admin';
   identity: {
     documentType: DocumentType;
-    nationalId: string;
-    documentFront?: File;
-    documentBack?: File;
+    documentNumber: string;
+    issueDate: string;
+    issuingAuthority: string;
+    issuingCountry: string;
+    frontDocumentUrl: string;
+    backDocumentUrl?: string;
   };
   acceptedTerms: boolean;
   acceptedPrivacyPolicy: boolean;

@@ -1,25 +1,46 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
 import { db } from '../database';
-import { RegisterData, LoginCredentials, AuthResponse } from '../../src/types/auth.types';
-import { User, UserType } from '../../src/types/user.types';
+import { uploadFiles, getFileUrl } from '../utils/fileUpload';
+import { 
+  RegisterDto, 
+  LoginDto, 
+  AuthResponseDto,
+  TokenPayload, 
+  RefreshTokenDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  VerifyEmailDto
+} from '../utils/dto/auth/auth.dto';
+import { IUser } from '../utils/interfaces/user.interface';
+import { UserType, UserTypeEnum } from '../utils/enums/user.enum';
+
+declare global {
+  namespace Express {
+    interface Request {
+      files?: {
+        [fieldname: string]: Express.Multer.File[];
+      };
+    }
+  }
+}
 
 // Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
 
-// Types personnalisés
-type UserFromDB = Omit<User, 'id'> & { id: number };
-
 // Fonction utilitaire pour générer les tokens
-const generateTokens = (userId: number, userType: UserType) => {
+const generateTokens = (userId: string, userType: UserType) => {
+  const expiresIn = parseInt(JWT_EXPIRES_IN) * 60; // en secondes
+  
   const accessToken = jwt.sign(
     { id: userId, type: userType },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn }
   );
 
   const refreshToken = jwt.sign(
@@ -28,306 +49,831 @@ const generateTokens = (userId: number, userType: UserType) => {
     { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
   );
 
-  return { accessToken, refreshToken };
+  return { 
+    accessToken, 
+    refreshToken,
+    expiresIn
+  };
 };
 
-export const register = async (req: Request, res: Response) => {
-  try {
-    const userData: RegisterData = req.body;
+// Fonction utilitaire pour formater la réponse utilisateur
+const formatUserResponse = (user: IUser) => ({
+  id: user._id,
+  email: user.email,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  userType: user.userType,
+  emailVerified: user.emailVerified,
+  profilePicture: user.profilePicture,
+  isActive: user.isActive
+});
 
-    // Vérifier si l'utilisateur existe déjà
-    const existingUser = await db('users').where('email', userData.email).first();
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email déjà utilisé' });
-    }
-
-    // Définir les genres valides exactement comme dans la base de données
-    const validGenders = ['male', 'female', 'other'] as const;
-    type ValidGender = typeof validGenders[number];
-    
-    // Normaliser le genre en minuscules et supprimer les espaces
-    const normalizedGender = userData.gender 
-      ? String(userData.gender).toLowerCase().trim() as ValidGender 
-      : null;
-    
-    // Vérifier si le genre est valide
-    if (!normalizedGender || !validGenders.includes(normalizedGender)) {
-      return res.status(400).json({ 
+/**
+ * Middleware pour gérer le téléchargement des fichiers
+ */
+export const handleFileUpload = (req: Request, res: Response, next: NextFunction) => {
+  uploadFiles(req as any, res, (err: any) => {
+    if (err) {
+      return res.status(400).json({
         success: false,
-        message: 'Genre invalide', 
-        details: `Le genre doit être l'une des valeurs suivantes : ${validGenders.join(', ')}`,
-        received: userData.gender,
-        normalized: normalizedGender || 'null'
+        message: err.message || 'Erreur lors du téléchargement des fichiers',
+      });
+    }
+    next();
+  });
+};
+
+/**
+ * Enregistrement d'un nouvel utilisateur
+ */
+export const register = async (req: Request, res: Response, next: NextFunction) => {
+  const trx = await db.transaction();
+  
+  try {
+    // Récupérer les fichiers téléchargés
+    const files = req.files || {};
+    
+    // Vérifier si des fichiers ont été reçus
+    console.log('=== FICHIERS REÇUS ===');
+    console.log('Document recto:', files.documentFront ? 'Oui' : 'Non');
+    console.log('Document verso:', files.documentBack ? 'Oui' : 'Non');
+    
+    // Parser les champs du formulaire
+    const formData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    
+    // Parser les données d'identité si elles sont fournies
+    let identityData = {};
+    if (formData.identity) {
+      identityData = typeof formData.identity === 'string' 
+        ? JSON.parse(formData.identity) 
+        : formData.identity;
+    }
+    
+    // Préparer les données du formulaire
+    const userData: RegisterDto = {
+      ...formData,
+      // Convertir les champs booléens
+      acceptTerms: formData.acceptTerms === true || formData.acceptTerms === 'true',
+      acceptPrivacyPolicy: formData.acceptPrivacyPolicy === true || formData.acceptPrivacyPolicy === 'true',
+      // Gérer les fichiers téléchargés
+      identity: {
+        ...identityData,
+        frontDocumentUrl: files.documentFront ? files.documentFront[0].filename : '',
+        backDocumentUrl: files.documentBack ? files.documentBack[0].filename : undefined,
+      },
+    };
+    
+    console.log('=== DONNÉES DU FORMULAIRE ===');
+    console.log('Email:', userData.email);
+    console.log('Prénom:', userData.firstName);
+    console.log('Nom:', userData.lastName);
+    console.log('Téléphone:', userData.phone);
+    console.log('Type d\'utilisateur:', userData.userType);
+    console.log('Date de naissance:', userData.dateOfBirth);
+    console.log('Adresse:', userData.address);
+    console.log('Identité:', userData.identity);
+    
+    // Log des données reçues pour débogage
+    console.log('=== DONNÉES REÇUES LORS DE L\'INSCRIPTION ===');
+    console.log('Email:', userData.email);
+    console.log('Prénom:', userData.firstName);
+    console.log('Nom:', userData.lastName);
+    console.log('Téléphone:', userData.phone);
+    console.log('Type d\'utilisateur:', userData.userType);
+    console.log('Date de naissance:', userData.dateOfBirth);
+    console.log('Genre:', userData.gender);
+    console.log('Accepté les CGU:', userData.acceptTerms);
+    console.log('Accepté la politique de confidentialité:', userData.acceptPrivacyPolicy);
+    
+    console.log('--- Adresse ---');
+    if (userData.address) {
+      console.log('Rue:', userData.address.street);
+      console.log('Ville:', userData.address.city);
+      console.log('Code postal:', userData.address.postalCode);
+      console.log('Pays:', userData.address.country);
+    } else {
+      console.log('Aucune adresse fournie');
+    }
+    
+    console.log('--- Identité ---');
+    if (userData.identity) {
+      console.log('Type de document:', userData.identity.documentType);
+      console.log('Numéro de document:', userData.identity.documentNumber);
+      console.log('Date d\'émission:', userData.identity.issueDate);
+      console.log('Autorité émettrice:', userData.identity.issuingAuthority);
+      console.log('Pays émetteur:', userData.identity.issuingCountry);
+      console.log('Document recto:', userData.identity.frontDocumentUrl ? 'fourni' : 'manquant');
+      console.log('Document verso:', userData.identity.backDocumentUrl ? 'fourni' : 'manquant');
+    } else {
+      console.log('Aucune information d\'identité fournie');
+    }
+    console.log('======================================');
+
+    // Vérification de l'email désactivée pour le débogage
+    console.log('=== VÉRIFICATION DE L\'EMAIL DÉSACTIVÉE ===');
+    console.log('Contournement de la vérification pour l\'email:', userData.email);
+    
+    // Ancien code de vérification d'email désactivé
+    try {
+      const query = trx('users').where('email', userData.email).toSQL();
+      console.log('📝 Requête SQL qui aurait été exécutée:');
+      console.log('   SQL:', query.sql);
+      console.log('   Bindings:', query.bindings);
+      
+      console.log('✅ Vérification d\'email contournée pour le débogage');
+    } catch (error) {
+      console.error('❌ Erreur inattendue:', error);
+      await trx.rollback();
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur inattendue lors du traitement',
+        code: 'UNEXPECTED_ERROR',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
     
-    // S'assurer que la valeur est bien en minuscules pour la base de données
-    userData.gender = normalizedGender;
-
-    // Hasher le mot de passe
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(userData.password, salt);
-
-    // Démarrer une transaction
-    const trx = await db.transaction();
-
-    try {
-      console.log('Début de la création de l\'utilisateur...');
-      // Créer l'utilisateur
-      console.log('Insertion de l\'utilisateur dans la base de données...');
-      const result = await trx('users').insert({
-        email: userData.email,
-        password: hashedPassword,
-        first_name: userData.firstName,
-        last_name: userData.lastName,
-        phone: userData.phone,
-        date_of_birth: new Date(userData.dateOfBirth),
-        gender: userData.gender,
-        user_type: userData.userType,
-        email_verified: false,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-      
-      // Pour SQLite, le résultat est un tableau avec l'ID inséré
-      const userId = Array.isArray(result) ? result[0] : result;
-      
-      console.log('Résultat de l\'insertion utilisateur:', { result, userId });
-      
-      // S'assurer que l'ID est un nombre
-      const parsedUserId = typeof userId === 'object' && userId !== null ? userId.id : userId;
-      const finalUserId = Number(parsedUserId);
-      
-      if (isNaN(finalUserId)) {
-        throw new Error(`ID utilisateur invalide: ${JSON.stringify(userId)}`);
-      }
-      
-      console.log('ID utilisateur final:', finalUserId);
-
-      // Créer l'adresse avec l'ID utilisateur final
-      const addressData = {
-        user_id: finalUserId,
-        street: userData.address.street,
-        city: userData.address.city,
-        postal_code: userData.address.postalCode,
-        country: userData.address.country,
-        additional_info: userData.address.additionalInfo || null,
-        created_at: new Date(),
-        updated_at: new Date()
-      };
-      
-      console.log('Création de l\'adresse avec les données:', addressData);
+    // Vérifier si le numéro d'identité existe déjà
+    if (userData.identity?.documentNumber) {
+      console.log('\n=== VÉRIFICATION DU NUMÉRO D\'IDENTITÉ ===');
+      console.log('Recherche d\'une identité avec le numéro:', userData.identity.documentNumber);
       
       try {
-        console.log('Tentative d\'insertion de l\'adresse avec les données:', JSON.stringify(addressData, null, 2));
-        await trx('addresses').insert(addressData);
-        console.log('Adresse créée avec succès');
+        const query = trx('identities').where('national_id', userData.identity.documentNumber).toSQL();
+        console.log('📝 Requête SQL générée pour la recherche d\'identité:');
+        console.log('   SQL:', query.sql);
+        console.log('   Bindings:', query.bindings);
+        
+        const existingIdentity = await trx('identities')
+          .where('national_id', userData.identity.documentNumber)
+          .first();
+          
+        if (existingIdentity) {
+          console.error('❌ Identité existante trouvée avec ce numéro:', {
+            id: existingIdentity.id,
+            national_id: existingIdentity.national_id,
+            created_at: existingIdentity.created_at
+          });
+          
+          // Vérifier toutes les identités dans la base pour le débogage
+          const allIdentities = await trx('identities').select('id', 'national_id', 'created_at');
+          console.log('📋 Liste de toutes les identités dans la base:', allIdentities);
+          
+          await trx.rollback();
+          return res.status(409).json({
+            success: false,
+            message: 'Ce numéro d\'identité est déjà utilisé',
+            code: 'IDENTITY_NUMBER_ALREADY_EXISTS',
+            existingIdentity: {
+              id: existingIdentity.id,
+              national_id: existingIdentity.national_id,
+              created_at: existingIdentity.created_at
+            }
+          });
+        } else {
+          console.log('✅ Aucune identité existante trouvée avec ce numéro');
+        }
       } catch (error) {
-        console.error('Erreur lors de la création de l\'adresse:', error);
-        throw error; // Relancer l'erreur pour qu'elle soit gérée par le bloc catch externe
+        console.error('❌ Erreur lors de la vérification du numéro d\'identité:', error);
+        await trx.rollback();
+        return res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la vérification du numéro d\'identité',
+          code: 'IDENTITY_VERIFICATION_ERROR',
+          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
       }
-
-      // DEBUG: Afficher la valeur originale du type de document
-      console.log('=== DEBUG: Type de document original ===');
-      console.log('Type de document original:', userData.identity.documentType);
-      console.log('Type de document (type):', typeof userData.identity.documentType);
-      
-      // Normaliser le type de document pour correspondre aux valeurs attendues
-      const documentTypeMap: Record<string, 'permis_conduire' | 'passeport' | 'carte_identite'> = {
-        'passport': 'passeport',
-        'passeport': 'passeport',
-        'permis': 'permis_conduire',
-        'permis_conduire': 'permis_conduire',
-        'cni': 'carte_identite',
-        'carte_identite': 'carte_identite',
-        'carte identite': 'carte_identite',
-        'passeport ': 'passeport', // Ajout d'une entrée avec un espace à la fin
-        ' passeport': 'passeport'  // Ajout d'une entrée avec un espace au début
-      };
-
-      // Forcer la conversion en chaîne et le nettoyage
-      const rawDocumentType = String(userData.identity.documentType || '').trim().toLowerCase();
-      const normalizedDocumentType = documentTypeMap[rawDocumentType] || 'carte_identite';
-      
-      console.log('=== DEBUG: Normalisation du type de document ===');
-      console.log('Type de document original:', JSON.stringify(userData.identity.documentType));
-      console.log('Type de document nettoyé:', JSON.stringify(rawDocumentType));
-      console.log('Type de document normalisé:', JSON.stringify(normalizedDocumentType));
-      
-      // Données d'identité à insérer - forcer le type à 'passeport' pour le test
-      const identityData = {
-        user_id: finalUserId,
-        document_type: 'passeport', // Forcer la valeur pour le test
-        national_id: userData.identity.nationalId,
-        document_front_url: userData.identity.documentFrontUrl || null,
-        document_back_url: userData.identity.documentBackUrl || null,
-        verified: false,
-        created_at: new Date(),
-        updated_at: new Date()
-      };
-      
-      console.log('=== DEBUG: Données d\'identité avant insertion ===');
-      console.log(JSON.stringify(identityData, null, 2));
-      
-      // Créer l'identité
-      try {
-        console.log('=== DEBUG: Tentative d\'insertion ===');
-        const result = await trx('identities').insert(identityData);
-        console.log('=== SUCCÈS: Insertion réussie ===');
-        console.log('Résultat:', JSON.stringify(result, null, 2));
-      } catch (error) {
-        console.error('=== ERREUR: Échec de l\'insertion ===');
-        console.error('Erreur complète:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-        console.error('Message d\'erreur:', error.message);
-        console.error('Code d\'erreur:', error.code);
-        console.error('Numéro d\'erreur:', error.errno);
-        throw error;
-      }
-
-      // Valider la transaction
-      await trx.commit();
-
-      // Générer les tokens
-      const { accessToken, refreshToken } = generateTokens(finalUserId, userData.userType);
-
-      // Enregistrer le refresh token en base de données
-      await db('refresh_tokens').insert({
-        user_id: finalUserId,
-        token: refreshToken,
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-
-      // Préparer la réponse
-      const user = await db('users')
-        .where('id', userId)
-        .select('id', 'email', 'first_name', 'last_name', 'user_type', 'email_verified', 'is_active')
-        .first();
-
-      const response: AuthResponse = {
-        user,
-        token: accessToken,
-        refreshToken,
-        expiresIn: 3600 // 1 heure en secondes
-      };
-
-      res.status(201).json(response);
-    } catch (error) {
-      await trx.rollback();
-      throw error;
     }
-  } catch (error) {
-    console.error('Erreur lors de l\'inscription :', error);
-    res.status(500).json({ message: 'Erreur lors de l\'inscription' });
+
+    // Vérifier les fichiers d'identité
+    if (userData.identity?.frontDocumentUrl) {
+      console.log('Vérification du fichier d\'identité recto:', userData.identity.frontDocumentUrl);
+      // Vérifier si le fichier existe déjà en base (par son nom de fichier)
+      const existingFrontFile = await trx('identities')
+        .where('document_front_url', userData.identity.frontDocumentUrl)
+        .orWhere('document_back_url', userData.identity.frontDocumentUrl)
+        .first();
+      
+      if (existingFrontFile) {
+        console.log('Un fichier avec ce nom (recto) existe déjà, annulation de l\'inscription');
+        await trx.rollback();
+        return res.status(409).json({
+          success: false,
+          message: 'Un fichier avec ce nom existe déjà',
+          code: 'DUPLICATE_FILE_NAME',
+          fileType: 'frontDocument'
+        });
+      }
+    }
+    
+    if (userData.identity?.backDocumentUrl) {
+      console.log('Vérification du fichier d\'identité verso:', userData.identity.backDocumentUrl);
+      // Vérifier si le fichier existe déjà en base (par son nom de fichier)
+      const existingBackFile = await trx('identities')
+        .where('document_front_url', userData.identity.backDocumentUrl)
+        .orWhere('document_back_url', userData.identity.backDocumentUrl)
+        .first();
+      
+      if (existingBackFile) {
+        console.log('Un fichier avec ce nom (verso) existe déjà, annulation de l\'inscription');
+        await trx.rollback();
+        return res.status(409).json({
+          success: false,
+          message: 'Un fichier avec ce nom existe déjà',
+          code: 'DUPLICATE_FILE_NAME',
+          fileType: 'backDocument'
+        });
+      }
+    }
+    
+    // Vérifier l'acceptation des CGU et de la politique de confidentialité
+    if (!userData.acceptTerms || !userData.acceptPrivacyPolicy) {
+      await trx.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Vous devez accepter les conditions générales et la politique de confidentialité'
+      });
+    }
+
+    // Hacher le mot de passe
+    const hashedPassword = await bcrypt.hash(userData.password, 12);
+    const emailVerificationToken = uuidv4();
+    const emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 heures
+    const now = new Date();
+
+    // Créer l'adresse
+    const addressData: any = {
+      street: userData.address.street,
+      city: userData.address.city,
+      postal_code: userData.address.postalCode || '',
+      country: userData.address.country,
+      user_id: null, // Sera mis à jour après la création de l'utilisateur
+      created_at: now,
+      updated_at: now
+    };
+    
+    console.log('Données d\'adresse à insérer:', addressData);
+    
+    // Insérer l'adresse sans user_id pour le moment
+    const [addressId] = await trx('addresses').insert(addressData);
+    console.log('Adresse insérée avec l\'ID:', addressId);
+    
+    if (typeof addressId !== 'number' || isNaN(addressId)) {
+      console.error('Erreur: Impossible de déterminer l\'ID d\'adresse valide');
+      throw new Error('Échec de la récupération de l\'ID d\'adresse');
+    }
+    
+    console.log('Address ID final:', addressId, 'Type:', typeof addressId);
+
+    // Créer l'identité
+    const documentTypeMap: Record<string, string> = {
+      'passport': 'passeport',
+      'id_card': 'carte_identite',
+      'driver_license': 'permis_conduire',
+      'permis_conduire': 'permis_conduire',
+      'passeport': 'passeport',
+      'carte_identite': 'carte_identite'
+    };
+    
+    const mappedDocumentType = documentTypeMap[userData.identity.documentType] || 'carte_identite';
+    
+    const identityDataToInsert = {
+      document_type: mappedDocumentType,
+      national_id: userData.identity.documentNumber,
+      document_front_url: userData.identity.frontDocumentUrl,
+      document_back_url: userData.identity.backDocumentUrl,
+      verified: false,
+      user_id: null, // Sera mis à jour après la création de l'utilisateur
+      created_at: now,
+      updated_at: now
+    };
+    
+    console.log('Type de document mappé:', userData.identity.documentType, '->', mappedDocumentType);
+    console.log('Données d\'identité à insérer:', identityDataToInsert);
+    
+    // Insérer l'identité sans user_id pour le moment
+    const [identityId] = await trx('identities').insert(identityDataToInsert);
+    console.log('Identité insérée avec l\'ID:', identityId);
+    
+    if (typeof identityId !== 'number' || isNaN(identityId)) {
+      console.error('Erreur: Impossible de déterminer l\'ID d\'identité valide');
+      throw new Error('Échec de la récupération de l\'ID d\'identité');
+    }
+    
+    console.log('Identity ID final:', identityId, 'Type:', typeof identityId);
+
+    // Créer l'utilisateur
+    console.log('\n=== CRÉATION DE L\'UTILISATEUR ===');
+    console.log('Tentative de création de l\'utilisateur avec l\'email:', userData.email);
+    
+    // Préparer les données utilisateur
+    const userInsertData = {
+      email: userData.email,
+      password: hashedPassword,
+      first_name: userData.firstName,
+      last_name: userData.lastName,
+      phone: userData.phone,
+      date_of_birth: userData.dateOfBirth,
+      gender: userData.gender,
+      user_type: userData.userType,
+      email_verification_token: emailVerificationToken,
+      email_verification_expire: emailVerificationExpire,
+      accepted_terms: true,
+      accepted_terms_at: now,
+      accepted_privacy_policy: true,
+      accepted_privacy_policy_at: now,
+      is_active: true,
+      email_verified: false,
+      failed_login_attempts: 0,
+      mfa_enabled: false,
+      created_at: now,
+      updated_at: now
+    };
+    
+    // Afficher la requête SQL qui va être exécutée
+    const query = trx('users').insert(userInsertData).toSQL();
+    console.log('📝 Requête SQL générée pour l\'insertion utilisateur:');
+    console.log('   SQL:', query.sql);
+    console.log('   Bindings:', query.bindings);
+    
+    // Insérer l'utilisateur d'abord
+    const [userId] = await trx('users').insert(userInsertData);
+    console.log('✅ Utilisateur créé avec succès avec l\'ID:', userId);
+    console.log('   Type de l\'ID retourné:', typeof userId);
+    
+    // Mettre à jour l'adresse avec l'ID de l'utilisateur
+    console.log('Mise à jour de l\'adresse ID', addressId, 'avec user_id:', userId);
+    await trx('addresses')
+      .where('id', addressId)
+      .update({ user_id: userId });
+    
+    // Mettre à jour l'identité avec l'ID de l'utilisateur
+    console.log('Mise à jour de l\'identité ID', identityId, 'avec user_id:', userId);
+    await trx('identities')
+      .where('id', identityId)
+      .update({ user_id: userId });
+    
+    // Mettre à jour l'utilisateur avec les ID d'adresse et d'identité
+    console.log('Mise à jour de l\'utilisateur avec address_id:', addressId, 'et identity_id:', identityId);
+    await trx('users')
+      .where('id', userId)
+      .update({
+        address_id: addressId,
+        identity_id: identityId
+      });
+    
+    // Vérifier la présence effective de l'utilisateur dans la base
+    const createdUser = await trx('users').where('id', userId).first();
+    if (!createdUser) {
+      const errorMsg = 'Échec de la création de l\'utilisateur: Utilisateur non trouvé après création';
+      console.error(`❌ ${errorMsg}`);
+      
+      // Vérifier les tables pour le débogage
+      const usersCount = await trx('users').count('* as count').first();
+      const addressesCount = await trx('addresses').count('* as count').first();
+      const identitiesCount = await trx('identities').count('* as count').first();
+      
+      console.error('📊 État de la base de données au moment de l\'erreur:', {
+        usersCount: usersCount?.count || 0,
+        addressesCount: addressesCount?.count || 0,
+        identitiesCount: identitiesCount?.count || 0
+      });
+      
+      await trx.rollback();
+      return res.status(500).json({
+        success: false,
+        message: errorMsg,
+        code: 'USER_CREATION_FAILED',
+        details: process.env.NODE_ENV === 'development' ? {
+          usersCount: usersCount?.count || 0,
+          addressesCount: addressesCount?.count || 0,
+          identitiesCount: identitiesCount?.count || 0
+        } : undefined
+      });
+    }
+    
+    console.log('✅ Utilisateur créé avec succès avec l\'ID:', userId);
+    
+    // Valider que les clés étrangères sont bien définies
+    if (!createdUser.address_id || !createdUser.identity_id) {
+      console.error('❌ ERREUR: Les clés étrangères ne sont pas correctement définies', {
+        address_id: createdUser.address_id,
+        identity_id: createdUser.identity_id
+      });
+      
+      await trx.rollback();
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la création du compte: échec de la définition des relations',
+        code: 'RELATIONSHIP_CREATION_FAILED',
+        details: process.env.NODE_ENV === 'development' ? {
+          address_id: createdUser.address_id,
+          identity_id: createdUser.identity_id
+        } : undefined
+      });
+    }
+    
+    // Valider que l'utilisateur a bien été créé avec les bonnes relations
+    const finalUser = await trx('users')
+      .leftJoin('addresses', 'users.address_id', 'addresses.id')
+      .leftJoin('identities', 'users.identity_id', 'identities.id')
+      .where('users.id', userId)
+      .select([
+        'users.*',
+        'addresses.street',
+        'addresses.city',
+        'identities.document_type',
+        'identities.national_id'
+      ])
+      .first();
+    
+    if (!finalUser) {
+      console.error('❌ ERREUR: Impossible de récupérer les données complètes de l\'utilisateur après création');
+      await trx.rollback();
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la récupération des données du compte',
+        code: 'USER_DATA_RETRIEVAL_FAILED'
+      });
+    }
+    
+    // Valider que l'adresse et l'identité ont bien l'ID de l'utilisateur
+    const address = await trx('addresses').where('id', createdUser.address_id).first();
+    const identity = await trx('identities').where('id', createdUser.identity_id).first();
+    
+    if (!address || !identity) {
+      console.error('❌ ERREUR: Impossible de vérifier les relations de l\'utilisateur', {
+        addressExists: !!address,
+        identityExists: !!identity
+      });
+      await trx.rollback();
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la vérification des relations du compte',
+        code: 'RELATIONSHIP_VERIFICATION_FAILED',
+        details: process.env.NODE_ENV === 'development' ? {
+          addressExists: !!address,
+          identityExists: !!identity
+        } : undefined
+      });
+    }
+    
+    if (address.user_id !== userId || identity.user_id !== userId) {
+      console.error('❌ ERREUR: Incohérence dans les relations utilisateur', {
+        addressUserId: address.user_id,
+        identityUserId: identity.user_id,
+        expectedUserId: userId
+      });
+      await trx.rollback();
+      return res.status(500).json({
+        success: false,
+        message: 'Incohérence détectée dans les données du compte',
+        code: 'DATA_INCONSISTENCY',
+        details: process.env.NODE_ENV === 'development' ? {
+          addressUserId: address.user_id,
+          identityUserId: identity.user_id,
+          expectedUserId: userId
+        } : undefined
+      });
+    }
+    
+    // Générer les tokens JWT avant de valider la transaction
+    const { accessToken, refreshToken } = generateTokens(finalUser.id.toString(), finalUser.user_type);
+    
+    // Enregistrer le refresh token en base de données
+    await trx('refresh_tokens').insert({
+      user_id: finalUser.id,
+      token: refreshToken,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+    
+    // Tout s'est bien passé, on valide la transaction
+    await trx.commit();
+    
+    // Préparer la réponse
+    const userResponse = {
+      id: finalUser.id,
+      email: finalUser.email,
+      firstName: finalUser.first_name,
+      lastName: finalUser.last_name,
+      phone: finalUser.phone,
+      userType: finalUser.user_type,
+      isActive: finalUser.is_active,
+      emailVerified: finalUser.email_verified,
+      address: {
+        id: finalUser.address_id,
+        street: finalUser.street,
+        city: finalUser.city
+      },
+      identity: {
+        id: finalUser.identity_id,
+        documentType: finalUser.document_type,
+        documentNumber: finalUser.national_id
+      },
+      createdAt: finalUser.created_at,
+      updatedAt: finalUser.updated_at
+    };
+    
+    console.log('✅ Inscription réussie pour l\'utilisateur:', userResponse.email);
+    
+    // Répondre avec succès
+    return res.status(201).json({
+      success: true,
+      message: 'Compte créé avec succès',
+      data: {
+        user: userResponse,
+        tokens: {
+          accessToken,
+          refreshToken
+        }
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('❌ ERREUR CRITIQUE lors de l\'inscription:', error);
+    
+    // S'assurer que la transaction est bien rollback en cas d'erreur
+    if (trx) {
+      await trx.rollback();
+    }
+    
+    // Gestion des erreurs de contrainte
+    if (error.code === 'SQLITE_CONSTRAINT' || error.code === '23505') {
+      // Vérifier si c'est une contrainte sur l'email
+      if (error.message && error.message.includes('users.email')) {
+        console.error('Erreur: Email déjà utilisé');
+        return res.status(409).json({
+          success: false,
+          message: 'Un compte avec cet email existe déjà',
+          code: 'EMAIL_ALREADY_EXISTS'
+        });
+      }
+      // Vérifier si c'est une contrainte sur l'identité
+      else if (error.message && error.message.includes('users.identity_id')) {
+        console.error('Erreur: Problème avec la clé étrangère identity_id');
+        return res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la création du compte: problème avec l\'identité',
+          code: 'IDENTITY_FK_ERROR'
+        });
+      }
+      // Vérifier si c'est une contrainte sur l'adresse
+      else if (error.message && error.message.includes('users.address_id')) {
+        console.error('Erreur: Problème avec la clé étrangère address_id');
+        return res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la création du compte: problème avec l\'adresse',
+          code: 'ADDRESS_FK_ERROR'
+        });
+      }
+      // Pour les autres erreurs de contrainte
+      else {
+        console.error('Erreur de contrainte SQL:', error.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la création du compte: contrainte non gérée',
+          code: 'UNHANDLED_CONSTRAINT_ERROR',
+          details: process.env.NODE_ENV === 'development' ? {
+            error: error.message,
+            code: error.code,
+            constraint: error.constraint
+          } : undefined
+        });
+      }
+    }
+    
+    // Pour les autres types d'erreurs
+    console.error('Erreur inattendue lors de la création du compte:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Une erreur est survenue lors de la création du compte',
+      code: 'INTERNAL_SERVER_ERROR',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
-export const login = async (req: Request, res: Response) => {
+/**
+ * Connexion d'un utilisateur
+ */
+export const login = async (req: Request, res: Response, next: NextFunction) => {
+  const trx = await db.transaction();
+  
   try {
-    const { email, password, rememberMe }: LoginCredentials = req.body;
+    const { email, password }: LoginDto = req.body;
 
-    // Vérifier si l'utilisateur existe
-    const user = await db('users').where('email', email).first();
+    // Trouver l'utilisateur par email
+    const user = await trx('users')
+      .where('email', email)
+      .first();
+
     if (!user) {
-      return res.status(401).json({ message: 'Email ou mot de passe incorrect' });
-    }
-
-    // Vérifier le mot de passe
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Email ou mot de passe incorrect' });
+      await trx.rollback();
+      return res.status(401).json({
+        success: false,
+        message: 'Email ou mot de passe incorrect'
+      });
     }
 
     // Vérifier si le compte est actif
     if (!user.is_active) {
-      return res.status(403).json({ message: 'Ce compte est désactivé' });
+      await trx.rollback();
+      return res.status(403).json({
+        success: false,
+        message: 'Votre compte est désactivé. Veuillez contacter le support.'
+      });
     }
 
-    // Générer les tokens
-    const { accessToken, refreshToken } = generateTokens(user.id, user.user_type);
+    // Vérifier le mot de passe
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      // Incrémenter le compteur de tentatives échouées
+      await trx('users')
+        .where('id', user.id)
+        .increment('failed_login_attempts', 1);
+      
+      await trx.commit();
+      
+      return res.status(401).json({
+        success: false,
+        message: 'Email ou mot de passe incorrect'
+      });
+    }
 
-    // Enregistrer le refresh token en base de données
-    await db('refresh_tokens').insert({
+    // Réinitialiser le compteur de tentatives échouées
+    await trx('users')
+      .where('id', user.id)
+      .update({
+        failed_login_attempts: 0,
+        last_login: new Date(),
+        updated_at: new Date()
+      });
+
+    // Générer les tokens
+    const { accessToken, refreshToken, expiresIn } = generateTokens(user.id, user.user_type);
+
+    // Sauvegarder le refresh token
+    await trx('refresh_tokens').insert({
       user_id: user.id,
       token: refreshToken,
-      expires_at: rememberMe 
-        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 jours
-        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
-      created_at: new Date(),
-      updated_at: new Date()
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
+      created_at: new Date()
     });
 
-    // Mettre à jour la date de dernière connexion
-    await db('users')
-      .where('id', user.id)
-      .update({ last_login: new Date() });
+    // Valider la transaction
+    await trx.commit();
 
-    // Préparer la réponse
-    const { password: _, ...userWithoutPassword } = user;
-    const response: AuthResponse = {
-      user: userWithoutPassword,
-      token: accessToken,
-      refreshToken,
-      expiresIn: 3600 // 1 heure en secondes
+    // Formater la réponse
+    const response: AuthResponseDto = {
+      user: formatUserResponse(user),
+      tokens: {
+        accessToken,
+        refreshToken,
+        expiresIn
+      }
     };
 
-    res.json(response);
+    res.status(200).json({
+      success: true,
+      data: response,
+      message: 'Connexion réussie'
+    });
+
   } catch (error) {
+    await trx.rollback();
     console.error('Erreur lors de la connexion :', error);
-    res.status(500).json({ message: 'Erreur lors de la connexion' });
+    next(error);
   }
 };
 
-export const refreshToken = async (req: Request, res: Response) => {
+/**
+ * Rafraîchir le token d'accès
+ */
+export const refreshToken = async (req: Request, res: Response, next: NextFunction) => {
+  const trx = await db.transaction();
+  
   try {
-    const { refreshToken } = req.body;
+    const { refreshToken: refreshTokenValue }: RefreshTokenDto = req.body;
 
-    if (!refreshToken) {
-      return res.status(401).json({ message: 'Refresh token requis' });
+    if (!refreshTokenValue) {
+      await trx.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Le refresh token est requis'
+      });
     }
 
-    // Vérifier le refresh token dans la base de données
-    const tokenData = await db('refresh_tokens')
-      .where('token', refreshToken)
-      .where('expires_at', '>', new Date())
+    // Vérifier le refresh token
+    let decoded: TokenPayload;
+    try {
+      decoded = jwt.verify(refreshTokenValue, JWT_SECRET) as TokenPayload;
+    } catch (error) {
+      await trx.rollback();
+      if (error instanceof jwt.JsonWebTokenError) {
+        return res.status(403).json({
+          success: false,
+          message: 'Token invalide'
+        });
+      }
+      throw error;
+    }
+    
+    if (decoded.type !== 'refresh') {
+      await trx.rollback();
+      return res.status(403).json({
+        success: false,
+        message: 'Type de token invalide'
+      });
+    }
+
+    // Vérifier si le token existe dans la base de données
+    const token = await trx('refresh_tokens')
+      .where('token', refreshTokenValue)
       .where('revoked', false)
       .first();
 
-    if (!tokenData) {
-      return res.status(403).json({ message: 'Refresh token invalide ou expiré' });
-    }
-
-    // Vérifier le token JWT
-    const decoded = jwt.verify(refreshToken, JWT_SECRET) as { id: number; type: string };
-    
-    if (decoded.type !== 'refresh') {
-      return res.status(403).json({ message: 'Token invalide' });
+    if (!token || new Date(token.expires_at) < new Date()) {
+      await trx.rollback();
+      return res.status(403).json({
+        success: false,
+        message: 'Token expiré ou révoqué'
+      });
     }
 
     // Récupérer l'utilisateur
-    const user = await db('users')
-      .where('id', decoded.id)
-      .select('id', 'email', 'first_name', 'last_name', 'user_type', 'email_verified', 'is_active')
+    const user = await trx('users')
+      .where('id', token.user_id)
       .first();
 
     if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      await trx.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'Utilisateur non trouvé' 
+      });
     }
 
-    // Générer un nouveau token d'accès
-    const { accessToken: newAccessToken } = generateTokens(user.id, user.user_type);
+    // Vérifier si le compte est actif
+    if (!user.is_active) {
+      await trx.rollback();
+      return res.status(403).json({
+        success: false,
+        message: 'Ce compte est désactivé'
+      });
+    }
 
-    res.json({
-      token: newAccessToken,
-      refreshToken,
-      user,
-      expiresIn: 3600 // 1 heure en secondes
+    // Générer de nouveaux tokens
+    const { accessToken, refreshToken: newRefreshToken, expiresIn } = generateTokens(user.id, user.user_type);
+
+    // Révocation de l'ancien token
+    await trx('refresh_tokens')
+      .where('id', token.id)
+      .update({
+        revoked: true,
+        updated_at: new Date()
+      });
+
+    // Enregistrer le nouveau refresh token
+    await trx('refresh_tokens').insert({
+      user_id: user.id,
+      token: newRefreshToken,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
+      created_at: new Date()
     });
+
+
+    // Valider la transaction
+    await trx.commit();
+
+    // Formater la réponse
+    const response: AuthResponseDto = {
+      user: formatUserResponse(user),
+      tokens: {
+        accessToken,
+        refreshToken: newRefreshToken,
+        expiresIn
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      data: response,
+      message: 'Token rafraîchi avec succès'
+    });
+
   } catch (error) {
+    await trx.rollback();
     console.error('Erreur lors du rafraîchissement du token :', error);
-    res.status(500).json({ message: 'Erreur lors du rafraîchissement du token' });
+    
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(403).json({
+        success: false,
+        message: 'Token expiré'
+      });
+    }
+    
+    next(error);
   }
 };
 

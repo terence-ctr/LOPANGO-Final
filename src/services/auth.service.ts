@@ -1,4 +1,4 @@
-import api from './api';
+import api, { type ApiError } from './api';
 import apiConfig from '@/config/api.config';
 import type { 
   LoginCredentials, 
@@ -142,29 +142,20 @@ const authService = {
     }
   },
 
-  async register(userData: ExtendedRegisterData) {
+  async register(formData: FormData) {
     try {
-      // Préparer les données pour l'inscription
-      const registerData = {
-        ...userData,
-        address: {
-          street: userData.address?.street || '',
-          city: userData.address?.city || '',
-          postalCode: userData.address?.postalCode || '',
-          country: userData.address?.country || 'France'
+      console.log('[authService] Envoi de la requête d\'inscription avec FormData');
+      
+      // Configuration spéciale pour l'envoi de FormData
+      const config = {
+        headers: {
+          'Content-Type': 'multipart/form-data'
         },
-        identity: {
-          documentType: userData.identity?.documentType || 'permis de conduire',
-          nationalId: userData.identity?.nationalId || '',
-          verified: false
-        },
-        dateOfBirth: new Date().toISOString().split('T')[0],
-        gender: 'male'
+        withCredentials: true,
+        validateStatus: (status: number) => status < 500 // Ne pas lever d'erreur pour les erreurs 4xx
       };
       
-      console.log('[authService] Envoi de la requête d\'inscription');
-      
-      const response = await api.post('/auth/register', registerData);
+      const response = await api.post('/auth/register', formData, config);
       
       console.log('[authService] Réponse du serveur:', {
         status: response.status,
@@ -172,16 +163,22 @@ const authService = {
         data: response.data
       });
       
+      // Si le statut est une erreur client (4xx) ou serveur (5xx)
       if (response.status >= 400) {
-        const errorMessage = response.data?.message || 'Erreur lors de l\'inscription';
-        console.error(`[authService] Erreur ${response.status}: ${errorMessage}`);
-        throw new Error(errorMessage);
+        const errorData = response.data || {};
+        const errorMessage = errorData.message || 'Erreur lors de l\'inscription';
+        const error = new Error(errorMessage) as any;
+        error.response = { data: errorData };
+        error.code = errorData.code;
+        console.error(`[authService] Erreur ${response.status}:`, errorMessage);
+        throw error;
       }
       
       return response.data;
     } catch (error: any) {
       console.error('[authService] Erreur lors de la requête d\'inscription:', {
         message: error.message,
+        code: error.code,
         response: error.response?.data,
         config: {
           url: error.config?.url,
@@ -190,14 +187,16 @@ const authService = {
         }
       });
       
-      let errorMessage = 'Erreur lors de l\'inscription';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+      // Si l'erreur a déjà été traitée, on la propage telle quelle
+      if (error.response?.data) {
+        throw error;
       }
       
-      throw new Error(errorMessage);
+      // Pour les autres erreurs, on crée un objet d'erreur cohérent
+      const errorMessage = error.message || 'Une erreur est survenue lors de l\'inscription';
+      const newError = new Error(errorMessage) as any;
+      newError.response = { data: { message: errorMessage, code: 'UNKNOWN_ERROR' } };
+      throw newError;
     }
   },
 

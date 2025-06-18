@@ -34,14 +34,20 @@ const formData = reactive<RegisterData>({
   // Identité
   identity: {
     documentType: 'passport',
-    nationalId: '',
-    documentFront: undefined,
-    documentBack: undefined
+    documentNumber: '',
+    issueDate: new Date().toISOString().split('T')[0],
+    issuingAuthority: 'Gouvernement',
+    issuingCountry: 'Congo',
+    frontDocumentUrl: '',
+    backDocumentUrl: '',
+    // Champs pour stocker temporairement les fichiers avant l'upload
+    documentFrontFile: null as File | null,
+    documentBackFile: null as File | null
   },
   
   // Acceptation des CGU
-  acceptedTerms: false,
-  acceptedPrivacyPolicy: false
+  acceptTerms: false,
+  acceptPrivacyPolicy: false
 });
 
 const error = ref('');
@@ -89,10 +95,58 @@ const checkPasswordStrength = () => {
   }
 };
 
-const handleFileUpload = (event: Event, field: 'documentFront' | 'documentBack') => {
+const handleFileUpload = async (event: Event, field: 'documentFront' | 'documentBack') => {
+  console.log(`Début du téléchargement pour le champ: ${field}`);
   const input = event.target as HTMLInputElement;
-  if (input.files && input.files[0]) {
-    formData.identity[field] = input.files[0];
+  if (!input.files || !input.files[0]) {
+    console.log('Aucun fichier sélectionné');
+    return;
+  }
+
+  const file = input.files[0];
+  
+  // Vérifier la taille du fichier (max 5MB)
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  if (file.size > maxSize) {
+    error.value = 'La taille du fichier ne doit pas dépasser 5MB';
+    return;
+  }
+
+  // Vérifier le type de fichier
+  const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+  if (!allowedTypes.includes(file.type)) {
+    error.value = 'Format de fichier non supporté. Utilisez JPG, PNG ou PDF.';
+    return;
+  }
+
+  try {
+    console.log('Fichier sélectionné:', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      field: field
+    });
+    
+    // Créer une URL d'objet pour l'aperçu
+    const objectUrl = URL.createObjectURL(file);
+    console.log('URL de prévisualisation créée:', objectUrl);
+    
+    // Mettre à jour le formulaire avec l'URL de l'objet
+    if (field === 'documentFront') {
+      formData.identity.frontDocumentUrl = objectUrl;
+      formData.identity.documentFrontFile = file;
+    } else if (field === 'documentBack') {
+      formData.identity.backDocumentUrl = objectUrl;
+      formData.identity.documentBackFile = file;
+    }
+    
+    console.log('Formulaire mis à jour avec le fichier:', formData.identity);
+    
+    // Effacer toute erreur précédente
+    error.value = '';
+  } catch (err) {
+    console.error('Erreur lors du traitement du fichier:', err);
+    error.value = 'Une erreur est survenue lors du traitement du fichier';
   }
 };
 
@@ -100,27 +154,64 @@ const validateForm = (): boolean => {
   formSubmitted.value = true;
   
   // Vérification des champs requis
-  if (!formData.email || !formData.password || !formData.confirmPassword || 
-      !formData.firstName || !formData.lastName || !formData.phone || 
-      !formData.dateOfBirth || !formData.address.street || 
-      !formData.address.city || !formData.address.country ||
-      !formData.identity.nationalId || !formData.identity.documentFront ||
-      !formData.identity.documentBack || !formData.acceptedTerms ||
-      !formData.acceptedPrivacyPolicy) {
-    error.value = 'Veuillez remplir tous les champs obligatoires';
+  const requiredFields = [
+    { value: formData.email, name: 'Email' },
+    { value: formData.password, name: 'Mot de passe' },
+    { value: formData.confirmPassword, name: 'Confirmation du mot de passe' },
+    { value: formData.firstName, name: 'Prénom' },
+    { value: formData.lastName, name: 'Nom' },
+    { value: formData.phone, name: 'Téléphone' },
+    { value: formData.dateOfBirth, name: 'Date de naissance' },
+    { value: formData.address.street, name: 'Rue' },
+    { value: formData.address.city, name: 'Ville' },
+    { value: formData.address.country, name: 'Pays' },
+    { value: formData.identity.documentNumber, name: 'Numéro de pièce d\'identité' },
+  ];
+  
+  // Vérifier les champs requis
+  const missingField = requiredFields.find(field => !field.value);
+  if (missingField) {
+    error.value = `Le champ "${missingField.name}" est obligatoire`;
     return false;
   }
   
+  // Vérifier les fichiers obligatoires
+  if (!formData.identity.documentFrontFile) {
+    error.value = 'Veuvez télécharger le recto de votre pièce d\'identité';
+    return false;
+  }
+  
+  if (!formData.identity.documentBackFile) {
+    error.value = 'Veuvez télécharger le verso de votre pièce d\'identité';
+    return false;
+  }
+  
+  // Vérifier l'acceptation des CGU
+  if (!formData.acceptTerms || !formData.acceptPrivacyPolicy) {
+    error.value = 'Veuvez accepter les conditions générales et la politique de confidentialité';
+    return false;
+  }
+  
+  // Vérifier la correspondance des mots de passe
   if (formData.password !== formData.confirmPassword) {
     error.value = 'Les mots de passe ne correspondent pas';
     return false;
   }
   
+  // Vérifier la longueur minimale du mot de passe
   if (formData.password.length < 8) {
     error.value = 'Le mot de passe doit contenir au moins 8 caractères';
     return false;
   }
   
+  // Validation de l'email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(formData.email)) {
+    error.value = 'Veuvez entrer une adresse email valide';
+    return false;
+  }
+  
+  // Si tout est valide
   return true;
 };
 
@@ -133,34 +224,51 @@ const register = async () => {
     
     loading.value = true;
     
-    // Préparer les données pour l'inscription
-    const userData = {
-      email: formData.email,
-      password: formData.password,
-      passwordConfirmation: formData.confirmPassword,
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      phone: formData.phone,
-      dateOfBirth: formData.dateOfBirth,
-      gender: formData.gender,
-      address: {
-        street: formData.address.street,
-        city: formData.address.city,
-        postalCode: formData.address.postalCode,
-        country: formData.address.country
-      },
-      userType: formData.userType,
-      identity: {
-        documentType: formData.identity.documentType,
-        nationalId: formData.identity.nationalId,
-        documentFront: formData.identity.documentFront,
-        documentBack: formData.identity.documentBack
-      },
-      acceptedTerms: formData.acceptedTerms,
-      acceptedPrivacyPolicy: formData.acceptedPrivacyPolicy
-    };
+    // Créer un objet FormData pour envoyer les fichiers
+    const formDataToSend = new FormData();
     
-    await authService.register(userData);
+    // Ajouter les champs de base
+    formDataToSend.append('email', formData.email);
+    formDataToSend.append('password', formData.password);
+    formDataToSend.append('passwordConfirmation', formData.confirmPassword);
+    formDataToSend.append('firstName', formData.firstName);
+    formDataToSend.append('lastName', formData.lastName);
+    formDataToSend.append('phone', formData.phone);
+    formDataToSend.append('dateOfBirth', formData.dateOfBirth);
+    formDataToSend.append('gender', formData.gender);
+    formDataToSend.append('userType', formData.userType);
+    formDataToSend.append('acceptTerms', String(formData.acceptTerms));
+    formDataToSend.append('acceptPrivacyPolicy', String(formData.acceptPrivacyPolicy));
+    
+    // Ajouter l'adresse
+    formDataToSend.append('address[street]', formData.address.street);
+    formDataToSend.append('address[city]', formData.address.city);
+    formDataToSend.append('address[postalCode]', formData.address.postalCode);
+    formDataToSend.append('address[country]', formData.address.country);
+    
+    // Ajouter les informations d'identité (sans les fichiers)
+    formDataToSend.append('identity[documentType]', formData.identity.documentType);
+    formDataToSend.append('identity[documentNumber]', formData.identity.documentNumber);
+    formDataToSend.append('identity[issueDate]', formData.identity.issueDate);
+    formDataToSend.append('identity[issuingAuthority]', formData.identity.issuingAuthority);
+    formDataToSend.append('identity[issuingCountry]', formData.identity.issuingCountry);
+    
+    // Ajouter les fichiers s'ils existent
+    if (formData.identity.documentFrontFile) {
+      formDataToSend.append('documentFront', formData.identity.documentFrontFile);
+    }
+    if (formData.identity.documentBackFile) {
+      formDataToSend.append('documentBack', formData.identity.documentBackFile);
+    }
+    
+    // Afficher les données du formulaire pour le débogage
+    console.log('Données du formulaire à envoyer:');
+    for (let [key, value] of formDataToSend.entries()) {
+      console.log(key, value);
+    }
+    
+    // Appeler le service d'authentification avec FormData
+    await authService.register(formDataToSend);
     
     // Réinitialiser le formulaire après inscription réussie
     successMessage.value = 'Inscription réussie ! Redirection en cours...';
@@ -171,7 +279,32 @@ const register = async () => {
     }, 2000);
     
   } catch (err: any) {
-    error.value = err.message || 'Une erreur est survenue lors de l\'inscription';
+    console.error('Erreur lors de l\'inscription:', err);
+    
+    // Gérer les erreurs spécifiques du backend
+    if (err.response?.data?.code) {
+      switch (err.response.data.code) {
+        case 'EMAIL_ALREADY_EXISTS':
+          error.value = 'Un compte avec cet email existe déjà. Utilisez un email différent ou connectez-vous.';
+          break;
+        case 'IDENTITY_NUMBER_ALREADY_EXISTS':
+          error.value = 'Ce numéro d\'identité est déjà utilisé. Si c\'est une erreur, veuillez contacter le support.';
+          break;
+        case 'DUPLICATE_FILE_NAME':
+          const fileType = err.response.data.fileType === 'frontDocument' ? 'recto' : 'verso';
+          error.value = `Le fichier du ${fileType} de votre pièce d'identité a un nom déjà utilisé. Veuillez renommer le fichier et réessayer.`;
+          break;
+        case 'INVALID_DOCUMENT_TYPE':
+          error.value = 'Le type de document sélectionné n\'est pas valide. Veuillez réessayer.';
+          break;
+        default:
+          error.value = err.response.data.message || 'Une erreur est survenue lors de l\'inscription';
+      }
+    } else if (err.message) {
+      error.value = err.message;
+    } else {
+      error.value = 'Une erreur inattendue est survenue. Veuillez réessayer plus tard.';
+    }
   } finally {
     loading.value = false;
   }
@@ -640,8 +773,8 @@ const register = async () => {
                     </svg>
                   </div>
                   <input
-                    id="nationalId"
-                    v-model="formData.identity.nationalId"
+                    id="documentNumber"
+                    v-model="formData.identity.documentNumber"
                     type="text"
                     required
                     class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -707,15 +840,15 @@ const register = async () => {
             <div class="flex items-start">
               <div class="flex items-center h-5">
                 <input
-                  id="acceptedTerms"
-                  v-model="formData.acceptedTerms"
+                  id="acceptTerms"
+                  v-model="formData.acceptTerms"
                   type="checkbox"
                   required
                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
               </div>
               <div class="ml-3 text-sm">
-                <label for="acceptedTerms" class="font-medium text-gray-700">
+                <label for="acceptTerms" class="font-medium text-gray-700">
                   J'accepte les <a href="/conditions-generales" class="text-blue-600 hover:text-blue-500" target="_blank">conditions générales d'utilisation</a>
                   <span class="text-red-500">*</span>
                 </label>
@@ -725,15 +858,15 @@ const register = async () => {
             <div class="flex items-start">
               <div class="flex items-center h-5">
                 <input
-                  id="acceptedPrivacyPolicy"
-                  v-model="formData.acceptedPrivacyPolicy"
+                  id="acceptPrivacyPolicy"
+                  v-model="formData.acceptPrivacyPolicy"
                   type="checkbox"
                   required
                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
               </div>
               <div class="ml-3 text-sm">
-                <label for="acceptedPrivacyPolicy" class="font-medium text-gray-700">
+                <label for="acceptPrivacyPolicy" class="font-medium text-gray-700">
                   J'accepte la <a href="/politique-de-confidentialite" class="text-blue-600 hover:text-blue-500" target="_blank">politique de confidentialité</a>
                   <span class="text-red-500">*</span>
                 </label>

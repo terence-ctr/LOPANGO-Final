@@ -75,6 +75,31 @@ LOPANGO est une application web complète de gestion immobilière qui permet une
 - **Avantages** : Encapsulation de la logique de création
 - **Exemple** : Génération de formulaires dynamiques
 
+## 🔄 Refactorisation du composant PropertiesView.vue
+
+### Problèmes résolus
+
+- Correction de la structure invalide du composant (suppression des balises HTML, HEAD, BODY)
+- Conversion en composant Vue 3 standard avec Composition API et TypeScript
+- Suppression du code JavaScript inline et des manipulations DOM directes
+- Amélioration de la réactivité avec les refs de Vue
+- Nettoyage du code dupliqué et des éléments obsolètes
+
+### Améliorations apportées
+
+- Structure propre avec une seule balise `<template>` racine
+- Script setup avec typage TypeScript
+- Données réactives pour la gestion de l'état
+- Gestion des événements avec les méthodes Vue
+- Styles scoped pour éviter les conflits CSS
+
+### Fonctionnalités implémentées
+
+- Affichage de la liste des propriétés avec leurs détails
+- Barre de recherche et filtres
+- Menu d'actions pour chaque propriété
+- Préparation pour l'ajout de modales (à implémenter)
+
 ## 🛠️ Technologies Utilisées
 
 ### Frontend
@@ -190,17 +215,11 @@ Erreur: SQLITE_CONSTRAINT: CHECK constraint failed: gender
 
 L'application rencontrait une erreur de compilation avec le message suivant :
 
-```
+```text
 GET http://localhost:5173/src/stores/auth.ts?t=1750093752687 net::ERR_ABORTED 500 (Internal Server Error)
 Transform failed with 1 error:
 C:/Users/teren/Music/LOPANGO Final/src/stores/auth.ts:160:6: ERROR: Unexpected "catch"
 C:/Users/teren/Music/LOPANGO Final/src/stores/auth.ts:160:6
-Unexpected "catch"
-158|        return false;
-159|        
-160|      } catch (err) {
-   |        ^
-161|        console.error('Erreur lors de la vérification de l\'authentification:', err);
 ```
 
 #### Cause du problème

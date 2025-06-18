@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { register, login, refreshToken, logout, getCurrentUser } from '../controllers/auth.controller';
+import { register, login, refreshToken, logout, getCurrentUser, handleFileUpload } from '../controllers/auth.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -11,7 +11,7 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
   };
 
 // Routes d'authentification
-router.post('/register', asyncHandler(register));
+router.post('/register', handleFileUpload, asyncHandler(register));
 router.post('/login', asyncHandler(login));
 router.post('/refresh-token', asyncHandler(refreshToken));
 

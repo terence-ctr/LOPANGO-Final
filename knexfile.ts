@@ -15,8 +15,9 @@ const config: { [key: string]: Knex.Config } = {
     },
     migrations: {
       directory: path.join(__dirname, './server/database/migrations'),
-      extension: 'ts',
-      loadExtensions: ['.ts']
+      extension: 'js',
+      loadExtensions: ['.js', '.ts'],
+      disableMigrationsListValidation: true
     },
     seeds: {
       directory: path.join(__dirname, './server/database/seeds'),

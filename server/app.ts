@@ -42,6 +42,9 @@ class App {
     // Middleware de sécurité
     this.app.use(helmet());
     
+    // Servir les fichiers statiques depuis le dossier uploads
+    this.app.use('/uploads', express.static('uploads'));
+    
     // Configuration CORS simplifiée
     const corsOptions = {
       origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -67,12 +70,21 @@ class App {
         'Authorization',
         'X-Requested-With',
         'X-Request-ID',
+        'Accept',
+        'Accept-Encoding',
+        'Content-Length',
         ...(config.cors.allowedHeaders || [])
       ],
-      exposedHeaders: ['Content-Length', 'X-Request-ID'],
+      exposedHeaders: [
+        'Content-Length',
+        'X-Request-ID',
+        'Content-Disposition',
+        'X-Filename'
+      ],
       credentials: true,
       optionsSuccessStatus: 200,
-      maxAge: 600 // 10 minutes
+      maxAge: 600, // 10 minutes
+      preflightContinue: true
     };
 
     // Middleware pour gérer les requêtes OPTIONS (pré-vol)
