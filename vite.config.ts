@@ -32,12 +32,26 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': {
+      // Configuration du proxy pour toutes les requêtes API
+      '^/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path
-      }
+        // Réécrire le chemin pour supprimer le préfixe /api avant d'envoyer au serveur
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.error('Erreur de proxy:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Requête proxy vers:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Réponse de l\'API:', req.method, req.url, '->', proxyRes.statusCode);
+          });
+        }
+      },
+      // Autres configurations de proxy si nécessaire
     }
   }
 });

@@ -10,6 +10,11 @@ import type {
   User 
 } from '@/types/user.types';
 
+// Clés de stockage
+const TOKEN_KEY = 'lopango_auth_token';
+const REFRESH_TOKEN_KEY = 'lopango_refresh_token';
+const USER_DATA_KEY = 'lopango_user_data';
+
 // Étendre le type RegisterData pour inclure userType
 interface ExtendedRegisterData extends Omit<RegisterData, 'passwordConfirmation'> {
   userType: UserType;
@@ -17,7 +22,65 @@ interface ExtendedRegisterData extends Omit<RegisterData, 'passwordConfirmation'
 }
 
 const authService = {
-  async login(credentials: LoginCredentials & { userType: string }) {
+  /**
+   * Stocke les informations d'authentification
+   */
+  setAuthData(data: { token: string; refreshToken?: string; user: any }) {
+    if (data.token) {
+      localStorage.setItem(TOKEN_KEY, data.token);
+    }
+    if (data.refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+    }
+    if (data.user) {
+      localStorage.setItem(USER_DATA_KEY, JSON.stringify(data.user));
+    }
+  },
+
+  /**
+   * Nettoie les données d'authentification
+   */
+  clearAuthData() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(USER_DATA_KEY);
+  },
+
+  /**
+   * Rafraîchit le token d'authentification
+   */
+  async refreshToken(): Promise<{ token: string; user: any } | null> {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refreshToken) {
+      throw new Error('Aucun refresh token disponible');
+    }
+
+    try {
+      const response = await api.post('/auth/refresh-token', {}, {
+        withCredentials: true,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      const { accessToken, user } = response.data.data || response.data;
+      
+      if (!accessToken) {
+        throw new Error('Aucun token d\'accès reçu lors du rafraîchissement');
+      }
+
+      // Mettre à jour le token dans le stockage local
+      this.setAuthData({ token: accessToken, user });
+      
+      return { token: accessToken, user };
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement du token:', error);
+      // En cas d'erreur, nettoyer les données d'authentification
+      this.clearAuthData();
+      throw error;
+    }
+  },
+  async login(credentials: LoginCredentials) {
     console.log(`[authService] Tentative de connexion pour:`, { 
       email: credentials.email ? `${credentials.email.substring(0, 3)}...` : 'non fourni',
       hasPassword: !!credentials.password,
@@ -41,10 +104,14 @@ const authService = {
       const loginData = {
         email: credentials.email.trim().toLowerCase(),
         password: credentials.password,
-        userType: credentials.userType.trim().toLowerCase()
+        userType: credentials.userType?.trim().toLowerCase() || ''
       };
       
-      console.log(`[authService] Envoi de la requête de connexion`);
+      console.log(`[authService] Envoi de la requête de connexion avec les données:`, {
+        email: loginData.email,
+        hasPassword: !!loginData.password,
+        userType: loginData.userType
+      });
       
       const response = await api.post('/auth/login', loginData, {
         withCredentials: true,
@@ -61,28 +128,37 @@ const authService = {
       
       // Vérifier la présence du token dans la réponse
       const responseData = response.data.data || response.data;
-      const token = responseData?.token || response.data.token;
+      const token = responseData?.tokens?.accessToken || responseData?.token || response.data?.tokens?.accessToken;
       
       if (!token) {
         console.error('[authService] Aucun token trouvé dans la réponse:', response.data);
         throw new Error("Aucun token d'authentification reçu");
       }
       
-      // Stocker le token
+      // Stocker les tokens et les données utilisateur
       try {
-        localStorage.setItem('token', token);
-        console.log('[authService] Token stocké avec succès dans le localStorage');
+        const refreshToken = responseData?.tokens?.refreshToken || response.data?.tokens?.refreshToken;
+        const userData = responseData?.user || response.data.user;
+        
+        this.setAuthData({
+          token,
+          refreshToken,
+          user: userData
+        });
+        
+        console.log('[authService] Tokens et données utilisateur stockés avec succès');
+        
+        // Retourner les données formatées de manière cohérente
+        return {
+          ...response.data,
+          token,
+          refreshToken,
+          user: userData
+        };
       } catch (storageError) {
-        console.error('[authService] Erreur lors du stockage du token:', storageError);
+        console.error('[authService] Erreur lors du stockage des tokens:', storageError);
         throw new Error('Impossible de sauvegarder la session. Vérifiez les paramètres de votre navigateur.');
       }
-      
-      // Retourner les données formatées de manière cohérente
-      return {
-        ...response.data,
-        token,
-        user: responseData?.user || response.data.user
-      };
       
     } catch (error: any) {
       console.error('[authService] Erreur lors de la connexion:', {
@@ -203,7 +279,7 @@ const authService = {
   async getCurrentUser(): Promise<{ data: User }> {
     try {
       console.log('Récupération des informations utilisateur...');
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('lopango_auth_token');
       
       // Vérifier d'abord si un token existe
       if (!token) {
@@ -256,6 +332,14 @@ const authService = {
    * @param redirectToLogin Rediriger vers la page de connexion après déconnexion (par défaut: true)
    */
   async logout(redirectToLogin: boolean = true): Promise<{ success: boolean; message?: string }> {
+    // Nettoyer les données d'authentification locales
+    this.clearAuthData();
+    // Vérifier si on est côté navigateur
+    if (typeof window === 'undefined') {
+      console.log('[authService] Fonction logout appelée côté serveur');
+      return { success: false, message: 'Déconnexion non disponible côté serveur' };
+    }
+
     const token = localStorage.getItem('token');
     
     // Si aucun token n'est présent, considérer comme déjà déconnecté
@@ -270,55 +354,162 @@ const authService = {
       // Appeler l'API de déconnexion avec le token actuel
       const response = await api.post('/auth/logout', {}, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         },
-        timeout: 5000 // 5 secondes de timeout
+        timeout: 5000,
+        withCredentials: true
       });
 
       console.log('[authService] Réponse de déconnexion:', response.data);
       
-      return { success: true, message: 'Déconnexion réussie' };
+      return { 
+        success: true, 
+        message: response.data?.message || 'Déconnexion réussie',
+        data: response.data
+      };
       
     } catch (error: any) {
       // Même en cas d'erreur, on continue le processus de déconnexion côté client
+      const errorMessage = error.response?.data?.message || error.message || 'Erreur inconnue';
+      const status = error.response?.status;
+      
       console.error('[authService] Erreur lors de la déconnexion côté serveur:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
+        message: errorMessage,
+        status,
+        code: error.code,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method
+        }
       });
+      
+      // Si le token est invalide ou expiré, on considère quand même la déconnexion comme réussie
+      if (status === 401 || status === 403) {
+        console.log('[authService] Token invalide ou expiré, déconnexion locale');
+        return { 
+          success: true, 
+          message: 'Session terminée',
+          wasForced: true
+        };
+      }
       
       return { 
         success: false, 
-        message: 'La déconnexion a réussi localement mais une erreur est survenue côté serveur' 
+        message: 'La déconnexion a réussi localement mais une erreur est survenue côté serveur',
+        error: errorMessage,
+        status
       };
       
     } finally {
       // Nettoyage côté client dans tous les cas
       try {
-        // Supprimer le token du stockage local
+        // Supprimer les éléments liés à l'authentification
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Supprimer les éventuels autres tokens liés
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('token') || key.includes('auth')) {
+            localStorage.removeItem(key);
+          }
+        });
         
         // Si une redirection est demandée et que nous ne sommes pas déjà sur la page de login
-        if (redirectToLogin && !window.location.pathname.includes('/login')) {
-          // Utiliser replaceState pour éviter de laisser la page précédente dans l'historique
-          window.history.replaceState(null, '', '/login');
-          // Recharger la page pour s'assurer que l'état est propre
-          window.location.reload();
+        if (redirectToLogin) {
+          const loginPath = '/login';
+          const currentPath = window.location.pathname;
+          
+          if (!currentPath.includes(loginPath)) {
+            // Utiliser replaceState pour éviter de laisser la page précédente dans l'historique
+            window.history.replaceState(null, '', loginPath);
+            // Recharger la page pour s'assurer que l'état est propre
+            window.location.reload();
+          }
         }
       } catch (cleanupError) {
         console.error('[authService] Erreur lors du nettoyage côté client:', cleanupError);
+        // En cas d'erreur critique, forcer un rechargement complet
+        if (redirectToLogin) {
+          window.location.href = '/login';
+        }
       }
     }
   },
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('token');
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return false;
+
+    try {
+      // Vérifier si le token est expiré
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp * 1000 > Date.now();
+    } catch (e) {
+      console.error('Erreur lors de la vérification du token:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Vérifie si le token est sur le point d'expirer
+   */
+  isTokenExpiringSoon(minutes = 5): boolean {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return true;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expiresIn = (payload.exp * 1000 - Date.now()) / 1000 / 60; // en minutes
+      return expiresIn < minutes;
+    } catch (e) {
+      console.error('Erreur lors de la vérification de l\'expiration du token:', e);
+      return true;
+    }
+  },
+
+  /**
+   * Récupère le token d'authentification actuel
+   */
+  getToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
+  },
+  
+  /**
+   * Récupère le refresh token actuel
+   */
+  getRefreshToken(): string | null {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  },
+  
+  /**
+   * Récupère les données utilisateur stockées
+   */
+  getUserData(): any | null {
+    const userData = localStorage.getItem(USER_DATA_KEY);
+    return userData ? JSON.parse(userData) : null;
   },
 
   getAuthHeader() {
-    const token = localStorage.getItem('token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return { 'Authorization': `Bearer ${this.getToken()}` };
   },
+  
+  /**
+   * Vérifie si l'utilisateur a un rôle spécifique
+   */
+  hasRole(role: string): boolean {
+    const user = this.getUserData();
+    if (!user || !user.userType) return false;
+    return user.userType.toLowerCase() === role.toLowerCase();
+  },
+  
+  /**
+   * Vérifie si l'utilisateur a l'un des rôles spécifiés
+   */
+  hasAnyRole(roles: string[]): boolean {
+    return roles.some(role => this.hasRole(role));
+  }
 };
 
 export default authService;

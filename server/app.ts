@@ -3,17 +3,34 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
-import { rateLimit } from 'express-rate-limit';
-import { createServer, Server } from 'http';
-import { db } from './database';
+import { createServer, Server as HttpServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import config from './config';
-import authRoutes from './routes/auth.routes';
 import { errorHandler } from './middleware/error.middleware';
+import { logger } from './utils/logger';
+import { initializeSocket } from './socket';
+import { db } from './database/db';
+import { Knex } from 'knex';
+import { authRoutes } from './routes/auth.routes';
+import { propertyRoutes } from './routes/property.routes';
+
+// Les routes suivantes sont commentées car les fichiers correspondants n'existent pas encore
+// import { userRoutes } from './routes/user.routes';
+// import { uploadRoutes } from './routes/upload.routes';
+// import { notificationRoutes } from './routes/notification.routes';
+// import { messageRoutes } from './routes/message.routes';
+// import { reviewRoutes } from './routes/review.routes';
+// import { paymentRoutes } from './routes/payment.routes';
+// import { searchRoutes } from './routes/search.routes';
+// import { reportRoutes } from './routes/report.routes';
+// import { adminRoutes } from './routes/admin.routes';
+import { paymentWebhook } from './controllers/payment.controller';
 
 class App {
   public app: Application;
-  public server: Server;
+  public server: HttpServer;
   public port: number;
 
   constructor(port?: number) {
@@ -39,13 +56,24 @@ class App {
   }
 
   private initializeMiddlewares() {
+    // Middleware de débogage pour les requêtes entrantes
+    this.app.use((req, res, next) => {
+      console.log('=== REQUÊTE REÇUE ===');
+      console.log(`Méthode: ${req.method}`);
+      console.log(`URL: ${req.originalUrl}`);
+      console.log('Headers:', req.headers);
+      console.log('Body:', req.body);
+      console.log('========================');
+      next();
+    });
+    
     // Middleware de sécurité
     this.app.use(helmet());
     
     // Servir les fichiers statiques depuis le dossier uploads
     this.app.use('/uploads', express.static('uploads'));
     
-    // Configuration CORS simplifiée
+    // Configuration CORS complète
     const corsOptions = {
       origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         const allowedOrigins = [
@@ -53,10 +81,19 @@ class App {
           'http://127.0.0.1:5173',
           'http://localhost:3000',
           config.frontendUrl,
-          ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : [])
+          ...(process.env.NODE_ENV === 'development' ? [
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'http://127.0.0.1:5173'
+          ] : [])
         ];
 
-        // Autoriser les requêtes sans origine (comme les applications mobiles ou curl)
+        // En développement, accepter toutes les origines pour faciliter les tests
+        if (process.env.NODE_ENV === 'development') {
+          return callback(null, true);
+        }
+
+        // En production, vérifier l'origine
         if (!origin || allowedOrigins.includes(origin) || config.cors.origin === '*') {
           callback(null, true);
         } else {
@@ -64,89 +101,180 @@ class App {
           callback(new Error('Not allowed by CORS'));
         }
       },
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
       allowedHeaders: [
-        'Content-Type',
-        'Authorization',
+        'Origin',
         'X-Requested-With',
-        'X-Request-ID',
+        'Content-Type',
         'Accept',
+        'Authorization',
+        'X-Request-ID',
+        'X-Auth-Token',
+        'X-Refresh-Token',
         'Accept-Encoding',
         'Content-Length',
+        'Cache-Control',
+        'Pragma',
+        'If-Modified-Since',
+        'X-CSRF-Token',
+        'Set-Cookie',
+        'Cookie',
         ...(config.cors.allowedHeaders || [])
       ],
       exposedHeaders: [
         'Content-Length',
         'X-Request-ID',
         'Content-Disposition',
-        'X-Filename'
+        'X-Filename',
+        'X-Auth-Token',
+        'X-Refresh-Token',
+        'X-Total-Count',
+        'X-Pagination',
+        'Set-Cookie',
+        'Authorization'
       ],
       credentials: true,
-      optionsSuccessStatus: 200,
-      maxAge: 600, // 10 minutes
-      preflightContinue: true
+      optionsSuccessStatus: 204, // Certains navigateurs ont des problèmes avec 200
+      maxAge: 86400, // 24 heures
+      preflightContinue: false,
+      optionsPreflight: true
     };
 
-    // Middleware pour gérer les requêtes OPTIONS (pré-vol)
+    // Configuration CORS pour les requêtes OPTIONS (pré-vol)
     this.app.options('*', cors(corsOptions));
     
-    // Activer CORS pour toutes les routes
+    // Configuration CORS pour toutes les autres requêtes
     this.app.use(cors(corsOptions));
     
     // Middleware pour ajouter les en-têtes CORS manuellement
     this.app.use((req, res, next) => {
       // Définir les en-têtes CORS
       const origin = req.headers.origin || '';
-      if (corsOptions.origin === '*' || (Array.isArray(corsOptions.origin) && corsOptions.origin.includes(origin))) {
-        res.header('Access-Control-Allow-Origin', origin || '*');
+      
+      // Vérifier si l'origine est autorisée
+      const isOriginAllowed = corsOptions.origin === '*' || 
+        (Array.isArray(corsOptions.origin) && corsOptions.origin.some(o => 
+          typeof o === 'string' && o === origin
+        ));
+      
+      if (isOriginAllowed) {
+        res.header('Access-Control-Allow-Origin', origin);
       }
+      
       res.header('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
       res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
       res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Expose-Headers', corsOptions.exposedHeaders.join(', '));
       
-      // Répondre immédiatement aux requêtes OPTIONS
+      // Répondre immédiatement aux requêtes OPTIONS (pré-vol)
       if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+        return res.status(204).end();
       }
       
       next();
     });
     
-    // Parse JSON request bodies
-    this.app.use(express.json());
-    this.app.use(express.urlencoded({ extended: true }));
+    // Middleware pour logger les en-têtes CORS (en développement)
+    if (process.env.NODE_ENV === 'development') {
+      this.app.use((req, res, next) => {
+        console.log('[CORS] Headers de la requête:', {
+          origin: req.headers.origin,
+          'access-control-request-method': req.headers['access-control-request-method'],
+          'access-control-request-headers': req.headers['access-control-request-headers'],
+          cookie: req.headers.cookie ? '***' : undefined
+        });
+        next();
+      });
+    }
     
-    // Middleware de journalisation
+    // Middleware de journalisation (avant les parsers pour voir les requêtes brutes)
     this.app.use(morgan('dev'));
-    
-    // Middleware de compression
-    this.app.use(compression());
-    
-    // Middleware pour parser le JSON
-    this.app.use(express.json());
-    this.app.use(express.urlencoded({ extended: true }));
     
     // Middleware pour parser les cookies
     this.app.use(cookieParser());
     
-    // Limite de débit pour les requêtes
-    const limiter = rateLimit({
+    // Middleware pour parser le JSON
+    this.app.use(express.json({
+      limit: '50mb',
+      verify: (req: any, res, buf) => {
+        req.rawBody = buf.toString();
+      }
+    }));
+    
+    // Middleware pour parser les données de formulaire
+    this.app.use(express.urlencoded({ 
+      extended: true,
+      limit: '50mb'
+    }));
+    
+    // Middleware de compression
+    this.app.use(compression());
+    
+    // Middleware pour configurer les cookies
+    this.app.use((req, res, next) => {
+      // Configurer les attributs des cookies
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        domain: process.env.NODE_ENV === 'production' ? '.votredomaine.com' : 'localhost',
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours en millisecondes
+      };
+      
+      // Si nous avons un refresh token dans la réponse, le définir dans les cookies
+      if (res.locals.refreshToken) {
+        res.cookie('refreshToken', res.locals.refreshToken, {
+          ...cookieOptions,
+          maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours
+        });
+      }
+      
+      next();
+    });
+    
+    // Configuration du rate limiting
+    const apiLimiter = rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // Limite chaque IP à 100 requêtes par fenêtre
+      max: 1000, // Limite chaque IP à 1000 requêtes par fenêtre pour les routes API standard
       standardHeaders: true,
       legacyHeaders: false,
+      message: 'Trop de requêtes depuis cette adresse IP, veuillez réessayer plus tard.'
     });
-    this.app.use(limiter);
+
+    // Limite plus stricte pour les routes d'authentification
+    const authLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // Limite chaque IP à 100 requêtes d'authentification par fenêtre
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: 'Trop de tentatives de connexion, veuillez réessayer plus tard.'
+    });
+
+    // Limite plus stricte pour le rafraîchissement de token
+    const refreshTokenLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 30, // Limite chaque IP à 30 requêtes de rafraîchissement par fenêtre
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: 'Trop de tentatives de rafraîchissement de token, veuillez réessayer plus tard.'
+    });
+
+    // Appliquer les limiteurs aux routes spécifiques
+    this.app.use('/api/auth/refresh-token', refreshTokenLimiter);
+    this.app.use('/api/auth', authLimiter);
+    this.app.use('/api', apiLimiter);
   }
 
   private initializeRoutes() {
-    // Route de santé
-    this.app.get('/health', (req: Request, res: Response) => {
+    // Routes API
+    this.app.use('/api/auth', authRoutes);
+    this.app.use('/api/properties', propertyRoutes);
+    
+    // Route de test
+    this.app.get('/api/health', (req: Request, res: Response) => {
       res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
     });
-
-    // Routes d'authentification
-    this.app.use('/api/auth', authRoutes);
 
     // Gestion des routes non trouvées
     this.app.use((req: Request, res: Response) => {

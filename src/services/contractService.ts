@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { TOKEN_KEY } from '@/utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -72,7 +73,7 @@ export const contractService = {
     try {
       const response = await axios.get<ApiResponse<Contract[]>>(`${API_URL}/contrats`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`
         }
       });
       return response.data.data || [];
@@ -87,7 +88,7 @@ export const contractService = {
     try {
       const response = await axios.get<ApiResponse<Contract>>(`${API_URL}/contrats/${id}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`
         }
       });
       return response.data.data;
@@ -105,7 +106,7 @@ export const contractService = {
         contract,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`,
             'Content-Type': 'application/json'
           }
         }
@@ -125,7 +126,7 @@ export const contractService = {
         contract,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`,
             'Content-Type': 'application/json'
           }
         }
@@ -142,7 +143,7 @@ export const contractService = {
     try {
       await axios.delete<ApiResponse<void>>(`${API_URL}/contrats/${id}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`
         }
       });
     } catch (error) {
@@ -156,7 +157,7 @@ export const contractService = {
     try {
       const response = await axios.get<ApiResponse<User[]>>(`${API_URL}/users/bailleurs`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`,
           'Content-Type': 'application/json'
         }
       });
@@ -177,7 +178,7 @@ export const contractService = {
     try {
       const response = await axios.get<ApiResponse<User[]>>(`${API_URL}/users/locataires`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`,
           'Content-Type': 'application/json'
         }
       });
@@ -197,27 +198,28 @@ export const contractService = {
   async getPropertiesByLandlord(landlordId: string | number): Promise<Property[]> {
     try {
       if (!landlordId) {
-        throw new Error('ID du bailleur manquant');
+        console.warn('Aucun ID de bailleur fourni pour la récupération des propriétés');
+        return [];
       }
 
       const response = await axios.get<ApiResponse<Property[]>>(
-        `${API_URL}/proprietes?bailleurId=${landlordId}`, 
-        {
+        `${API_URL}/proprietes/bailleur/${landlordId}`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`,
             'Content-Type': 'application/json'
           }
         }
       );
-      
+
       if (!response.data.success) {
-        throw new Error(response.data.message || 'Erreur lors de la récupération des propriétés');
+        console.error('Erreur lors de la récupération des propriétés:', response.data.message);
+        return [];
       }
-      
+
       return response.data.data || [];
     } catch (error) {
-      console.error('Erreur lors de la récupération des propriétés:', error);
-      throw error; // Propager l'erreur pour une gestion plus précise dans les composants
+      console.error('Erreur lors de la récupération des propriétés du bailleur:', error);
+      return [];
     }
   },
 
@@ -228,7 +230,7 @@ export const contractService = {
         `${API_URL}/proprietes/${propertyId}`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`
           }
         }
       );
@@ -246,7 +248,7 @@ export const contractService = {
         `${API_URL}/contrats/utilisateur/${userId}?type=${userType}`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`
           }
         }
       );

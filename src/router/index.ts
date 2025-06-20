@@ -195,9 +195,13 @@ router.beforeEach(async (to, from, next) => {
         localStorage.setItem('redirectAfterLogin', redirectPath);
       }
       
+      // Vérifier si la session a expiré
+      const sessionExpired = to.query.session === 'expired';
+      
       next({
         name: 'login',
         query: { 
+          ...(sessionExpired ? { session: 'expired' } : {}),
           redirect: to.fullPath !== '/' && !isApiRoute ? to.fullPath : undefined,
           reason: 'auth-required'
         }

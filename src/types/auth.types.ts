@@ -30,6 +30,7 @@ export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
+  userType?: 'tenant' | 'landlord' | 'agent' | 'admin';
 }
 
 export interface AuthResponse {

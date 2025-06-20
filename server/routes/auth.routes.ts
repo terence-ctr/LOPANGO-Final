@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { register, login, refreshToken, logout, getCurrentUser, handleFileUpload } from '../controllers/auth.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
+import { validateLogin } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
 
 // Routes d'authentification
 router.post('/register', handleFileUpload, asyncHandler(register));
-router.post('/login', asyncHandler(login));
+router.post('/login', validateLogin, asyncHandler(login));
 router.post('/refresh-token', asyncHandler(refreshToken));
 
 // Routes protégées nécessitant une authentification
@@ -25,4 +26,4 @@ router.get('/me', authenticateJWT, asyncHandler((req, res) => {
 console.log('Enregistrement de la route POST /auth/logout');
 router.post('/logout', authenticateJWT, asyncHandler(logout));
 
-export default router;
+export const authRoutes = router;

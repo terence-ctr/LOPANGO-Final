@@ -3,8 +3,11 @@ import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import type { User } from '@/types/user.types';
 import type { RegisterData } from '@/types/auth.types';
+import apiConfig from '@/config/api.config';
 import authService from '@/services/auth.service';
 import { getDefaultRouteForRole } from '@/config/routes';
+import { TOKEN_KEY, USER_DATA_KEY } from '@/utils/auth';
+import api from '@/services/api';
 
 // Clé pour le stockage local
 const STORAGE_KEY = 'lopango_auth';
@@ -50,39 +53,175 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null;
   };
 
-  // Vérifier l'état d'authentification
-  const checkAuth = async (forceCheck = false): Promise<boolean> => {
-    console.log('checkAuth appelé, forceCheck:', forceCheck);
+  // Délai minimum entre deux rafraîchissements de token (5 minutes en millisecondes)
+  const MIN_REFRESH_DELAY = 5 * 60 * 1000;
+  let lastRefreshTime = 0;
+  let isRefreshing = false;
+  let refreshPromise: Promise<{token: string, user: User} | null> | null = null;
+
+  // Rafraîchir le token d'authentification avec gestion de la concurrence et du délai minimum
+  const refreshToken = async (force = false): Promise<{token: string, user: User} | null> => {
+    const now = Date.now();
     
-    // Vérifier d'abord si un token est présent dans le localStorage
-    const token = localStorage.getItem('token');
-    
-    // Si pas de token, l'utilisateur n'est pas authentifié
-    if (!token) {
-      console.log('Aucun token trouvé dans le localStorage');
-      isAuthenticated.value = false;
-      user.value = null;
-      
-      // Si on est sur une page protégée, sauvegarder l'URL pour rediriger après connexion
-      const currentPath = window.location.pathname;
-      const isProtectedRoute = !['/login', '/register', '/forgot-password'].includes(currentPath);
-      
-      if (isProtectedRoute && currentPath !== '/') {
-        const redirectPath = window.location.pathname + window.location.search;
-        localStorage.setItem('redirectAfterLogin', redirectPath);
-      }
-      
-      return false;
+    // Si un rafraîchissement est déjà en cours, retourner la même promesse
+    if (isRefreshing && refreshPromise) {
+      console.log('[Auth] Rafraîchissement déjà en cours, réutilisation de la même promesse');
+      return refreshPromise;
     }
     
-    // Si déjà authentifié et pas de vérification forcée, retourner directement true
-    if (!forceCheck && isAuthenticated.value && user.value) {
-      console.log('Utilisateur déjà authentifié:', {
-        email: user.value.email,
-        role: user.value.userType,
-        hasToken: true
+    // Vérifier le délai minimum entre les rafraîchissements
+    if (!force && now - lastRefreshTime < MIN_REFRESH_DELAY) {
+      console.log('[Auth] Délai minimum non écoulé depuis le dernier rafraîchissement');
+      return Promise.resolve(null);
+    }
+    
+    // Marquer qu'un rafraîchissement est en cours
+    isRefreshing = true;
+    refreshPromise = (async () => {
+      try {
+        console.log('[Auth] Début du rafraîchissement du token');
+        
+        // Récupérer le refresh token depuis le cookie
+        const refreshToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('refreshToken='))
+          ?.split('=')[1];
+
+        if (!refreshToken) {
+          throw new Error('Aucun refresh token trouvé');
+        }
+
+        // Utiliser l'API avec withCredentials pour inclure automatiquement les cookies
+        const response = await axios.post(
+          `${apiConfig.baseURL}${apiConfig.endpoints.auth.refresh}`,
+          {},
+          {
+            withCredentials: true,
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Accept': 'application/json'
+            }
+          }
+        );
+        
+        if (response.data?.tokens?.accessToken) {
+          console.log('[Auth] Token rafraîchi avec succès');
+          lastRefreshTime = Date.now();
+          
+          // Mettre à jour le token dans le localStorage
+          localStorage.setItem('token', response.data.tokens.accessToken);
+          
+          // Mettre à jour l'utilisateur si les données sont disponibles
+          if (response.data.user) {
+            user.value = response.data.user;
+          }
+          
+          return {
+            token: response.data.tokens.accessToken,
+            user: response.data.user || user.value
+          };
+        }
+        return null;
+      } catch (error) {
+        console.error('[Auth] Erreur lors du rafraîchissement du token:', error);
+        // En cas d'erreur, réinitialiser le délai pour permettre une nouvelle tentative
+        lastRefreshTime = 0;
+        // Déconnecter l'utilisateur en cas d'erreur de rafraîchissement
+        await logout();
+        throw error;
+      } finally {
+        // Réinitialiser l'état de rafraîchissement
+        isRefreshing = false;
+        refreshPromise = null;
+      }
+    })();
+    
+    return refreshPromise;
+  };
+
+  // Vérifier le token côté serveur
+  const verifyTokenWithServer = async (token: string): Promise<boolean> => {
+    try {
+      // D'abord, essayer de rafraîchir le token
+      const refreshed = await refreshToken();
+      
+      if (refreshed) {
+        // Mettre à jour le token et l'utilisateur
+        localStorage.setItem(TOKEN_KEY, refreshed.token);
+        user.value = refreshed.user;
+        isAuthenticated.value = true;
+        return true;
+      }
+      
+      // Si le rafraîchissement échoue, essayer de vérifier le token existant
+      const response = await api.get(apiConfig.endpoints.auth.verify, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
+      
+      if (response.data && response.data.valid) {
+        // Mettre à jour l'état d'authentification avec les données du serveur
+        user.value = response.data.user;
+        isAuthenticated.value = true;
+        
+        // Sauvegarder le token s'il a été rafraîchi
+        if (response.data.token) {
+          localStorage.setItem(TOKEN_KEY, response.data.token);
+        }
+        
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Erreur lors de la vérification du token:', error);
+      return false;
+    }
+  };
+
+  // Fonction utilitaire pour rediriger vers la page de connexion
+  const redirectToLogin = () => {
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname;
+      if (!currentPath.startsWith('/auth/')) {
+        window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`;
+      }
+    }
+  };
+  
+  // Fonction utilitaire pour obtenir la route par défaut en fonction du rôle
+  const getDefaultRouteForRole = (role: string): string => {
+    switch (role) {
+      case 'admin':
+        return '/admin/dashboard';
+      case 'agent':
+        return '/agent/dashboard';
+      case 'user':
+      default:
+        return '/dashboard';
+    }
+  };
+  
+  // Fonction de vérification de l'authentification
+  const checkAuth = async (forceCheck = false): Promise<boolean> => {
+    console.log('[Auth] Vérification de l\'authentification, forceCheck:', forceCheck);
+    
+    // Si l'utilisateur est déjà authentifié et qu'on ne force pas la vérification
+    if (isAuthenticated.value && !forceCheck) {
+      console.log('[Auth] Déjà authentifié, vérification non forcée');
       return true;
+    }
+    
+    // Vérifier d'abord le token stocké localement
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.log('[Auth] Aucun token trouvé dans le stockage local');
+      clearAuth();
+      redirectToLogin();
+      return false;
     }
     
     // Éviter les appels concurrents
@@ -95,30 +234,53 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null;
     
     try {
-      // Le token est déjà récupéré plus haut
-      console.log('Token trouvé dans le stockage local:', !!token);
+      // Vérifier si le token est expiré ou va bientôt expirer (dans les 5 minutes)
+      const isExpired = isTokenExpired(token);
+      const willExpireSoon = isTokenExpired(token, 5 * 60); // 5 minutes
       
-      // Vérifier la validité du token auprès du serveur
-      console.log('Vérification du token auprès du serveur...');
-      const response = await authService.getCurrentUser().catch(async (error) => {
-        console.error('Erreur lors de la récupération des informations utilisateur:', error);
-        
-        // Si l'erreur est 401 (non autorisé), nettoyer l'état d'authentification
-        if (error.response?.status === 401) {
-          console.log('Session expirée ou invalide, déconnexion...');
-          isAuthenticated.value = false;
-          user.value = null;
-          localStorage.removeItem('token');
-          
-          // Rediriger vers la page de connexion si nécessaire
-          const currentPath = window.location.pathname;
-          if (!currentPath.startsWith('/auth/')) {
-            window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`;
+      if (isExpired) {
+        console.log('[Auth] Token expiré, tentative de rafraîchissement...');
+        try {
+          const refreshResult = await refreshToken(true); // Forcer le rafraîchissement
+          if (refreshResult && refreshResult.token) {
+            // Mettre à jour le token dans le stockage local
+            setAuthToken(refreshResult.token);
+            // Mettre à jour l'utilisateur
+            user.value = refreshResult.user;
+            isAuthenticated.value = true;
+            error.value = null;
+            loading.value = false;
+            return true;
+          } else {
+            console.log('[Auth] Échec du rafraîchissement du token: réponse vide');
+            clearAuth();
+            loading.value = false;
+            redirectToLogin();
+            return false;
           }
+        } catch (error) {
+          console.error('[Auth] Erreur lors du rafraîchissement du token:', error);
+          clearAuth();
+          loading.value = false;
+          redirectToLogin();
+          return false;
         }
-        
-        throw error;
-      });
+      } else if (willExpireSoon) {
+        // Rafraîchir le token de manière proactive s'il va bientôt expirer
+        console.log('[Auth] Token va bientôt expirer, rafraîchissement proactif...');
+        refreshToken().then(result => {
+          if (result && result.token) {
+            setAuthToken(result.token);
+            user.value = result.user;
+            isAuthenticated.value = true;
+          }
+        }).catch(err => {
+          console.error('[Auth] Échec du rafraîchissement proactif du token:', err);
+        });
+      }
+
+      // Vérifier le token côté serveur
+      const response = await authService.getCurrentUser();
       
       if (response?.data) {
         // S'assurer que le userType est correctement défini
@@ -144,18 +306,26 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = userData;
         isAuthenticated.value = true;
         
-        // Vérifier si l'utilisateur a le bon rôle pour la route actuelle
+        // Obtenir la route par défaut pour le type d'utilisateur
+        const defaultRoute = getDefaultRouteForRole(userData.userType);
         const currentPath = window.location.pathname;
-        const isAdminPath = currentPath.startsWith('/admin');
-        const isTenantPath = currentPath.startsWith('/tenant');
-        const isLandlordPath = currentPath.startsWith('/landlord');
         
-        // Rediriger vers le tableau de bord approprié si nécessaire
-        if (isAdminPath && userData.userType !== 'admin') {
-          console.log('Redirection vers le tableau de bord approprié...');
-          window.location.href = `/${userData.userType}/dashboard`;
-        } else if ((isTenantPath || isLandlordPath) && !currentPath.includes(userData.userType)) {
-          window.location.href = `/${userData.userType}/dashboard`;
+        console.log('Vérification de la redirection après connexion:', {
+          userType: userData.userType,
+          currentPath,
+          defaultRoute
+        });
+        
+        // Ne pas rediriger si l'utilisateur est déjà sur une page de son espace
+        const isOnAuthorizedPath = currentPath.startsWith(`/${userData.userType}`);
+        const isOnAuthPage = ['/login', '/register', '/forgot-password'].includes(currentPath);
+        
+        // Rediriger si:
+        // 1. L'utilisateur est sur une page d'authentification après une connexion réussie
+        // 2. OU l'utilisateur n'est pas sur une page autorisée pour son rôle
+        if (isOnAuthPage || !isOnAuthorizedPath) {
+          console.log(`Redirection vers la route par défaut pour ${userData.userType}:`, defaultRoute);
+          window.location.href = defaultRoute;
         }
         
         return true;
@@ -213,7 +383,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       console.log('Token reçu, tentative de sauvegarde...');
-      localStorage.setItem('token', token);
+      localStorage.setItem(TOKEN_KEY, token);
       console.log('Token sauvegardé avec succès dans le localStorage');
 
       // Mettre à jour l'état d'authentification
@@ -272,7 +442,7 @@ export const useAuthStore = defineStore('auth', () => {
           const normalizedUser = normalizeUserData(user.value);
           if (normalizedUser) {
             user.value = normalizedUser;
-            localStorage.setItem('user', JSON.stringify(normalizedUser));
+            localStorage.setItem(USER_DATA_KEY, JSON.stringify(normalizedUser));
           }
         }
       }
@@ -323,7 +493,7 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await authService.register(userData);
       
       setUser(response.data);
-      localStorage.setItem('token', response.data.token);
+      localStorage.setItem(TOKEN_KEY, response.data.token);
       
       // Rediriger vers la page demandée ou la page par défaut
       const redirectPath = localStorage.getItem('redirectAfterLogin') || '';
@@ -361,7 +531,7 @@ export const useAuthStore = defineStore('auth', () => {
   const saveAuthState = (): void => {
     const authState: AuthState = {
       user: user.value,
-      token: localStorage.getItem('token'),
+      token: localStorage.getItem(TOKEN_KEY),
       isAuthenticated: isAuthenticated.value
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authState));
@@ -500,8 +670,8 @@ export const useAuthStore = defineStore('auth', () => {
   const clearAuth = () => {
     user.value = null;
     isAuthenticated.value = false;
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_DATA_KEY);
     localStorage.removeItem(STORAGE_KEY);
     
     // Nettoyer les écouteurs d'événements si nécessaire
@@ -511,50 +681,28 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
-  // Vérifier l'authentification stockée au démarrage
-  const checkStoredAuth = async () => {
+  // Fonction pour obtenir le token d'authentification
+  const getAuthToken = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(TOKEN_KEY);
+  };
+
+  // Fonction pour définir le token d'authentification
+  const setAuthToken = (token: string): void => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(TOKEN_KEY, token);
+    }
+  };
+
+  // Fonction pour vérifier si un token est expiré
+  const isTokenExpired = (token: string, bufferSeconds = 0): boolean => {
     try {
-      const token = localStorage.getItem('token');
-      console.log('Vérification de l\'authentification stockée, token présent:', !!token);
-      
-      if (token) {
-        loading.value = true;
-        const response = await authService.getCurrentUser();
-        console.log('Réponse de getCurrentUser:', response);
-        
-        if (response?.data) {
-          // S'assurer que le userType est en minuscules pour la cohérence
-          const userData = response.data;
-          if (userData.userType) {
-            userData.userType = userData.userType.toString().toLowerCase().trim();
-          } else if (userData.user_type) {
-            // Gérer le cas où le champ s'appelle user_type au lieu de userType
-            userData.userType = userData.user_type.toString().toLowerCase().trim();
-            delete userData.user_type; // Nettoyer l'ancienne clé
-          }
-          
-          console.log('Utilisateur chargé avec succès:', {
-            id: userData.id,
-            email: userData.email,
-            userType: userData.userType,
-            rawData: userData // Ajouter les données brutes pour le débogage
-          });
-          
-          user.value = userData;
-          isAuthenticated.value = true;
-          
-          // Sauvegarder l'utilisateur dans le stockage local
-          localStorage.setItem('user', JSON.stringify(userData));
-        } else {
-          console.warn('Aucune donnée utilisateur dans la réponse');
-          clearAuth();
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la vérification de l\'authentification stockée:', error);
-      clearAuth();
-    } finally {
-      loading.value = false;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const now = Math.floor(Date.now() / 1000);
+      return payload.exp < now + bufferSeconds;
+    } catch (e) {
+      console.error('Erreur lors de la vérification du token:', e);
+      return true;
     }
   };
 
@@ -562,6 +710,10 @@ export const useAuthStore = defineStore('auth', () => {
   checkAuth();
 
   return {
+    // Fonctions d'aide
+    getAuthToken,
+    setAuthToken,
+    isTokenExpired,
     // State
     user,
     isAuthenticated,
@@ -581,13 +733,14 @@ export const useAuthStore = defineStore('auth', () => {
     setError,
     clearError,
     checkAuth,
+    refreshToken,
     login,
     register,
     logout,
     
     // Méthodes internes exposées si nécessaire
     clearAuth
-  }
+  };
 });
 
 export default useAuthStore;

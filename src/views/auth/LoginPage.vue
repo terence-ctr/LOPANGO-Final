@@ -1,12 +1,36 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, reactive, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import authService from '@/services/auth.service';
 import { useAuthStore } from '@/stores/auth';
+import { toast } from 'vue3-toastify';
+import { getDefaultRouteForRole } from '@/config/routes';
 import type { UserType } from '@/types/user.types';
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
+
+// Gestion de l'expiration de session
+watch(() => route.query, (newQuery) => {
+  if (newQuery.session === 'expired') {
+    // Afficher une notification à l'utilisateur
+    toast.warning('Votre session a expiré. Veuillez vous reconnecter.', {
+      position: 'top-right',
+      autoClose: 5000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      theme: 'light',
+    });
+    
+    // Nettoyer le paramètre d'URL pour éviter de réafficher le message au rechargement
+    const cleanQuery = { ...route.query };
+    delete cleanQuery.session;
+    router.replace({ query: cleanQuery });
+  }
+}, { immediate: true });
 
 interface LoginFormData {
   email: string;
@@ -59,10 +83,12 @@ const login = async (event?: Event) => {
 
     if (success) {
       console.log('Connexion réussie, redirection vers le dashboard');
-      // Rediriger vers le tableau de bord approprié en utilisant le nom de la route
-      const dashboardRoute = `${formData.userType}-dashboard`;
-      console.log('Redirection vers la route:', dashboardRoute);
-      router.push({ name: dashboardRoute });
+      // Récupérer le type d'utilisateur depuis le store
+      const userType = authStore.user?.userType || formData.userType;
+      // Utiliser la fonction getDefaultRouteForRole pour obtenir la route de redirection
+      const dashboardRoute = getDefaultRouteForRole(userType);
+      console.log('Redirection vers la route:', dashboardRoute, 'pour le type d\'utilisateur:', userType);
+      router.push(dashboardRoute);
     } else {
       // Récupérer le message d'erreur du store ou utiliser un message par défaut
       const errorMsg = authStore.error || 'Identifiants incorrects. Veuillez réessayer.';
@@ -116,11 +142,14 @@ onMounted(async () => {
   try {
     if (authService.isAuthenticated()) {
       const response = await authService.getCurrentUser();
-      // Rediriger vers le tableau de bord approprié
-      if (response?.data?.userType) {
-        router.push(`/${response.data.userType}/dashboard`);
+      // Rediriger vers le tableau de bord approprié en fonction du type d'utilisateur
+      const userType = response?.data?.userType || response?.data?.user?.userType;
+      if (userType) {
+        const dashboardRoute = getDefaultRouteForRole(userType);
+        console.log('Utilisateur déjà connecté, redirection vers:', dashboardRoute);
+        router.push(dashboardRoute);
       } else {
-        // Si le type d'utilisateur n'est pas défini, rediriger vers la page de connexion
+        console.warn('Type d\'utilisateur non défini dans la réponse, redirection vers la page de connexion');
         router.push('/login');
       }
     }

@@ -101,9 +101,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, onErrorCaptured } from 'vue';
+import { ref, onMounted, onErrorCaptured, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from './stores/auth';
+import 'vue3-toastify/dist/index.css';
 
 const router = useRouter();
 const route = useRoute();

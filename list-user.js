@@ -8,16 +8,16 @@ const db = knex({
   useNullAsDefault: true
 });
 
-async function listUsers() {
+async function listusers() {
   try {
-    const users = await db('users').select('id', 'email', 'first_name', 'last_name');
-    console.log('Utilisateurs existants :');
+    const users = await db('users').select('id', 'email', 'user_type', 'password', );
+    console.log('Users existants :');
     console.table(users);
   } catch (error) {
-    console.error('Erreur lors de la récupération des utilisateurs :', error);
+    console.error('Erreur lors de la récupération des users :', error);
   } finally {
     await db.destroy();
   }
 }
 
-listUsers();
+listusers();

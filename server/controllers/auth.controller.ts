@@ -57,16 +57,42 @@ const generateTokens = (userId: string, userType: UserType) => {
 };
 
 // Fonction utilitaire pour formater la réponse utilisateur
-const formatUserResponse = (user: IUser) => ({
-  id: user._id,
-  email: user.email,
-  firstName: user.firstName,
-  lastName: user.lastName,
-  userType: user.userType,
-  emailVerified: user.emailVerified,
-  profilePicture: user.profilePicture,
-  isActive: user.isActive
-});
+const formatUserResponse = (user: any) => {
+  // Vérifier si l'utilisateur utilise _id ou id
+  const userId = user._id || user.id;
+  
+  // Vérifier si userType est défini, sinon utiliser user_type
+  const userType = user.userType || user.user_type;
+  
+  // Vérifier si emailVerified est défini, sinon utiliser email_verified
+  const emailVerified = user.emailVerified || user.email_verified;
+  
+  // Vérifier si isActive est défini, sinon utiliser is_active
+  const isActive = typeof user.isActive !== 'undefined' ? user.isActive : user.is_active;
+  
+  console.log('Formatage de la réponse utilisateur:', {
+    userId,
+    userType,
+    emailVerified,
+    isActive,
+    rawUser: user
+  });
+
+  return {
+    id: userId,
+    email: user.email,
+    firstName: user.firstName || user.first_name,
+    lastName: user.lastName || user.last_name,
+    userType: userType,
+    emailVerified: emailVerified,
+    profilePicture: user.profilePicture || user.profile_picture,
+    isActive: isActive,
+    phone: user.phone,
+    gender: user.gender,
+    createdAt: user.createdAt || user.created_at,
+    updatedAt: user.updatedAt || user.updated_at
+  };
+};
 
 /**
  * Middleware pour gérer le téléchargement des fichiers
@@ -657,92 +683,234 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 /**
  * Connexion d'un utilisateur
  */
-export const login = async (req: Request, res: Response, next: NextFunction) => {
+// Fonction utilitaire pour gérer les erreurs de transaction
+const handleTransactionError = async (trx: any, error: any) => {
+  if (trx) {
+    try {
+      await trx.rollback();
+    } catch (rollbackError) {
+      console.error('Erreur lors du rollback de la transaction:', rollbackError);
+    }
+  }
+  console.error('Erreur lors de la connexion:', error);
+  throw error;
+};
+
+// Fonction utilitaire pour exécuter une requête dans une transaction
+const executeInTransaction = async (callback: (trx: any) => Promise<any>) => {
   const trx = await db.transaction();
+  try {
+    const result = await callback(trx);
+    await trx.commit();
+    return result;
+  } catch (error) {
+    await trx.rollback();
+    throw error;
+  }
+};
+
+export const login = async (req: Request, res: Response, next: NextFunction) => {
+  console.log('=== DÉBUT DE LA CONNEXION ===');
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Corps de la requête:', JSON.stringify(req.body, null, 2));
   
   try {
-    const { email, password }: LoginDto = req.body;
-
-    // Trouver l'utilisateur par email
-    const user = await trx('users')
-      .where('email', email)
-      .first();
-
-    if (!user) {
-      await trx.rollback();
-      return res.status(401).json({
-        success: false,
-        message: 'Email ou mot de passe incorrect'
-      });
-    }
-
-    // Vérifier si le compte est actif
-    if (!user.is_active) {
-      await trx.rollback();
-      return res.status(403).json({
-        success: false,
-        message: 'Votre compte est désactivé. Veuillez contacter le support.'
-      });
-    }
-
-    // Vérifier le mot de passe
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      // Incrémenter le compteur de tentatives échouées
-      await trx('users')
-        .where('id', user.id)
-        .increment('failed_login_attempts', 1);
-      
-      await trx.commit();
-      
-      return res.status(401).json({
-        success: false,
-        message: 'Email ou mot de passe incorrect'
-      });
-    }
-
-    // Réinitialiser le compteur de tentatives échouées
-    await trx('users')
-      .where('id', user.id)
-      .update({
-        failed_login_attempts: 0,
-        last_login: new Date(),
-        updated_at: new Date()
-      });
-
-    // Générer les tokens
-    const { accessToken, refreshToken, expiresIn } = generateTokens(user.id, user.user_type);
-
-    // Sauvegarder le refresh token
-    await trx('refresh_tokens').insert({
-      user_id: user.id,
-      token: refreshToken,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
-      created_at: new Date()
+    const { email, password, userType: requestedUserType }: LoginDto = req.body;
+    
+    console.log('Données extraites de la requête:', {
+      email,
+      hasPassword: !!password,
+      requestedUserType
     });
 
-    // Valider la transaction
-    await trx.commit();
+    // Valider les données d'entrée
+    if (!email || !password || !requestedUserType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tous les champs sont requis (email, mot de passe, type d\'utilisateur)'
+      });
+    }
 
-    // Formater la réponse
-    const response: AuthResponseDto = {
-      user: formatUserResponse(user),
-      tokens: {
-        accessToken,
-        refreshToken,
-        expiresIn
+    // Exécuter la logique de connexion dans une transaction
+    const result = await executeInTransaction(async (trx) => {
+      // Trouver l'utilisateur par email
+      const user = await trx('users')
+        .where('email', email)
+        .first();
+
+      if (!user) {
+        return { 
+          success: false, 
+          status: 401, 
+          message: 'Email ou mot de passe incorrect' 
+        };
       }
-    };
 
-    res.status(200).json({
+      // Vérifier si le compte est actif
+      if (user.is_active !== 1) {
+        return { 
+          success: false, 
+          status: 403, 
+          message: 'Votre compte est désactivé. Veuillez contacter le support.' 
+        };
+      }
+
+      // Vérifier le type d'utilisateur
+      console.log('Vérification du type d\'utilisateur:', {
+        userTypeFromDB: user.user_type,
+        requestedUserType,
+        userId: user.id,
+        userEmail: user.email
+      });
+      
+      if (user.user_type !== requestedUserType) {
+        return { 
+          success: false, 
+          status: 403, 
+          message: 'Type de compte incorrect. Veuillez vous connecter avec le bon type de compte.' 
+        };
+      }
+
+      // Vérifier le mot de passe
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        // Incrémenter le compteur de tentatives échouées
+        await trx('users')
+          .where('id', user.id)
+          .increment('failed_login_attempts', 1);
+        
+        return { 
+          success: false, 
+          status: 401, 
+          message: 'Email ou mot de passe incorrect' 
+        };
+      }
+
+      // Réinitialiser le compteur de tentatives échouées
+      await trx('users')
+        .where('id', user.id)
+        .update({
+          failed_login_attempts: 0,
+          last_login: new Date(),
+          updated_at: new Date()
+        });
+
+      // Générer les tokens
+      const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours
+      
+      const accessToken = jwt.sign(
+        { id: user.id, type: 'access', userType: user.user_type },
+        JWT_SECRET,
+        { expiresIn: '15m' }
+      );
+      
+      const refreshToken = jwt.sign(
+        { id: user.id, type: 'refresh', userType: user.user_type },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      // Sauvegarder le refresh token dans la base de données avec les métadonnées
+      await trx('refresh_tokens').insert({
+        user_id: user.id,
+        token: refreshToken,
+        expires_at: refreshTokenExpiry,
+        created_at: new Date(),
+        created_by_ip: req.ip,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+
+      // Formater la réponse utilisateur
+      const userResponse = formatUserResponse(user);
+      
+      // Normaliser le userType
+      console.log('Normalisation du userType avant réponse:', {
+        originalUserType: userResponse.userType,
+        userId: userResponse.id
+      });
+      
+      const validUserTypes = ['tenant', 'landlord', 'agent', 'admin'];
+      if (userResponse.userType) {
+        userResponse.userType = userResponse.userType.toString().toLowerCase().trim();
+        
+        // S'assurer que le userType est valide
+        if (!validUserTypes.includes(userResponse.userType)) {
+          console.warn(`Type d'utilisateur invalide pour l'utilisateur ${userResponse.id}: ${userResponse.userType}, utilisation de 'tenant' par défaut`);
+          userResponse.userType = 'tenant';
+        }
+      } else {
+        // Si pas de userType défini, utiliser 'tenant' comme valeur par défaut
+        userResponse.userType = 'tenant';
+        console.warn(`Aucun type d'utilisateur défini pour l'utilisateur ${userResponse.id}, utilisation de 'tenant' par défaut`);
+      }
+
+      // Retourner la réponse de succès
+      return {
+        success: true,
+        status: 200,
+        message: 'Connexion réussie',
+        data: {
+          user: userResponse,
+          tokens: {
+            accessToken,
+            refreshToken,
+            expiresAt: accessTokenExpiry.toISOString()
+          }
+        },
+        headers: {
+          'X-Access-Token': accessToken,
+          'X-Expires-At': accessTokenExpiry.toISOString()
+        },
+        cookies: {
+          name: 'refreshToken',
+          value: refreshToken,
+          options: {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+            path: '/',
+            domain: process.env.NODE_ENV === 'production' ? '.votredomaine.com' : undefined
+          }
+        }
+      };
+    });
+
+    // Gérer la réponse de la transaction
+    if (!result.success) {
+      return res.status(result.status || 500).json({
+        success: false,
+        message: result.message || 'Une erreur est survenue lors de la connexion'
+      });
+    }
+
+    // Définir les en-têtes de réponse
+    if (result.headers) {
+      Object.entries(result.headers).forEach(([key, value]) => {
+        res.setHeader(key, value as string);
+      });
+    }
+
+    // Définir le cookie de rafraîchissement
+    if (result.cookies) {
+      res.cookie(
+        result.cookies.name,
+        result.cookies.value,
+        result.cookies.options
+      );
+    }
+
+    // Renvoyer la réponse
+    return res.status(200).json({
       success: true,
-      data: response,
-      message: 'Connexion réussie'
+      data: result.data,
+      message: result.message
     });
 
   } catch (error) {
-    await trx.rollback();
-    console.error('Erreur lors de la connexion :', error);
+    console.error('Erreur inattendue lors de la connexion :', error);
     next(error);
   }
 };
@@ -754,7 +922,13 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
   const trx = await db.transaction();
   
   try {
-    const { refreshToken: refreshTokenValue }: RefreshTokenDto = req.body;
+    // Essayer d'abord de récupérer le refresh token depuis le cookie
+    let refreshTokenValue = req.cookies?.refreshToken;
+    
+    // Si non trouvé dans les cookies, essayer dans le corps de la requête (pour rétrocompatibilité)
+    if (!refreshTokenValue && req.body.refreshToken) {
+      refreshTokenValue = req.body.refreshToken;
+    }
 
     if (!refreshTokenValue) {
       await trx.rollback();
@@ -826,32 +1000,47 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     // Générer de nouveaux tokens
     const { accessToken, refreshToken: newRefreshToken, expiresIn } = generateTokens(user.id, user.user_type);
 
-    // Révocation de l'ancien token
+    // Révocation de l'ancien token avec mise à jour de replaced_by_token
     await trx('refresh_tokens')
       .where('id', token.id)
       .update({
         revoked: true,
+        revoked_at: new Date(),
+        replaced_by_token: newRefreshToken,
         updated_at: new Date()
       });
 
-    // Enregistrer le nouveau refresh token
+    // Enregistrer le nouveau refresh token avec les métadonnées
     await trx('refresh_tokens').insert({
       user_id: user.id,
       token: newRefreshToken,
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
-      created_at: new Date()
+      created_at: new Date(),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent']
     });
 
+    // Configuration des cookies sécurisés
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.votredomaine.com' : undefined
+    };
+
+    // Définir le nouveau refresh token dans un cookie HTTP-only sécurisé
+    res.cookie('refreshToken', newRefreshToken, cookieOptions);
 
     // Valider la transaction
     await trx.commit();
 
-    // Formater la réponse
+    // Préparer la réponse
     const response: AuthResponseDto = {
       user: formatUserResponse(user),
       tokens: {
         accessToken,
-        refreshToken: newRefreshToken,
         expiresIn
       }
     };
@@ -878,23 +1067,45 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const logout = async (req: Request, res: Response) => {
+  const trx = await db.transaction();
+  
   try {
-    const { refreshToken } = req.body;
+    // Récupérer le refresh token depuis le cookie ou le corps de la requête
+    let refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
 
     if (!refreshToken) {
-      return res.status(400).json({ message: 'Refresh token requis' });
+      await trx.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'Refresh token requis' 
+      });
     }
 
-    // Révoker le refresh token
-    await db('refresh_tokens')
+    // Révoker le refresh token dans la base de données
+    await trx('refresh_tokens')
       .where('token', refreshToken)
       .update({
         revoked: true,
         revoked_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
+        revoked_by_ip: req.ip
       });
-
-    res.json({ message: 'Déconnexion réussie' });
+    
+    // Valider la transaction
+    await trx.commit();
+    
+    // Supprimer le cookie de refresh token
+    res.clearCookie('refreshToken', {
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.votredomaine.com' : undefined,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production'
+    });
+    
+    res.json({ 
+      success: true,
+      message: 'Déconnexion réussie' 
+    });
   } catch (error) {
     console.error('Erreur lors de la déconnexion :', error);
     res.status(500).json({ message: 'Erreur lors de la déconnexion' });
@@ -919,6 +1130,8 @@ export const getCurrentUser = async (req: Request, res: Response) => {
         'phone',
         'gender',
         'user_type as userType',
+        'is_active as isActive',
+        'email_verified as emailVerified',
         'created_at as createdAt',
         'updated_at as updatedAt'
       )
@@ -929,7 +1142,34 @@ export const getCurrentUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
 
-    res.json({ data: user });
+    // S'assurer que le userType est en minuscules et valide
+    const validUserTypes = ['tenant', 'landlord', 'agent', 'admin'];
+    if (user.userType) {
+      user.userType = user.userType.toString().toLowerCase().trim();
+      
+      // Si le userType n'est pas valide, utiliser 'tenant' comme valeur par défaut
+      if (!validUserTypes.includes(user.userType)) {
+        console.warn(`Type d'utilisateur invalide pour l'utilisateur ${user.id}: ${user.userType}, utilisation de 'tenant' par défaut`);
+        user.userType = 'tenant';
+      }
+    } else {
+      // Si pas de userType défini, utiliser 'tenant' comme valeur par défaut
+      user.userType = 'tenant';
+      console.warn(`Aucun type d'utilisateur défini pour l'utilisateur ${user.id}, utilisation de 'tenant' par défaut`);
+    }
+
+    // Vérifier si le compte est actif
+    if (user.isActive === false) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Votre compte est désactivé. Veuillez contacter le support.' 
+      });
+    }
+
+    res.json({ 
+      success: true,
+      data: user 
+    });
   } catch (error) {
     console.error('Erreur lors de la récupération de l\'utilisateur:', error);
     res.status(500).json({ message: 'Erreur serveur lors de la récupération des informations utilisateur' });

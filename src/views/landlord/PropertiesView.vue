@@ -50,89 +50,110 @@
       </div>
     </div>
 
-    <section class="overflow-x-auto border border-gray-200 rounded-md">
-      <table class="w-full text-left text-xs text-gray-600">
-        <thead class="bg-gray-50 border-b border-gray-200">
-          <tr>
-            <th class="py-3 px-4 font-semibold w-12">#</th>
-            <th class="py-3 px-4 font-semibold min-w-[120px]">Nom</th>
-            <th class="py-3 px-4 font-semibold min-w-[280px]">Adresse</th>
-            <th class="py-3 px-4 font-semibold min-w-[140px]">Locataire</th>
-            <th class="py-3 px-4 font-semibold w-20">Loyer mensuel</th>
-            <th class="py-3 px-4 font-semibold w-20">Statut</th>
-            <th class="py-3 px-4 font-semibold w-12"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="(property, index) in filteredProperties"
-            :key="property.id"
-            class="border-b border-gray-100"
-          >
-            <td class="py-3 px-4 font-normal">{{ property.id }}</td>
-            <td class="py-3 px-4 font-normal">{{ property.nom }}</td>
-            <td
-              class="py-3 px-4 font-normal whitespace-nowrap overflow-hidden text-ellipsis max-w-[280px]"
-              :title="property.adresse"
+    <section class="border border-gray-200 rounded-md overflow-hidden">
+      <!-- Message quand il n'y a pas de propriétés -->
+      <div v-if="properties.length === 0" class="p-8 text-center text-gray-500">
+        <div class="mx-auto w-16 h-16 mb-4 text-gray-300">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-700">Aucune propriété trouvée</h3>
+        <p class="mt-1 text-sm">Commencez par ajouter votre première propriété</p>
+        <button
+          @click="openAddPropertyModal"
+          class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          <i class="fas fa-plus mr-2"></i>
+          Ajouter une propriété
+        </button>
+      </div>
+
+      <!-- Tableau des propriétés -->
+      <div v-else class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-gray-600">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="py-3 px-4 font-semibold w-12">#</th>
+              <th class="py-3 px-4 font-semibold min-w-[120px]">Nom</th>
+              <th class="py-3 px-4 font-semibold min-w-[280px]">Adresse</th>
+              <th class="py-3 px-4 font-semibold min-w-[140px]">Locataire</th>
+              <th class="py-3 px-4 font-semibold w-20">Loyer mensuel</th>
+              <th class="py-3 px-4 font-semibold w-20">Statut</th>
+              <th class="py-3 px-4 font-semibold w-12"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(property, index) in filteredProperties"
+              :key="property.id"
+              class="border-b border-gray-100"
             >
-              {{ property.adresse }}
-            </td>
-            <td
-              class="py-3 px-4 font-semibold text-blue-700 cursor-pointer hover:underline"
-            >
-              {{ property.locataire }}
-            </td>
-            <td class="py-3 px-4 font-normal">{{ property.loyer }}</td>
-            <td
-              class="py-3 px-4 font-semibold flex items-center gap-1"
-              :class="property.statut === 'Actif' ? 'text-green-600' : 'text-gray-600'"
-            >
-              <template v-if="property.statut === 'Actif'">
-                <i class="fas fa-arrow-up text-green-600 text-[10px]"></i>
-              </template>
-              {{ property.statut }}
-            </td>
-            <td class="py-3 px-4 relative text-center">
-              <button
-                aria-expanded="false"
-                aria-haspopup="true"
-                aria-label="Actions"
-                class="text-gray-400 hover:text-gray-600 focus:outline-none"
-                @click="toggleMenu(property.id)"
+              <td class="py-3 px-4 font-normal">{{ property.id }}</td>
+              <td class="py-3 px-4 font-normal">{{ property.nom }}</td>
+              <td
+                class="py-3 px-4 font-normal whitespace-nowrap overflow-hidden text-ellipsis max-w-[280px]"
+                :title="property.adresse"
               >
-                <i class="fas fa-ellipsis-h"></i>
-              </button>
-              <div
-                v-if="openMenuId === property.id"
-                class="absolute right-0 top-8 w-36 bg-white border border-gray-200 rounded-md shadow-lg text-xs z-10"
-                role="menu"
+                {{ property.adresse }}
+              </td>
+              <td
+                class="py-3 px-4 font-semibold text-blue-700 cursor-pointer hover:underline"
               >
+                {{ property.locataire }}
+              </td>
+              <td class="py-3 px-4 font-normal">{{ property.loyer }}</td>
+              <td
+                class="py-3 px-4 font-semibold flex items-center gap-1"
+                :class="property.statut === 'Actif' ? 'text-green-600' : 'text-gray-600'"
+              >
+                <template v-if="property.statut === 'Actif'">
+                  <i class="fas fa-arrow-up text-green-600 text-[10px]"></i>
+                </template>
+                {{ property.statut }}
+              </td>
+              <td class="py-3 px-4 relative text-center">
                 <button
-                  class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
-                  role="menuitem"
-                  @click="openModal('details', property)"
+                  aria-expanded="false"
+                  aria-haspopup="true"
+                  aria-label="Actions"
+                  class="text-gray-400 hover:text-gray-600 focus:outline-none"
+                  @click="toggleMenu(property.id)"
                 >
-                  <i class="fas fa-eye"></i> Voir détails
+                  <i class="fas fa-ellipsis-h"></i>
                 </button>
-                <button
-                  class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
-                  role="menuitem"
-                  @click="openModal('edit', property)"
+                <div
+                  v-if="openMenuId === property.id"
+                  class="absolute right-0 top-8 w-36 bg-white border border-gray-200 rounded-md shadow-lg text-xs z-10"
+                  role="menu"
                 >
-                  <i class="fas fa-pen"></i> Éditer
-                </button>
-                <button
-                  class="flex items-center gap-2 w-full px-3 py-2 hover:bg-red-50 text-red-500"
-                  role="menuitem"
-                  @click="openModal('delete', property)"
-                >
-                  <i class="fas fa-trash-alt"></i> Supprimer
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                  <button
+                    class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
+                    role="menuitem"
+                    @click="openModal('details', property)"
+                  >
+                    <i class="fas fa-eye"></i> Voir détails
+                  </button>
+                  <button
+                    class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
+                    role="menuitem"
+                    @click="openModal('edit', property)"
+                  >
+                    <i class="fas fa-pen"></i> Éditer
+                  </button>
+                  <button
+                    class="flex items-center gap-2 w-full px-3 py-2 hover:bg-red-50 text-red-500"
+                    role="menuitem"
+                    @click="openModal('delete', property)"
+                  >
+                    <i class="fas fa-trash-alt"></i> Supprimer
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <!-- Modal Overlay -->
@@ -262,201 +283,286 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
+import type { ToastOptions } from 'vue-toastification';
 import PropertyForm from '@/components/landlord/properties/PropertyForm.vue';
+import type { PropertyFormData } from '@/types/property';
+import PropertyService from '@/services/propertyService';
 
-export default {
-  components: {
-    PropertyForm
-  },
-  setup() {
-    const search = ref("");
-    const openMenuId = ref(null);
-    const modalVisible = ref(false);
-    const modalType = ref(null);
-    const isAddPropertyModalOpen = ref(false);
-    const propertyData = ref({
-      name: '',
-      type: 'T2',
-      area: '',
-      rooms: 1,
-      bathrooms: 1,
-      floor: '',
-      furnished: 'Non',
-      equipment: '',
-      rent: '',
-      charges: '',
-      status: 'Actif',
-      address: ''
-    });
+// Définition des types
+type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_ENTRETIEN' | 'INDISPONIBLE' | 'BROUILLON';
 
-    const openAddPropertyModal = () => {
-      // Réinitialiser les données du formulaire
-      propertyData.value = {
-        name: '',
-        type: 'T2',
-        area: '',
-        rooms: 1,
-        bathrooms: 1,
-        floor: '',
-        furnished: 'Non',
-        equipment: '',
-        rent: '',
-        charges: '',
-        status: 'Actif',
-        address: ''
-      };
-      isAddPropertyModalOpen.value = true;
-    };
+interface Property {
+  id: string | number;
+  title: string;
+  fullAddress?: string;
+  street?: string;
+  postalCode?: string;
+  city?: string;
+  tenant_id?: string | number | null;
+  rent?: number;
+  currency?: string;
+  status: PropertyStatus;
+  [key: string]: any; // Pour les propriétés supplémentaires
+}
 
-    const handleSubmit = (property) => {
-      console.log('Nouvelle propriété:', property);
-      // Ici, vous pourriez ajouter la logique pour sauvegarder la propriété
-      isAddPropertyModalOpen.value = false;
-      // Recharger la liste des propriétés ou ajouter à la liste existante
-    };
+interface PropertyTableItem {
+  id: string | number;
+  nom: string;
+  adresse: string;
+  locataire: string;
+  loyer: string;
+  statut: string;
+  [key: string]: any; // Pour les propriétés supplémentaires
+}
 
-    const handleCancel = () => {
-      isAddPropertyModalOpen.value = false;
-    };
-    const modalData = reactive({
-      id: null,
-      nom: "",
-      adresse: "",
-      locataire: "",
-      loyer: "",
-      statut: "",
-    });
+// Références réactives
+const router = useRouter();
+const toast = useToast();
 
-    const editForm = reactive({
-      id: null,
-      nom: "",
-      adresse: "",
-      locataire: "",
-      loyer: "",
-      statut: "Actif",
-    });
+// État du composant
+const search = ref<string>("");
+const openMenuId = ref<string | null>(null);
+const modalVisible = ref<boolean>(false);
+const modalType = ref<'details' | 'edit' | 'delete' | null>(null);
+const isAddPropertyModalOpen = ref<boolean>(false);
+const properties = ref<PropertyTableItem[]>([]);
 
-    const properties = ref([
-      {
-        id: "01",
-        nom: "Appartement B20",
-        adresse: "Luapula A16, C/Barumbu, Immeuble Dan",
-        locataire: "Elie Oko",
-        loyer: "400$",
-        statut: "Actif",
-      },
-      {
-        id: "02",
-        nom: "Appartement B20",
-        adresse: "Luapula A16, C/Kin, Immeuble Boketshu",
-        locataire: "Meschack Kapanga",
-        loyer: "350$",
-        statut: "Actif",
-      },
-    ]);
+// Données du formulaire
+const propertyData = reactive<Partial<PropertyFormData>>({
+  title: '',
+  type: 'T1',
+  area: 0,
+  rooms: 1,
+  bathrooms: 1,
+  floor: '0',
+  furnished: false,
+  equipment: [],
+  rent: 0,
+  charges: 0,
+  status: 'DISPONIBLE',
+  street: '',
+  city: '',
+  postalCode: '',
+  country: 'France',
+  fullAddress: '',
+  currency: 'EUR',
+  isFeatured: false
+});
 
-    const filteredProperties = computed(() => {
-      if (!search.value) return properties.value;
-      return properties.value.filter((p) =>
-        [p.id, p.nom, p.adresse, p.locataire, p.loyer, p.statut]
-          .join(" ")
-          .toLowerCase()
-          .includes(search.value.toLowerCase())
-      );
-    });
+// Données de la modale
+const modalData = reactive({
+  id: null as string | number | null,
+  nom: "",
+  adresse: "",
+  locataire: "",
+  loyer: "",
+  statut: "",
+});
 
-    function toggleMenu(id) {
-      if (openMenuId.value === id) {
-        openMenuId.value = null;
-      } else {
-        openMenuId.value = id;
-      }
-    }
+// Données du formulaire d'édition
+const editForm = reactive({
+  id: null as string | number | null,
+  nom: "",
+  adresse: "",
+  locataire: "",
+  loyer: "",
+  statut: "Actif",
+});
 
-    function openModal(type, property) {
-      modalType.value = type;
-      modalVisible.value = true;
-      openMenuId.value = null;
+// Propriétés calculées
+const filteredProperties = computed<PropertyTableItem[]>(() => {
+  if (!search.value) return properties.value;
+  return properties.value.filter((p) =>
+    [p.id, p.nom, p.adresse, p.locataire, p.loyer, p.statut]
+      .join(" ")
+      .toLowerCase()
+      .includes(search.value.toLowerCase())
+  );
+});
 
-      if (type === "details") {
-        Object.assign(modalData, property);
-      } else if (type === "edit") {
-        Object.assign(editForm, property);
-      } else if (type === "delete") {
-        Object.assign(modalData, property);
-      }
-    }
+// Méthodes
+const openAddPropertyModal = () => {
+  // Réinitialiser les données du formulaire
+  Object.assign(propertyData, {
+    title: '',
+    type: 'T1',
+    area: 0,
+    rooms: 1,
+    bathrooms: 1,
+    floor: '0',
+    furnished: false,
+    equipment: [],
+    rent: 0,
+    charges: 0,
+    status: 'DISPONIBLE',
+    street: '',
+    city: '',
+    postalCode: '',
+    country: 'France',
+    fullAddress: '',
+    currency: 'EUR',
+    isFeatured: false
+  });
+  isAddPropertyModalOpen.value = true;
+};
 
-    function closeModal() {
-      modalVisible.value = false;
-      modalType.value = null;
-      // Clear modal data
-      Object.assign(modalData, {
-        id: null,
-        nom: "",
-        adresse: "",
-        locataire: "",
-        loyer: "",
-        statut: "",
-      });
-      Object.assign(editForm, {
-        id: null,
-        nom: "",
-        adresse: "",
-        locataire: "",
-        loyer: "",
-        statut: "Actif",
-      });
-    }
-
-    function saveEdit() {
-      const index = properties.value.findIndex((p) => p.id === editForm.id);
-      if (index !== -1) {
-        properties.value[index] = { ...editForm };
-      }
-      closeModal();
-    }
-
-    function confirmDelete() {
-      properties.value = properties.value.filter((p) => p.id !== modalData.id);
-      closeModal();
-    }
-
-    onMounted(() => {
-      document.addEventListener("click", (e) => {
-        if (
-          !e.target.closest("button[aria-label='Actions']") &&
-          !e.target.closest("div[role='menu']")
-        ) {
-          openMenuId.value = null;
-        }
-      });
-    });
-
-    return {
-      search,
-      openMenuId,
-      toggleMenu,
-      properties,
-      filteredProperties,
-      modalVisible,
-      modalType,
-      modalData,
-      editForm,
-      openModal,
-      closeModal,
-      saveEdit,
-      // Propriétés et méthodes pour le formulaire
-      isAddPropertyModalOpen,
-      propertyData,
-      openAddPropertyModal,
-      handleSubmit,
-      handleCancel
-    };
+const handleSubmit = async (property: PropertyFormData) => {
+  try {
+    // Afficher un message de chargement
+    const loadingToast = toast.info('Création de la propriété en cours...', { timeout: false } as ToastOptions);
+    
+    // Appeler le service pour créer la propriété
+    const newProperty = await PropertyService.createProperty(property);
+    
+    // Fermer le message de chargement
+    toast.dismiss(loadingToast);
+    
+    // Afficher un message de succès
+    toast.success('Propriété créée avec succès !');
+    
+    // Fermer la modale
+    isAddPropertyModalOpen.value = false;
+    
+    // Recharger la liste des propriétés
+    await loadProperties();
+    
+    // Rediriger vers la page de détail de la propriété
+    router.push(`/landlord/properties/${newProperty.id}`);
+  } catch (error) {
+    console.error('Erreur lors de la création de la propriété:', error);
+    
+    // Afficher un message d'erreur
+    toast.error('Une erreur est survenue lors de la création de la propriété');
   }
 };
+
+const handleCancel = () => {
+  isAddPropertyModalOpen.value = false;
+};
+
+const loadProperties = async () => {
+  try {
+    const data = await PropertyService.getProperties() as Property[];
+    // Formater les données pour correspondre au format attendu par le template
+    properties.value = data.map((property: Property): PropertyTableItem => ({
+      id: property.id,
+      nom: property.title,
+      adresse: property.fullAddress || `${property.street || ''}, ${property.postalCode || ''} ${property.city || ''}`.trim(),
+      locataire: property.tenant_id ? 'À définir' : 'Aucun',
+      loyer: `${property.rent || 0} ${property.currency || 'EUR'}`,
+      statut: property.status === 'DISPONIBLE' ? 'Disponible' : 
+             property.status === 'LOUE' ? 'Loué' :
+             property.status === 'EN_ENTRETIEN' ? 'En entretien' :
+             property.status === 'INDISPONIBLE' ? 'Indisponible' : 'Brouillon',
+      ...property
+    }));
+  } catch (error) {
+    console.error('Erreur lors du chargement des propriétés:', error);
+    toast.error('Impossible de charger la liste des propriétés');
+  }
+};
+
+const toggleMenu = (id: string) => {
+  if (openMenuId.value === id) {
+    openMenuId.value = null;
+  } else {
+    openMenuId.value = id;
+  }
+};
+
+const openModal = (type: 'details' | 'edit' | 'delete', property: PropertyTableItem) => {
+  modalType.value = type;
+  modalVisible.value = true;
+  openMenuId.value = null;
+
+  if (type === "details") {
+    Object.assign(modalData, property);
+  } else if (type === "edit") {
+    // Convertir les données du tableau au format du formulaire
+    Object.assign(editForm, {
+      id: property.id,
+      nom: property.nom,
+      adresse: property.adresse,
+      locataire: property.locataire,
+      loyer: property.loyer,
+      statut: property.statut
+    });
+  } else if (type === "delete") {
+    Object.assign(modalData, property);
+  }
+};
+
+const closeModal = () => {
+  modalVisible.value = false;
+  modalType.value = null;
+  // Clear modal data
+  Object.assign(modalData, {
+    id: null,
+    nom: "",
+    adresse: "",
+    locataire: "",
+    loyer: "",
+    statut: "",
+  });
+};
+
+// Charger les propriétés au montage du composant
+onMounted(() => {
+  loadProperties();
+});
+
+// Fonction pour sauvegarder les modifications
+const saveEdit = () => {
+  const index = properties.value.findIndex((p) => p.id === editForm.id);
+  if (index !== -1) {
+    properties.value[index] = { ...editForm };
+  }
+  closeModal();
+};
+
+// Fonction pour confirmer la suppression
+const confirmDelete = () => {
+  properties.value = properties.value.filter((p) => p.id !== modalData.id);
+  closeModal();
+};
+
+// Ajouter un événement pour fermer les menus contextuels lors d'un clic en dehors
+onMounted(() => {
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    if (
+      !target.closest("button[aria-label='Actions']") &&
+      !target.closest("div[role='menu']")
+    ) {
+      openMenuId.value = null;
+    }
+  });
+});
+
+// Exposer les propriétés et méthodes au template
+defineExpose({
+  search,
+  openMenuId,
+  modalVisible,
+  modalType,
+  isAddPropertyModalOpen,
+  properties: filteredProperties,
+  modalData,
+  editForm,
+  openAddPropertyModal,
+  handleSubmit,
+  handleCancel,
+  toggleMenu,
+  openModal,
+  closeModal,
+  saveEdit,
+  confirmDelete,
+  loadProperties,
+});
 </script>
 
 <style>

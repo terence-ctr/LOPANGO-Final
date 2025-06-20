@@ -62,21 +62,39 @@ const processQueue = (error: any, token: string | null = null) => {
 // Fonction pour rafraîchir le token
 const refreshToken = async (): Promise<string | null> => {
   try {
-    const authStore = useAuthStore();
+    console.log('Tentative de rafraîchissement du token...');
+    // Utiliser l'URL complète avec le préfixe /api car le proxy le supprimera
     const response = await axios.post(
-      `${apiConfig.apiUrl}/auth/refresh`,
+      `${apiConfig.apiUrl}${apiConfig.endpoints.auth.refresh}`,
       {},
-      { withCredentials: true }
+      { 
+        withCredentials: true,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      }
     );
     
-    const { access_token } = response.data;
-    if (access_token) {
-      setAuthToken(access_token);
-      return access_token;
+    console.log('Réponse du rafraîchissement du token:', response.data);
+    
+    // Vérifier la structure de la réponse
+    const responseData = response.data?.data || response.data;
+    const accessToken = responseData?.tokens?.accessToken || responseData?.accessToken;
+    
+    if (accessToken) {
+      console.log('Nouveau token d\'accès obtenu avec succès');
+      setAuthToken(accessToken);
+      return accessToken;
     }
+    
+    console.error('Aucun token d\'accès trouvé dans la réponse:', response.data);
     return null;
   } catch (error) {
     console.error('Erreur lors du rafraîchissement du token:', error);
+    // Déconnecter l'utilisateur en cas d'erreur de rafraîchissement
+    const authStore = useAuthStore();
+    authStore.logout(true);
     return null;
   }
 };
@@ -120,17 +138,32 @@ export const decodeToken = (token: string): any => {
 // Intercepteur pour les requêtes sortantes
 api.interceptors.request.use(
   (config) => {
+    console.log('[API] Requête sortante:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      params: config.params,
+      headers: config.headers,
+      requestId: config.headers?.['X-Request-ID']
+    });
     // Ne pas ajouter le token pour les routes publiques
     const publicEndpoints = [
-      '/auth/login',
-      '/auth/register',
-      '/auth/refresh',
+      apiConfig.endpoints.auth.login,
+      apiConfig.endpoints.auth.register,
+      apiConfig.endpoints.auth.refresh,
+      '/api/auth/forgot-password',
+      '/api/auth/reset-password',
+      // Ajouter les endpoints sans /api pour la rétrocompatibilité
       '/auth/forgot-password',
       '/auth/reset-password'
     ];
     
+    // Normaliser les URLs pour la comparaison
+    const normalizeUrl = (url: string) => url.replace(/^\/+|\/+$/g, '');
+    const requestUrl = normalizeUrl(config.url || '');
+    
     const isPublicEndpoint = publicEndpoints.some(endpoint => 
-      config.url?.startsWith(endpoint)
+      requestUrl.endsWith(normalizeUrl(endpoint))
     );
     
     // Ajouter le token JWT s'il existe et si ce n'est pas une route publique
@@ -175,6 +208,15 @@ api.interceptors.request.use(
 // Intercepteur pour les réponses entrantes
 api.interceptors.response.use(
   (response: AxiosResponse) => {
+    console.log('[API] Réponse reçue:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.config.url,
+      method: response.config.method?.toUpperCase(),
+      requestId: response.config.headers?.['X-Request-ID'],
+      data: response.data
+    });
+    
     // Log des réponses en développement
     if (import.meta.env.DEV) {
       const { config, status, data } = response;
@@ -189,13 +231,20 @@ api.interceptors.response.use(
     return response;
   },
   async (error: any) => {
-    const originalRequest = error.config;
-    
-    // Si l'erreur est liée à une requête annulée ou sans config
-    if (axios.isCancel(error) || !originalRequest) {
+    // Si l'erreur n'a pas de config, c'est probablement une erreur réseau
+    if (!error.config) {
+      console.error('[API] Erreur réseau ou de configuration:', error.message);
       return Promise.reject(error);
     }
+
+    const originalRequest = error.config;
     
+    // Si l'erreur est liée à une requête annulée
+    if (axios.isCancel(error)) {
+      console.log('[API] Requête annulée:', originalRequest.url);
+      return Promise.reject(error);
+    }
+
     // Log détaillé pour le débogage
     if (error.response) {
       // La requête a été faite et le serveur a répondu avec un code d'erreur
@@ -206,7 +255,7 @@ api.interceptors.response.use(
         method: originalRequest.method,
         data: error.response.data,
         headers: { ...error.response.headers, authorization: '[REDACTED]' },
-        requestId: originalRequest.headers['X-Request-ID']
+        requestId: originalRequest.headers?.['X-Request-ID']
       });
     } else if (error.request) {
       // La requête a été faite mais aucune réponse n'a été reçue
@@ -214,83 +263,70 @@ api.interceptors.response.use(
         url: originalRequest.url,
         method: originalRequest.method,
         timeout: originalRequest.timeout,
-        requestId: originalRequest.headers['X-Request-ID']
+        requestId: originalRequest.headers?.['X-Request-ID']
       });
     } else {
       // Une erreur s'est produite lors de la configuration de la requête
       console.error('[API] Erreur de configuration:', error.message, {
         url: originalRequest.url,
         method: originalRequest.method,
-        requestId: originalRequest.headers['X-Request-ID']
+        requestId: originalRequest.headers?.['X-Request-ID']
       });
     }
 
     // Gestion des erreurs d'authentification (401 Unauthorized)
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      // Éviter les boucles de rafraîchissement
-      if (originalRequest.url?.includes('/auth/refresh')) {
-        // Si on est déjà en train de rafraîchir le token et qu'on reçoit encore une 401
-        console.error('[API] Échec du rafraîchissement du token, déconnexion...');
+    if (error.response?.status === 401) {
+      console.log('[API] Erreur 401 détectée, vérification du contexte...', {
+        url: originalRequest.url,
+        method: originalRequest.method,
+        isRetry: originalRequest._retry,
+        isRefreshRequest: originalRequest.url?.includes('/auth/refresh-token')
+      });
+
+      // Ne pas tenter de rafraîchir si c'est une requête de rafraîchissement qui a échoué
+      if (originalRequest.url?.includes('/auth/refresh-token')) {
+        console.log('[API] Échec du rafraîchissement du token, déconnexion...');
         const authStore = useAuthStore();
         await authStore.logout();
+        
+        // Rediriger vers la page de connexion
+        const currentPath = window.location.pathname + window.location.search;
+        const loginUrl = currentPath === '/' ? '/login' : `/login?redirect=${encodeURIComponent(currentPath)}`;
+        window.location.href = loginUrl + (loginUrl.includes('?') ? '&' : '?') + 'session=expired';
         return Promise.reject(error);
       }
 
-      // Si c'est la première tentative et qu'on n'est pas déjà en train de rafraîchir
-      if (!isRefreshing) {
-        isRefreshing = true;
+      // Si le token est invalide ou expiré, on tente de le rafraîchir
+      if (!originalRequest._retry) {
+        console.log('[API] Tentative de rafraîchissement du token...');
         originalRequest._retry = true;
-
+        
         try {
-          const newToken = await refreshToken();
+          // Utiliser le store d'authentification pour rafraîchir le token
+          const authStore = useAuthStore();
+          const refreshResult = await authStore.refreshToken(true);
           
-          if (newToken) {
-            // Mettre à jour le token dans les en-têtes
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            
-            // Traiter la file d'attente avec le nouveau token
-            processQueue(null, newToken);
-            
+          if (refreshResult?.token) {
+            console.log('[API] Nouveau token obtenu, réessai de la requête...');
+            // Mettre à jour le header d'autorisation avec le nouveau token
+            originalRequest.headers.Authorization = `Bearer ${refreshResult.token}`;
             // Renvoyer la requête originale avec le nouveau token
             return api(originalRequest);
           } else {
-            // Si le rafraîchissement échoue, déconnecter l'utilisateur
-            const authStore = useAuthStore();
-            await authStore.logout();
-            
-            // Rediriger vers la page de connexion
-            if (!window.location.pathname.includes('/auth/login')) {
-              window.location.href = '/auth/login?session=expired';
-            }
-            
-            return Promise.reject(error);
+            throw new Error('Échec du rafraîchissement du token: réponse invalide');
           }
         } catch (refreshError) {
           console.error('[API] Erreur lors du rafraîchissement du token:', refreshError);
-          processQueue(refreshError, null);
-          
-          // Déconnecter l'utilisateur en cas d'échec du rafraîchissement
+          // En cas d'échec du rafraîchissement, déconnecter l'utilisateur
           const authStore = useAuthStore();
           await authStore.logout();
           
           // Rediriger vers la page de connexion
-          if (!window.location.pathname.includes('/auth/login')) {
-            window.location.href = '/auth/login?session=expired';
-          }
-          
+          const currentPath = window.location.pathname + window.location.search;
+          const loginUrl = currentPath === '/' ? '/login' : `/login?redirect=${encodeURIComponent(currentPath)}`;
+          window.location.href = loginUrl + (loginUrl.includes('?') ? '&' : '?') + 'session=expired';
           return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
         }
-      } else {
-        // Si un rafraîchissement est déjà en cours, mettre en file d'attente la requête
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ 
-            resolve, 
-            reject, 
-            config: originalRequest 
-          });
-        });
       }
     }
 

@@ -75,6 +75,95 @@ LOPANGO est une application web complète de gestion immobilière qui permet une
 - **Avantages** : Encapsulation de la logique de création
 - **Exemple** : Génération de formulaires dynamiques
 
+## 🗃️ Migration de la table Properties
+
+### Structure de la table
+
+La table `properties` a été créée avec les champs suivants :
+
+#### Informations de base
+
+- `id` : Identifiant unique auto-incrémenté
+- `title` : Titre de l'annonce
+- `description` : Description détaillée
+- `type` : Type de bien (T1, T2, T3, T4+, MAISON, APPARTEMENT, BUREAU, COMMERCE, AUTRE)
+- `status` : Statut actuel (DISPONIBLE, LOUE, EN_ENTRETIEN, INDISPONIBLE, BROUILLON)
+- `is_active` : Si le bien est actif
+- `is_featured` : Si le bien est mis en avant
+
+#### Relations
+
+- `owner_id` : Référence vers le propriétaire (users.id)
+- `tenant_id` : Référence optionnelle vers le locataire actuel (users.id)
+
+#### Adresse
+
+- `street` : Rue
+- `city` : Ville
+- `postal_code` : Code postal
+- `country` : Pays
+- `full_address` : Adresse complète générée automatiquement
+- `latitude` / `longitude` : Coordonnées GPS
+
+#### Caractéristiques
+
+- `area` : Superficie en m²
+- `floor_area` : Surface habitable en m²
+- `land_area` : Surface du terrain en m²
+- `rooms` : Nombre de pièces
+- `bathrooms` : Nombre de salles de bain
+- `floor` : Étage
+- `furnished` : Si le bien est meublé
+- `equipment` : Liste des équipements (stockée en JSON)
+- `year_built` : Année de construction
+
+#### Équipements (booléens)
+
+- `has_elevator` : Ascenseur
+- `has_parking` : Parking
+- `has_balcony` : Balcon
+- `has_terrace` : Terrasse
+- `has_garden` : Jardin
+- `has_pool` : Piscine
+- `has_air_conditioning` : Climatisation
+- `has_heating` : Chauffage
+
+#### Financier
+
+- `rent` : Loyer mensuel
+- `charges` : Charges mensuelles
+- `deposit` : Dépôt de garantie
+- `currency` : Devise (par défaut EUR)
+
+#### Métadonnées
+
+- `available_from` : Date de disponibilité
+- `published_at` : Date de publication
+- `custom_fields` : Champs personnalisés (JSON)
+- `created_at` / `updated_at` : Horodatages
+
+### Index
+
+- Index sur `status`, `is_active`, `is_featured` pour les recherches filtrées
+- Index sur `city`, `postal_code` pour la recherche géographique
+- Index sur `owner_id` pour les requêtes par propriétaire
+
+### Migration
+
+La migration `20250618232825_create_properties_table.cjs` a été créée pour gérer la création et la suppression de la table.
+
+#### Pour exécuter la migration
+
+```bash
+npx knex migrate:latest
+```
+
+#### Pour annuler la migration
+
+```bash
+npx knex migrate:rollback
+```
+
 ## 🔄 Refactorisation du composant PropertiesView.vue
 
 ### Problèmes résolus

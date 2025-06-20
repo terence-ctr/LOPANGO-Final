@@ -2,9 +2,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 
 // Clés de stockage
-const TOKEN_KEY = 'lopango_auth_token';
-const REFRESH_TOKEN_KEY = 'lopango_refresh_token';
-const USER_DATA_KEY = 'lopango_user_data';
+export const TOKEN_KEY = 'lopango_auth_token';
+export const REFRESH_TOKEN_KEY = 'lopango_refresh_token';
+export const USER_DATA_KEY = 'lopango_user_data';
 
 // Types
 type TokenType = string | null;
@@ -156,20 +156,26 @@ export const getUserFromToken = (token: string): any => {
 };
 
 /**
- * Vérifie si le token est sur le point d'expirer (dans les 5 minutes)
+ * Vérifie si le token est sur le point d'expirer
+ * @param token Le token à vérifier (optionnel, si non fourni utilise getAuthToken())
+ * @param minutes Le nombre de minutes avant l'expiration pour déclencher le rafraîchissement (défaut: 5)
+ * @returns boolean Vrai si le token expire bientôt
  */
-export const isTokenExpiringSoon = (token: string): boolean => {
+export const isTokenExpiringSoon = (token?: string, minutes: number = 5): boolean => {
+  const tokenToCheck = token || getAuthToken();
+  if (!tokenToCheck) return true;
+  
   try {
-    const decoded = decodeToken(token);
-    if (!decoded?.exp) return false;
+    const decoded = decodeToken(tokenToCheck);
+    if (!decoded?.exp) return true;
     
     const currentTime = Math.floor(Date.now() / 1000);
-    const fiveMinutesInSeconds = 5 * 60;
+    const thresholdInSeconds = minutes * 60;
     
-    return (decoded.exp - currentTime) < fiveMinutesInSeconds;
+    return (decoded.exp - currentTime) < thresholdInSeconds;
   } catch (error) {
     console.error('Erreur lors de la vérification de l\'expiration du token:', error);
-    return true;
+    return true; // En cas d'erreur, considérer le token comme expiré
   }
 };
 

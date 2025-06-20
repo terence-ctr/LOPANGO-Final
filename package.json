@@ -65,7 +65,7 @@
     "@types/uuid": "^9.0.7",
     "@types/validator": "^13.12.3",
     "@vueuse/motion": "^3.0.3",
-    "axios": "^1.9.0",
+    "axios": "^1.10.0",
     "bcrypt-ts": "^7.0.0",
     "bcryptjs": "^2.4.3",
     "chart.js": "^4.4.1",
@@ -106,6 +106,7 @@
     "vue-chartjs": "^5.2.0",
     "vue-router": "^4.5.1",
     "vue-toastification": "^2.0.0-rc.5",
+    "vue3-toastify": "^0.2.8",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
     "xss-clean": "^0.1.4"

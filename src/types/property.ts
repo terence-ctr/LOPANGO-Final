@@ -120,8 +120,6 @@ export const propertyStatusLabels: Record<PropertyStatus, string> = {
 // Pour le formulaire d'ajout/édition
 export interface PropertyFormData {
   // Informations de base
-  title: string;
-  description?: string;
   type: PropertyType;
   status: PropertyStatus;
   
@@ -159,12 +157,11 @@ export interface PropertyFormData {
   deposit: number;
   currency: string;
   
-  // Images et documents
+  // Fichiers
   images?: File[];
   documents?: File[];
   
   // Métadonnées
-  tags?: string[];
   isFeatured?: boolean;
-  availableFrom?: string;
+  availableFrom?: string; // Format YYYY-MM-DD
 }

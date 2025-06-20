@@ -25,6 +25,15 @@ export const propertyBaseSchema = yup.object().shape({
   // Numéro de parcelle au niveau racine pour un accès plus facile
   parcelNumber: yup.string().required('Le numéro de parcelle est requis'),
   name: yup.string().required('Le nom de la propriété est requis'),
+  title: yup.string(),
+  description: yup.string(),
+  price: yup.number().typeError('Le prix doit être un nombre').positive('Le prix doit être positif'),
+  address: yup.string(),
+  city: yup.string(),
+  postalCode: yup
+    .string()
+    .matches(/^(|[0-9]{5})$/, 'Le code postal doit contenir 5 chiffres'),
+  country: yup.string().default('France'),
   type: yup.string().required('Le type de propriété est requis'),
   status: yup
     .string()

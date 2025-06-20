@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 import { MotionPlugin } from '@vueuse/motion'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import ClickOutside from '@/directives/click-outside'
+import { toast } from 'vue3-toastify'
+import 'vue3-toastify/dist/index.css'
 import '@/plugins/fontawesome' // Import pour ajouter les icônes à la bibliothèque
 import App from './App.vue'
 import router from './router'
@@ -51,18 +53,43 @@ console.error = (...args) => {
 const app = createApp(App)
 
 // Utiliser Pinia pour la gestion d'état
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 
 // Utiliser le routeur
 app.use(router)
 
-// Utiliser VueUse Motion pour les animations
+// Utiliser le plugin de mouvement
 app.use(MotionPlugin)
+
+// Configuration du routeur pour gérer le défilement
+router.beforeEach((to, from, next) => {
+  // Faire défiler vers le haut de la page lors du changement de route
+  window.scrollTo(0, 0);
+  next();
+});
 
 // Enregistrer le composant FontAwesomeIcon globalement
 app.component('FontAwesomeIcon', FontAwesomeIcon)
 
 // Enregistrer la directive click-outside globalement
 app.directive('click-outside', ClickOutside)
+
+// Configuration de vue3-toastify
+const toastOptions = {
+  position: 'top-right',
+  autoClose: 5000,
+  hideProgressBar: false,
+  closeOnClick: true,
+  pauseOnHover: true,
+  draggable: true,
+  draggablePercent: 60,
+  progress: undefined,
+  theme: 'light'
+};
+
+// Fournir toast comme une propriété globale
+app.provide('toast', toast);
+app.provide('toastOptions', toastOptions);
 
 app.mount('#app')
