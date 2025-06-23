@@ -97,7 +97,6 @@
     "sequelize": "^6.37.7",
     "socket.io": "^4.7.2",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
     "swiper": "^9.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",

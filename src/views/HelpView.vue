@@ -138,7 +138,7 @@ const articles = ref([
   {
     id: 2,
     title: 'Guide complet des taxes immobilières',
-    excerpt: 'Tout savoir sur les taxes immobilières en France',
+    excerpt: 'Tout savoir sur les taxes immobilières encongo',
     date: new Date('2024-01-15')
   }
 ]);

@@ -7,7 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Configuration de la base de données
-const config: { [key: string]: Knex.Config } = {
+// Configuration type for Knex
+interface KnexConfig extends Knex.Config {
+  [key: string]: any;
+}
+
+const config: { [key: string]: KnexConfig } = {
   development: {
     client: 'sqlite3',
     connection: {
@@ -15,8 +20,11 @@ const config: { [key: string]: Knex.Config } = {
     },
     migrations: {
       directory: path.join(__dirname, './server/database/migrations'),
-      extension: 'js',
-      loadExtensions: ['.js', '.ts'],
+      extension: 'ts',
+      loadExtensions: ['.ts', '.js', '.cjs'],
+      disableMigrationsListValidation: true,
+      tableName: 'knex_migrations',
+      schemaName: 'public',
       disableMigrationsListValidation: true
     },
     seeds: {

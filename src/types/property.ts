@@ -1,13 +1,14 @@
-export type PropertyType = 'T1' | 'T2' | 'T3' | 'T4+' | 'MAISON' | 'APPARTEMENT' | 'BUREAU' | 'COMMERCE' | 'AUTRE';
+// Types de biens immobiliers
+export type PropertyType = 'APPARTEMENT' | 'MAISON' | 'VILLA' | 'CHATEAU' | 'PARKING' | 'LOCAL_COMMERCIAL' | 'BUREAU' | 'ENTREPOT' | 'TERRAIN' | 'AUTRE';
 
-export type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_ENTRETIEN' | 'INDISPONIBLE' | 'BROUILLON';
+// Statuts des biens immobiliers
+export type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_ENTRETIEN' | 'VENDU' | 'INDISPONIBLE' | 'RESERVE' | 'EN_NEGOCIATION';
 
 export interface PropertyAddress {
   street: string;
   city: string;
   postalCode: string;
   country: string;
-  fullAddress: string;
   latitude?: number;
   longitude?: number;
 }
@@ -54,6 +55,9 @@ export interface PropertyStatusInfo {
   nextAvailableDate?: Date;
   isFeatured?: boolean;
   isFurnished?: boolean;
+  // Ajout des champs pour correspondre au schéma de validation
+  parcelNumber?: string;
+  name?: string;
 }
 
 export interface PropertyImage {
@@ -98,28 +102,38 @@ export interface Property {
 
 
 
-// Libellés pour l'affichage
+// Libellés pour l'affichage des types de biens
 export const propertyTypeLabels: Record<PropertyType, string> = {
-  'T1': 'T1',
-  'T2': 'T2',
-  'T3': 'T3',
-  'T4+': 'T4+',
-  'T5+': 'T5+',
-  'T6+': 'T6+',
-  'T7+': 'T7+',
-} as const;
+  'APPARTEMENT': 'Appartement',
+  'MAISON': 'Maison',
+  'VILLA': 'Villa',
+  'CHATEAU': 'Château',
+  'PARKING': 'Parking',
+  'LOCAL_COMMERCIAL': 'Local commercial',
+  'BUREAU': 'Bureau',
+  'ENTREPOT': 'Entrepôt',
+  'TERRAIN': 'Terrain',
+  'AUTRE': 'Autre type de bien'
+};
 
+// Libellés pour l'affichage des statuts
 export const propertyStatusLabels: Record<PropertyStatus, string> = {
-  'active': 'Actif',
-  'inactive': 'Inactif',
-  'rented': 'Loué',
-  'maintenance': 'En maintenance',
-  'unavailable': 'Indisponible'
-} as const;
+  'DISPONIBLE': 'Disponible',
+  'LOUE': 'Loué',
+  'EN_ENTRETIEN': 'En entretien',
+  'VENDU': 'Vendu',
+  'INDISPONIBLE': 'Indisponible',
+  'RESERVE': 'Réservé',
+  'EN_NEGOCIATION': 'En négociation'
+};
 
 // Pour le formulaire d'ajout/édition
 export interface PropertyFormData {
+  // Identifiant (pour la modification)
+  id?: string | number;
+  
   // Informations de base
+  title: string;
   type: PropertyType;
   status: PropertyStatus;
   

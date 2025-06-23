@@ -42,7 +42,7 @@
             </button>
           </div>
           <PropertyForm
-            :property="propertyData"
+            :initialData="propertyData"
             @submit="handleSubmit"
             @cancel="handleCancel"
           />
@@ -290,7 +290,7 @@ import { useToast } from 'vue-toastification';
 import type { ToastOptions } from 'vue-toastification';
 import PropertyForm from '@/components/landlord/properties/PropertyForm.vue';
 import type { PropertyFormData } from '@/types/property';
-import PropertyService from '@/services/propertyService';
+import PropertyService from '@/services/property.service';
 
 // Définition des types
 type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_ENTRETIEN' | 'INDISPONIBLE' | 'BROUILLON';
@@ -298,7 +298,7 @@ type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_ENTRETIEN' | 'INDISPONIBLE' | 
 interface Property {
   id: string | number;
   title: string;
-  fullAddress?: string;
+
   street?: string;
   postalCode?: string;
   city?: string;
@@ -332,25 +332,55 @@ const isAddPropertyModalOpen = ref<boolean>(false);
 const properties = ref<PropertyTableItem[]>([]);
 
 // Données du formulaire
-const propertyData = reactive<Partial<PropertyFormData>>({
+const propertyData = reactive<PropertyFormData>({
+  // Informations de base
+  id: undefined,
   title: '',
-  type: 'T1',
+  type: 'APPARTEMENT',
+  status: 'DISPONIBLE',
+  name: '',
+  
+  // Adresse
+  street: '',
+  city: '',
+  postalCode: '',
+  country: 'Congo',
+  latitude: undefined,
+  longitude: undefined,
+  
+  // Caractéristiques
   area: 0,
   rooms: 1,
   bathrooms: 1,
   floor: '0',
   furnished: false,
   equipment: [],
+  hasElevator: false,
+  hasParking: false,
+  hasBalcony: false,
+  hasTerrace: false,
+  hasGarden: false,
+  hasPool: false,
+  hasAirConditioning: false,
+  hasHeating: false,
+  yearBuilt: new Date().getFullYear(),
+  floorArea: 0,
+  landArea: 0,
+  parcelNumber: '',
+  
+  // Financier
   rent: 0,
   charges: 0,
-  status: 'DISPONIBLE',
-  street: '',
-  city: '',
-  postalCode: '',
-  country: 'France',
-  fullAddress: '',
+  deposit: 0,
   currency: 'EUR',
-  isFeatured: false
+  
+  // Fichiers
+  images: [],
+  documents: [],
+  
+  // Métadonnées
+  isFeatured: false,
+  availableFrom: new Date().toISOString().split('T')[0] // Aujourd'hui par défaut
 });
 
 // Données de la modale
@@ -403,7 +433,6 @@ const openAddPropertyModal = () => {
     city: '',
     postalCode: '',
     country: 'France',
-    fullAddress: '',
     currency: 'EUR',
     isFeatured: false
   });
@@ -411,32 +440,94 @@ const openAddPropertyModal = () => {
 };
 
 const handleSubmit = async (property: PropertyFormData) => {
+  // Afficher un message de chargement
+  const loadingToast = toast.info('Création de la propriété en cours...', { 
+    timeout: false 
+  } as ToastOptions);
+  
+  console.log('Données du formulaire soumises:', JSON.stringify(property, null, 2));
+  
   try {
-    // Afficher un message de chargement
-    const loadingToast = toast.info('Création de la propriété en cours...', { timeout: false } as ToastOptions);
-    
-    // Appeler le service pour créer la propriété
+    // 1. Appeler le service pour créer la propriété
+    console.log('Appel de PropertyService.createProperty...');
     const newProperty = await PropertyService.createProperty(property);
+    console.log('Réponse de createProperty:', newProperty);
     
-    // Fermer le message de chargement
+    if (!newProperty) {
+      throw new Error('Aucune donnée reçue du serveur après la création de la propriété');
+    }
+    
+    // 2. Fermer le message de chargement
     toast.dismiss(loadingToast);
     
-    // Afficher un message de succès
+    // 3. Afficher un message de succès
     toast.success('Propriété créée avec succès !');
     
-    // Fermer la modale
+    // 4. Fermer la modale
     isAddPropertyModalOpen.value = false;
     
-    // Recharger la liste des propriétés
-    await loadProperties();
+    // 5. Recharger la liste des propriétés en arrière-plan
+    // (sans attendre la fin du chargement pour une meilleure expérience utilisateur)
+    loadProperties().catch(error => {
+      console.error('Erreur lors du rechargement de la liste des propriétés:', error);
+    });
     
-    // Rediriger vers la page de détail de la propriété
-    router.push(`/landlord/properties/${newProperty.id}`);
+    // 6. Vérifier que nous avons un ID valide avant de rediriger
+    const propertyId = newProperty.id || (newProperty.data && newProperty.data.id);
+    
+    if (propertyId) {
+      console.log('Redirection vers la propriété:', `/landlord/properties/${propertyId}`);
+      
+      // Utiliser replace au lieu de push pour éviter des problèmes de navigation
+      router.replace({
+        name: 'landlord-property-details',
+        params: { id: propertyId }
+      }).catch(error => {
+        console.error('Erreur lors de la redirection:', error);
+        // En cas d'erreur, rediriger vers la liste des propriétés
+        router.push('/landlord/properties');
+      });
+    } else {
+      console.warn('Aucun ID de propriété valide trouvé dans la réponse:', newProperty);
+      // Rediriger vers la liste des propriétés si aucun ID n'est trouvé
+      router.push('/landlord/properties');
+    }
   } catch (error) {
     console.error('Erreur lors de la création de la propriété:', error);
     
-    // Afficher un message d'erreur
-    toast.error('Une erreur est survenue lors de la création de la propriété');
+    // Fermer le message de chargement s'il est toujours actif
+    toast.dismiss(loadingToast);
+    
+    // Déterminer le message d'erreur approprié
+    let errorMessage = 'Une erreur est survenue lors de la création de la propriété';
+    
+    if (error.response) {
+      // Erreur de l'API avec un code de statut
+      if (error.response.status === 401) {
+        errorMessage = 'Vous devez être connecté pour effectuer cette action';
+      } else if (error.response.status === 400) {
+        errorMessage = 'Données invalides. Veuillez vérifier les informations saisies.';
+      } else if (error.response.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+    } else if (error.request) {
+      // La requête a été faite mais aucune réponse n'a été reçue
+      errorMessage = 'Impossible de se connecter au serveur. Vérifiez votre connexion Internet.';
+    } else if (error.message) {
+      // Erreur levée manuellement
+      errorMessage = error.message;
+    }
+    
+    // Afficher le message d'erreur
+    toast.error(errorMessage, { 
+      timeout: 5000,
+      closeOnClick: false,
+      pauseOnFocusLoss: true,
+      pauseOnHover: true
+    });
+    
+    // Réafficher le formulaire avec les données saisies
+    isAddPropertyModalOpen.value = true;
   }
 };
 
@@ -451,7 +542,7 @@ const loadProperties = async () => {
     properties.value = data.map((property: Property): PropertyTableItem => ({
       id: property.id,
       nom: property.title,
-      adresse: property.fullAddress || `${property.street || ''}, ${property.postalCode || ''} ${property.city || ''}`.trim(),
+      adresse: `${property.address || ''}`.trim(),
       locataire: property.tenant_id ? 'À définir' : 'Aucun',
       loyer: `${property.rent || 0} ${property.currency || 'EUR'}`,
       statut: property.status === 'DISPONIBLE' ? 'Disponible' : 
@@ -475,13 +566,19 @@ const toggleMenu = (id: string) => {
 };
 
 const openModal = (type: 'details' | 'edit' | 'delete', property: PropertyTableItem) => {
-  modalType.value = type;
-  modalVisible.value = true;
   openMenuId.value = null;
 
   if (type === "details") {
-    Object.assign(modalData, property);
-  } else if (type === "edit") {
+    // Rediriger vers la page de détails de la propriété
+    router.push({ name: 'landlord-property-details', params: { id: property.id } });
+    return;
+  }
+  
+  // Pour les autres types (edit/delete), on garde l'ancien comportement
+  modalType.value = type;
+  modalVisible.value = true;
+
+  if (type === "edit") {
     // Convertir les données du tableau au format du formulaire
     Object.assign(editForm, {
       id: property.id,

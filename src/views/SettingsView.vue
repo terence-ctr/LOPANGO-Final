@@ -149,12 +149,12 @@ const sessions = ref([
   {
     id: 1,
     device: 'Ordinateur Windows',
-    location: 'Paris, France'
+    location: 'Paris,congo'
   },
   {
     id: 2,
     device: 'Smartphone Android',
-    location: 'Lyon, France'
+    location: 'Lyon,congo'
   }
 ]);
 

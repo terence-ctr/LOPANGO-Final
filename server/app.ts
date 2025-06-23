@@ -14,7 +14,8 @@ import { initializeSocket } from './socket';
 import { db } from './database/db';
 import { Knex } from 'knex';
 import { authRoutes } from './routes/auth.routes';
-import { propertyRoutes } from './routes/property.routes';
+import propertyRoutes from './routes/property.routes';
+import propertyMetadataRoutes from './routes/propertyMetadata.routes';
 
 // Les routes suivantes sont commentées car les fichiers correspondants n'existent pas encore
 // import { userRoutes } from './routes/user.routes';
@@ -84,7 +85,11 @@ class App {
           ...(process.env.NODE_ENV === 'development' ? [
             'http://localhost:3000',
             'http://localhost:5173',
-            'http://127.0.0.1:5173'
+            'http://127.0.0.1:5173',
+            'http://localhost:8080',
+            'http://127.0.0.1:8080',
+            'http://localhost:8081',
+            'http://127.0.0.1:8081'
           ] : [])
         ];
 
@@ -94,7 +99,7 @@ class App {
         }
 
         // En production, vérifier l'origine
-        if (!origin || allowedOrigins.includes(origin) || config.cors.origin === '*') {
+        if (!origin || allowedOrigins.includes(origin) || config.cors?.origin === '*') {
           callback(null, true);
         } else {
           console.warn(`[CORS] Origine non autorisée: ${origin}`);
@@ -117,6 +122,10 @@ class App {
         'Pragma',
         'If-Modified-Since',
         'X-CSRF-Token',
+        'Access-Control-Allow-Origin',
+        'Access-Control-Allow-Headers',
+        'Access-Control-Allow-Methods',
+        'Access-Control-Allow-Credentials',
         'Set-Cookie',
         'Cookie',
         ...(config.cors.allowedHeaders || [])
@@ -210,8 +219,22 @@ class App {
     // Middleware de compression
     this.app.use(compression());
     
-    // Middleware pour configurer les cookies
+    // Middleware pour configurer les en-têtes CORS et les cookies
     this.app.use((req, res, next) => {
+      // Définir les en-têtes CORS
+      const origin = req.headers.origin;
+      if (origin) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      }
+      
+      // Gérer les requêtes OPTIONS (prévol)
+      if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+      }
+      
       // Configurer les attributs des cookies
       const cookieOptions = {
         httpOnly: true,
@@ -270,6 +293,7 @@ class App {
     // Routes API
     this.app.use('/api/auth', authRoutes);
     this.app.use('/api/properties', propertyRoutes);
+    this.app.use('/api/property-metadata', propertyMetadataRoutes);
     
     // Route de test
     this.app.get('/api/health', (req: Request, res: Response) => {

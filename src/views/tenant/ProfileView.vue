@@ -173,7 +173,7 @@ const user = ref({
   email: 'jean.dupont@example.com',
   phone: '+33 6 12 34 56 78',
   birthDate: '1985-04-15',
-  address: '123 Rue de la Paix, 75001 Paris, France'
+  address: '123 Rue de la Paix, 75001 Paris,congo'
 });
 
 // Password change form

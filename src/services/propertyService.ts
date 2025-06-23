@@ -1,329 +1,119 @@
-import api from './api';
-import apiConfig from '@/config/api.config';
-import { PropertyFormData } from '@/types/property';
+import api from '@/services/api';
 
-/**
- * Niveaux de log disponibles
- */
-type LogLevel = 'info' | 'error' | 'debug' | 'warn';
+interface Property {
+  id: string | number;
+  title: string;
+  type: string;
+  status: string;
+  address: string;
+  area: number;
+  rooms: number;
+  bathrooms: number;
+  floor?: number;
+  furnished: boolean;
+  equipment: string[];
+  has_elevator?: boolean;
+  has_parking?: boolean;
+  has_balcony?: boolean;
+  has_terrace?: boolean;
+  has_garden?: boolean;
+  has_pool?: boolean;
+  has_air_conditioning?: boolean;
+  has_heating?: boolean;
+  rent: number;
+  charges: number;
+  deposit?: number;
+  currency: string;
+  available_from?: string;
+  year_built?: number;
+  created_at?: string;
+  updated_at?: string;
+  description?: string;
+  images?: string[];
+}
 
-/**
- * Formate et affiche un message de log
- */
-const log = (level: LogLevel, message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  const context = '[PropertyService]';
-  const logData = data ? JSON.stringify(data, null, 2) : '';
-  
-  const logMessage = `[${timestamp}] ${context} ${message}`;
-  
-  // En production, on ne log que les erreurs et les warnings
-  if (!import.meta.env.DEV && (level === 'debug')) return;
-  
-  switch (level) {
-    case 'error':
-      console.error(`❌ ${logMessage}`, logData);
-      break;
-    case 'warn':
-      console.warn(`⚠️ ${logMessage}`, logData);
-      break;
-    case 'debug':
-      console.debug(`🔍 ${logMessage}`, logData);
-      break;
-    default:
-      console.log(`ℹ️ ${logMessage}`, logData);
-  }
-};
-
-/**
- * Formate les données d'une propriété pour l'API
- */
-const formatPropertyForApi = (data: any): any => {
-  if (!data) return {};
-  
-  const formatted = { ...data };
-  
-  // Liste des champs numériques
-  const numericFields = [
-    'price', 'area', 'rooms', 'bedrooms', 'bathrooms', 'floor',
-    'land_area', 'rent', 'charges', 'deposit', 'year_built', 'owner_id', 'tenant_id'
-  ];
-  
-  // Convertir les champs numériques
-  numericFields.forEach(field => {
-    if (formatted[field] !== undefined && formatted[field] !== '' && !isNaN(Number(formatted[field]))) {
-      formatted[field] = Number(formatted[field]);
-    } else if (formatted[field] === '') {
-      delete formatted[field];
-    }
-  });
-  
-  // Convertir les booléens
-  const booleanFields = [
-    'furnished', 'has_elevator', 'has_parking', 'has_balcony',
-    'has_terrace', 'has_garden', 'has_pool', 'has_air_conditioning',
-    'has_heating', 'is_featured', 'is_active'
-  ];
-  
-  booleanFields.forEach(field => {
-    if (formatted[field] !== undefined) {
-      formatted[field] = Boolean(formatted[field]);
-    }
-  });
-  
-  // Formater les tableaux en chaînes séparées par des virgules
-  const arrayFields = ['equipment', 'tags'];
-  arrayFields.forEach(field => {
-    if (Array.isArray(formatted[field])) {
-      formatted[field] = formatted[field].filter(Boolean).join(',');
-    } else if (formatted[field] === '') {
-      delete formatted[field];
-    }
-  });
-  
-  // Formater l'adresse complète si nécessaire
-  if ((!formatted.full_address || formatted.full_address === '') && 
-      (formatted.street || formatted.city || formatted.postal_code)) {
-    formatted.full_address = [
-      formatted.street,
-      formatted.postal_code,
-      formatted.city,
-      formatted.country
-    ].filter(Boolean).join(', ');
-  }
-  
-  // Supprimer les champs vides
-  Object.keys(formatted).forEach(key => {
-    if (formatted[key] === '' || formatted[key] === null || formatted[key] === undefined) {
-      delete formatted[key];
-    }
-  });
-  
-  return formatted;
-};
-
-/**
- * Formate les données d'une propriété reçues de l'API
- */
-const formatPropertyFromApi = (data: any): any => {
-  if (!data) return null;
-  
-  const formatted = { ...data };
-  
-  // Convertir les chaînes séparées par des virgules en tableaux
-  const arrayFields = ['equipment', 'tags'];
-  arrayFields.forEach(field => {
-    if (typeof formatted[field] === 'string') {
-      formatted[field] = formatted[field].split(',').filter(Boolean);
-    } else if (!Array.isArray(formatted[field])) {
-      formatted[field] = [];
-    }
-  });
-  
-  // Ajouter un alias pour la compatibilité avec le frontend
-  if (formatted.is_featured !== undefined) {
-    formatted.isFeatured = formatted.is_featured;
-  }
-  
-  return formatted;
-};
-
-/**
- * Gestion des erreurs API
- */
-const handleApiError = (error: any, context: string) => {
-  const errorInfo = {
-    message: error.message,
-    status: error.response?.status,
-    statusText: error.response?.statusText,
-    url: error.config?.url,
-    method: error.config?.method,
-    responseData: error.response?.data
-  };
-  
-  log('error', `Erreur lors de ${context}`, errorInfo);
-  
-  // Créer une erreur plus détaillée
-  const apiError = new Error(`Erreur lors de ${context}: ${error.message}`) as any;
-  apiError.status = error.response?.status;
-  apiError.response = error.response?.data;
-  
-  throw apiError;
-};
-
-/**
- * Service pour gérer les opérations liées aux propriétés
- */
 class PropertyService {
   /**
-   * Crée une nouvelle propriété
-   * @param propertyData Les données de la propriété à créer
-   * @returns La propriété créée
+   * Récupère toutes les propriétés
    */
-  static async createProperty(propertyData: PropertyFormData) {
-    const requestId = `create-${Date.now()}`;
-    log('debug', 'Début de la création de propriété', { requestId });
-    
+  static async getAll() {
     try {
-      // Formater les données pour l'API
-      const formattedData = formatPropertyForApi(propertyData);
-      log('debug', 'Données formatées pour la création', { requestId, formattedData });
-      
-      // Faire l'appel API
-      const response = await api.post(apiConfig.endpoints.properties.base, formattedData, {
-        headers: {
-          'X-Request-ID': requestId,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      log('info', 'Propriété créée avec succès', { 
-        requestId, 
-        propertyId: response.data?.id 
-      });
-      
-      return formatPropertyFromApi(response.data);
-      
+      const response = await api.get('/api/properties');
+      return response.data;
     } catch (error) {
-      return handleApiError(error, 'la création de la propriété');
-    }
-  }
-
-  /**
-   * Récupère la liste des propriétés
-   * @param params Paramètres de filtrage et de pagination
-   * @returns La liste des propriétés
-   */
-  static async getProperties(params: Record<string, any> = {}) {
-    const requestId = `list-${Date.now()}`;
-    log('debug', 'Récupération des propriétés', { requestId, params });
-    
-    try {
-      const response = await api.get(apiConfig.endpoints.properties.base, {
-        params,
-        headers: {
-          'X-Request-ID': requestId,
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      const properties = Array.isArray(response.data) 
-        ? response.data.map(formatPropertyFromApi) 
-        : [];
-      
-      log('info', 'Propriétés récupérées avec succès', { 
-        requestId, 
-        count: properties.length 
-      });
-      
-      return properties;
-      
-    } catch (error) {
-      return handleApiError(error, 'la récupération des propriétés');
+      console.error('Error fetching properties:', error);
+      throw error;
     }
   }
 
   /**
    * Récupère une propriété par son ID
-   * @param id L'ID de la propriété
-   * @returns La propriété demandée
+   * @param id - L'ID de la propriété
    */
-  static async getPropertyById(id: string | number) {
-    const requestId = `get-${id}-${Date.now()}`;
-    log('debug', `Récupération de la propriété ${id}`, { requestId });
-    
+  static async getById(id: string | number): Promise<Property> {
     try {
-      const response = await api.get(`${apiConfig.endpoints.properties.base}/${id}`, {
-        headers: { 'X-Request-ID': requestId }
-      });
-      
-      log('info', `Propriété ${id} récupérée avec succès`, { requestId });
-      
-      return formatPropertyFromApi(response.data);
-      
+      const response = await api.get(`/api/properties/${id}`);
+      return response.data;
     } catch (error) {
-      return handleApiError(error, `la récupération de la propriété ${id}`);
+      console.error(`Error fetching property with ID ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crée une nouvelle propriété
+   * @param propertyData - Les données de la propriété à créer
+   */
+  static async create(propertyData: Partial<Property>) {
+    try {
+      const response = await api.post('/api/properties', propertyData);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating property:', error);
+      throw error;
     }
   }
 
   /**
    * Met à jour une propriété existante
-   * @param id L'ID de la propriété à mettre à jour
-   * @param propertyData Les nouvelles données de la propriété
-   * @returns La propriété mise à jour
+   * @param id - L'ID de la propriété à mettre à jour
+   * @param propertyData - Les données mises à jour de la propriété
    */
-  static async updateProperty(id: string | number, propertyData: Partial<PropertyFormData>) {
-    const requestId = `update-${id}-${Date.now()}`;
-    log('debug', `Mise à jour de la propriété ${id}`, { requestId });
-    
+  static async update(id: string | number, propertyData: Partial<Property>) {
     try {
-      // Formater les données pour l'API
-      const formattedData = formatPropertyForApi(propertyData);
-      log('debug', 'Données formatées pour la mise à jour', { requestId, formattedData });
-      
-      const response = await api.put(
-        `${apiConfig.endpoints.properties.base}/${id}`, 
-        formattedData,
-        { headers: { 'X-Request-ID': requestId } }
-      );
-      
-      log('info', `Propriété ${id} mise à jour avec succès`, { requestId });
-      
-      return formatPropertyFromApi(response.data);
-      
+      const response = await api.put(`/api/properties/${id}`, propertyData);
+      return response.data;
     } catch (error) {
-      return handleApiError(error, `la mise à jour de la propriété ${id}`);
+      console.error(`Error updating property with ID ${id}:`, error);
+      throw error;
     }
   }
 
   /**
    * Supprime une propriété
-   * @param id L'ID de la propriété à supprimer
+   * @param id - L'ID de la propriété à supprimer
    */
-  static async deleteProperty(id: string | number) {
-    const requestId = `delete-${id}-${Date.now()}`;
-    log('debug', `Suppression de la propriété ${id}`, { requestId });
-    
+  static async delete(id: string | number) {
     try {
-      await api.delete(`${apiConfig.endpoints.properties.base}/${id}`, {
-        headers: { 'X-Request-ID': requestId }
-      });
-      
-      log('info', `Propriété ${id} supprimée avec succès`, { requestId });
-      
+      const response = await api.delete(`/api/properties/${id}`);
+      return response.data;
     } catch (error) {
-      return handleApiError(error, `la suppression de la propriété ${id}`);
+      console.error(`Error deleting property with ID ${id}:`, error);
+      throw error;
     }
   }
-  
+
   /**
-   * Recherche des propriétés selon des critères
-   * @param criteria Critères de recherche
-   * @returns Les propriétés correspondant aux critères
+   * Récupère les paiements d'une propriété
+   * @param propertyId - L'ID de la propriété
    */
-  static async searchProperties(criteria: Record<string, any> = {}) {
-    const requestId = `search-${Date.now()}`;
-    log('debug', 'Recherche de propriétés', { requestId, criteria });
-    
+  static async getPayments(propertyId: string | number) {
     try {
-      const response = await api.get(apiConfig.endpoints.properties.search, {
-        params: formatPropertyForApi(criteria),
-        headers: { 'X-Request-ID': requestId }
-      });
-      
-      const properties = Array.isArray(response.data) 
-        ? response.data.map(formatPropertyFromApi) 
-        : [];
-      
-      log('info', 'Résultats de la recherche', { 
-        requestId, 
-        count: properties.length 
-      });
-      
-      return properties;
-      
+      const response = await api.get(`/api/properties/${propertyId}/payments`);
+      return response.data;
     } catch (error) {
-      return handleApiError(error, 'la recherche de propriétés');
+      console.error(`Error fetching payments for property ${propertyId}:`, error);
+      throw error;
     }
   }
 }

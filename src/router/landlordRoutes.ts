@@ -1,4 +1,6 @@
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
+import PropertiesView from '@/views/landlord/PropertiesView.vue';
+import PropertyDetailsView from '@/views/landlord/PropertyDetailsView.vue';
 
 export const landlordRoutes = [
   {
@@ -15,8 +17,15 @@ export const landlordRoutes = [
       {
         path: 'properties',
         name: 'landlord-properties',
-        component: () => import('@/views/landlord/PropertiesView.vue'),
+        component: PropertiesView,
         meta: { title: 'Mes biens' }
+      },
+      {
+        path: 'properties/:id',
+        name: 'landlord-property-details',
+        component: PropertyDetailsView,
+        meta: { title: 'Détails du bien' },
+        props: true
       },
       {
         path: 'tenants',

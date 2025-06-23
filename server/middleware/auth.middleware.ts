@@ -3,6 +3,35 @@ import jwt from 'jsonwebtoken';
 import { db } from '../database';
 import { AppError } from './error.middleware';
 
+// Configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
+const REFRESH_TOKEN_EXPIRY = '7d'; // 7 jours
+
+// Vérifier que la clé secrète n'est pas la valeur par défaut en production
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'your-secret-key') {
+  console.error('ERREUR CRITIQUE: JWT_SECRET doit être défini en production!');
+  process.exit(1);
+}
+
+// Fonction utilitaire pour générer un refresh token
+const generateRefreshToken = (userId: number, userType: string) => {
+  const expiresIn = 7 * 24 * 60 * 60; // 7 jours en secondes
+  const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
+  
+  const refreshToken = jwt.sign(
+    { id: userId, type: 'refresh', userType },
+    JWT_SECRET,
+    { expiresIn: `${expiresIn}s` }
+  );
+
+  return {
+    token: refreshToken,
+    expiresIn,
+    expiresAt
+  };
+};
+
 // Interface pour l'utilisateur authentifié
 declare global {
   namespace Express {
@@ -16,17 +45,6 @@ declare global {
       };
     }
   }
-}
-
-// Configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
-const REFRESH_TOKEN_EXPIRY = '7d'; // 7 jours
-
-// Vérifier que la clé secrète n'est pas la valeur par défaut en production
-if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'your-secret-key') {
-  console.error('ERREUR CRITIQUE: JWT_SECRET doit être défini en production!');
-  process.exit(1);
 }
 
 // Interface pour le payload du token
@@ -68,8 +86,17 @@ const handleExpiredToken = async (req: Request, res: Response, next: NextFunctio
   const requestId = req.headers['x-request-id'] || 'no-request-id';
   
   try {
-    // Vérifier si un refresh token est disponible dans les cookies
-    const refreshToken = req.cookies?.refreshToken;
+    // Vérifier si un refresh token est disponible dans les cookies ou dans le header Authorization
+    let refreshToken = req.cookies?.refreshToken;
+    
+    // Si pas dans les cookies, vérifier dans le header Authorization
+    if (!refreshToken && req.headers.authorization) {
+      const authParts = req.headers.authorization.split(' ');
+      if (authParts.length === 2 && authParts[0] === 'Bearer') {
+        refreshToken = authParts[1];
+      }
+    }
+    
     if (!refreshToken) {
       console.error(`[${new Date().toISOString()}] [${requestId}] [handleExpiredToken] Aucun refresh token disponible`);
       return next(new AppError(401, 'Session expirée. Veuillez vous reconnecter.'));
@@ -95,14 +122,71 @@ const handleExpiredToken = async (req: Request, res: Response, next: NextFunctio
       return next(new AppError(401, 'Utilisateur non autorisé ou compte désactivé'));
     }
 
+    // Vérifier si le refresh token est valide dans la base de données
+    const validToken = await db('refresh_tokens')
+      .where('token', refreshToken)
+      .where('revoked', false)
+      .where('expires_at', '>', new Date())
+      .first();
+
+    if (!validToken) {
+      console.error(`[${new Date().toISOString()}] [${requestId}] Refresh token invalide ou expiré`);
+      return next(new AppError(401, 'Session expirée. Veuillez vous reconnecter.'));
+    }
+
     // Générer un nouveau token d'accès
     const { token: newAccessToken, expiresAt } = generateAccessToken(user.id, user.user_type);
     
-    // Ajouter le nouveau token dans les en-têtes de la réponse
-    res.setHeader('X-New-Access-Token', newAccessToken);
-    res.setHeader('X-Token-Expires-At', expiresAt);
+    // Si le refresh token expire bientôt (dans moins d'un jour), en générer un nouveau
+    const shouldRefreshToken = new Date(validToken.expires_at).getTime() - Date.now() < 24 * 60 * 60 * 1000;
+    let newRefreshToken = null;
     
-    // Ajouter l'utilisateur à la requête pour les middlewares suivants
+    if (shouldRefreshToken) {
+      // Révocation de l'ancien token
+      await db('refresh_tokens')
+        .where('id', validToken.id)
+        .update({
+          revoked: true,
+          revoked_at: new Date(),
+          updated_at: new Date()
+        });
+      
+      // Générer un nouveau refresh token
+      const { token: generatedRefreshToken } = generateRefreshToken(user.id, user.user_type);
+      newRefreshToken = generatedRefreshToken;
+      
+      // Stocker le nouveau refresh token dans la base de données
+      await db('refresh_tokens').insert({
+        user_id: user.id,
+        token: newRefreshToken,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
+        created_at: new Date(),
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+      
+      // Définir le nouveau refresh token dans les cookies
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+        path: '/',
+        domain: process.env.NODE_ENV === 'production' ? '.votredomaine.com' : undefined
+      };
+      
+      res.cookie('refreshToken', newRefreshToken, cookieOptions);
+    }
+    
+    // Définir le nouveau token d'accès dans l'en-tête de la réponse
+    res.setHeader('Authorization', `Bearer ${newAccessToken}`);
+    
+    // Si un nouveau refresh token a été généré, l'ajouter à la réponse
+    if (newRefreshToken) {
+      res.setHeader('X-New-Refresh-Token', newRefreshToken);
+    }
+    
+    // Ajouter les informations utilisateur à la requête pour le prochain middleware
     req.user = {
       id: user.id,
       email: user.email,
@@ -111,7 +195,7 @@ const handleExpiredToken = async (req: Request, res: Response, next: NextFunctio
       lastName: user.last_name
     };
     
-    console.log(`[${new Date().toISOString()}] [${requestId}] Token rafraîchi pour l'utilisateur: ${user.id}`);
+    // Poursuivre avec la requête
     next();
   } catch (error) {
     console.error(`[${new Date().toISOString()}] [${requestId}] Erreur rafraîchissement token:`, error);
