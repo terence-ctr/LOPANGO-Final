@@ -36,70 +36,149 @@ export const isPropertyOwner = async (req: Request, res: Response, next: NextFun
 
 // Valide les données d'une propriété avant création ou mise à jour
 export const validatePropertyData = (req: Request, res: Response, next: NextFunction) => {
+  console.log('=== DÉBUT VALIDATION DES DONNÉES ===');
+  console.log('Méthode:', req.method);
+  console.log('URL:', req.originalUrl);
+  
   const propertyData = req.body;
+  console.log('Données reçues:', JSON.stringify(propertyData, null, 2));
+  
   const errors: Record<string, string> = {};
 
   // Vérification du titre
+  console.log('\n=== VALIDATION DU TITRE ===');
   if (!propertyData.title || propertyData.title.trim() === '') {
+    console.log('❌ Erreur: Le titre est obligatoire');
     errors.title = 'Le titre est obligatoire';
-  } else if (propertyData.title.length < propertyConfig.validation.title.minLength || 
-             propertyData.title.length > propertyConfig.validation.title.maxLength) {
-    errors.title = `Le titre doit contenir entre ${propertyConfig.validation.title.minLength} et ${propertyConfig.validation.title.maxLength} caractères`;
+  } else {
+    console.log('✅ Titre fourni:', propertyData.title);
+    if (propertyData.title.length < propertyConfig.validation.title.minLength || 
+        propertyData.title.length > propertyConfig.validation.title.maxLength) {
+      const errorMsg = `Le titre doit contenir entre ${propertyConfig.validation.title.minLength} et ${propertyConfig.validation.title.maxLength} caractères`;
+      console.log(`❌ Erreur: ${errorMsg} (actuel: ${propertyData.title.length} caractères)`);
+      errors.title = errorMsg;
+    } else {
+      console.log('✅ Longueur du titre valide');
+    }
   }
 
   // Vérification du type
-  if (!propertyData.type || !propertyConfig.propertyTypes.some(t => t.value === propertyData.type)) {
+  console.log('\n=== VALIDATION DU TYPE ===');
+  if (!propertyData.type) {
+    console.log('❌ Erreur: Le type est obligatoire');
+    errors.type = 'Le type est obligatoire';
+  } else if (!propertyConfig.propertyTypes.some(t => t.value === propertyData.type)) {
+    console.log(`❌ Erreur: Type de propriété invalide: ${propertyData.type}`);
     errors.type = 'Type de propriété invalide';
+  } else {
+    console.log(`✅ Type valide: ${propertyData.type}`);
   }
 
   // Vérification de l'adresse
+  console.log('\n=== VALIDATION DE L\'ADRESSE ===');
   if (!propertyData.address || propertyData.address.trim() === '') {
+    console.log('❌ Erreur: L\'adresse est obligatoire');
     errors.address = 'L\'adresse est obligatoire';
+  } else {
+    console.log('✅ Adresse fournie');
   }
 
   // Vérification de la ville
+  console.log('\n=== VALIDATION DE LA VILLE ===');
   if (!propertyData.city || propertyData.city.trim() === '') {
+    console.log('❌ Erreur: La ville est obligatoire');
     errors.city = 'La ville est obligatoire';
+  } else {
+    console.log(`✅ Ville fournie: ${propertyData.city}`);
   }
 
   // Vérification du code postal
-  if (!propertyData.postal_code || !/^\d{5}$/.test(propertyData.postal_code)) {
+  console.log('\n=== VALIDATION DU CODE POSTAL ===');
+  if (!propertyData.postal_code) {
+    console.log('❌ Erreur: Le code postal est obligatoire');
+    errors.postal_code = 'Le code postal est obligatoire';
+  } else if (!/^\d{5}$/.test(propertyData.postal_code)) {
+    console.log(`❌ Erreur: Code postal invalide: ${propertyData.postal_code}`);
     errors.postal_code = 'Code postal invalide (5 chiffres requis)';
+  } else {
+    console.log(`✅ Code postal valide: ${propertyData.postal_code}`);
   }
 
   // Vérification de la surface
+  console.log('\n=== VALIDATION DE LA SURFACE ===');
   const area = parseFloat(propertyData.area);
-  if (isNaN(area) || area < propertyConfig.validation.area.min || area > propertyConfig.validation.area.max) {
-    errors.area = `La surface doit être comprise entre ${propertyConfig.validation.area.min} et ${propertyConfig.validation.area.max} m²`;
+  if (isNaN(area)) {
+    console.log(`❌ Erreur: La surface doit être un nombre valide: ${propertyData.area}`);
+    errors.area = 'La surface doit être un nombre valide';
+  } else if (area < propertyConfig.validation.area.min || area > propertyConfig.validation.area.max) {
+    const errorMsg = `La surface doit être comprise entre ${propertyConfig.validation.area.min} et ${propertyConfig.validation.area.max} m²`;
+    console.log(`❌ Erreur: ${errorMsg} (reçu: ${area} m²)`);
+    errors.area = errorMsg;
+  } else {
+    console.log(`✅ Surface valide: ${area} m²`);
   }
 
   // Vérification du loyer si fourni
+  console.log('\n=== VALIDATION DU LOYER ===');
   if (propertyData.rent !== undefined) {
     const rent = parseFloat(propertyData.rent);
-    if (isNaN(rent) || rent < propertyConfig.validation.rent.min || rent > propertyConfig.validation.rent.max) {
-      errors.rent = `Le loyer doit être compris entre ${propertyConfig.validation.rent.min} et ${propertyConfig.validation.rent.max} ${propertyData.currency || 'EUR'}`;
+    const currency = propertyData.currency || 'EUR';
+    
+    if (isNaN(rent)) {
+      console.log(`❌ Erreur: Le loyer doit être un nombre valide: ${propertyData.rent}`);
+      errors.rent = 'Le loyer doit être un nombre valide';
+    } else if (rent < propertyConfig.validation.rent.min || rent > propertyConfig.validation.rent.max) {
+      const errorMsg = `Le loyer doit être compris entre ${propertyConfig.validation.rent.min} et ${propertyConfig.validation.rent.max} ${currency}`;
+      console.log(`❌ Erreur: ${errorMsg} (reçu: ${rent} ${currency})`);
+      errors.rent = errorMsg;
+    } else {
+      console.log(`✅ Loyer valide: ${rent} ${currency}`);
     }
+  } else {
+    console.log('ℹ️ Aucun loyer fourni, validation ignorée');
   }
 
   // Vérification des équipements
-  if (propertyData.equipment && Array.isArray(propertyData.equipment)) {
+  console.log('\n=== VALIDATION DES ÉQUIPEMENTS ===');
+  if (propertyData.equipment === undefined) {
+    console.log('ℹ️ Aucun équipement fourni, utilisation d\'un tableau vide');
+    propertyData.equipment = [];
+  } else if (!Array.isArray(propertyData.equipment)) {
+    console.log(`❌ Erreur: Les équipements doivent être fournis dans un tableau, reçu: ${typeof propertyData.equipment}`);
+    errors.equipment = 'Les équipements doivent être fournis dans un tableau';
+  } else {
+    console.log(`Équipements fournis: ${JSON.stringify(propertyData.equipment)}`);
+    
+    const validEquipment = propertyConfig.equipment.map(e => e.value);
     const invalidEquipment = propertyData.equipment.filter(
-      (eq: string) => !propertyConfig.equipment.some(e => e.value === eq)
+      (eq: string) => !validEquipment.includes(eq)
     );
     
     if (invalidEquipment.length > 0) {
-      errors.equipment = `Équipement(s) invalide(s): ${invalidEquipment.join(', ')}`;
+      const errorMsg = `Équipement(s) invalide(s): ${invalidEquipment.join(', ')}`;
+      console.log(`❌ ${errorMsg}`);
+      console.log(`   Équipements valides: ${validEquipment.join(', ')}`);
+      errors.equipment = errorMsg;
+    } else {
+      console.log('✅ Tous les équipements sont valides');
     }
   }
 
+  // Résumé de la validation
+  console.log('\n=== RÉSUMÉ DE LA VALIDATION ===');
+  
   if (Object.keys(errors).length > 0) {
+    console.log('❌ Des erreurs de validation ont été trouvées:', errors);
     return res.status(400).json({
       success: false,
       message: 'Erreur de validation des données',
       errors
     });
   }
-
+  
+  console.log('✅ Toutes les validations ont réussi');
+  console.log('=== FIN DE LA VALIDATION ===\n');
+  
   // Formater les données avant de les passer au contrôleur
   if (propertyData.equipment && Array.isArray(propertyData.equipment)) {
     propertyData.equipment = propertyData.equipment.filter(

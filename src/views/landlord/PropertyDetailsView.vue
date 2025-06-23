@@ -23,10 +23,10 @@
       <div class="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-gray-200">
         <div>
           <h3 class="text-lg leading-6 font-medium text-gray-900">
-            {{ property.title }}
+            {{ property?.title || 'Chargement...' }}
           </h3>
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            {{ property.address }}
+            {{ property?.address || '' }}
           </p>
         </div>
         <div class="flex space-x-2">
@@ -40,7 +40,7 @@
             Retour
           </router-link>
           <router-link 
-            :to="{ name: 'landlord-property-edit', params: { id: property.id } }" 
+            :to="{ name: 'landlord-property-edit', params: { id: property?.id } }" 
             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -55,7 +55,7 @@
         <dl class="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2">
           <div class="sm:col-span-1">
             <dt class="text-sm font-medium text-gray-500">Type de bien</dt>
-            <dd class="mt-1 text-sm text-gray-900">{{ property.type }}</dd>
+            <dd class="mt-1 text-sm text-gray-900">{{ property?.type || 'Non spécifié' }}</dd>
           </div>
           
           <div class="sm:col-span-1">
@@ -210,15 +210,21 @@ export default defineComponent({
     const error = ref('');
     
     const property = ref({
-      id: '',
+      id: 0,
+      owner_id: 0,
+      tenant_id: null,
       title: '',
+      description: '',
       type: '',
-      status: '',
+      status: 'BROUILLON',
       address: '',
+      city: '',
+      postal_code: '',
+      country: 'France',
       area: 0,
+      land_area: 0,
       rooms: 0,
       bathrooms: 0,
-      floor: '',
       floor: 0,
       furnished: false,
       equipment: [] as string[],
@@ -234,8 +240,11 @@ export default defineComponent({
       charges: 0,
       deposit: 0,
       currency: 'EUR',
-      available_from: new Date().toISOString(),
       year_built: new Date().getFullYear(),
+      is_active: true,
+      is_featured: false,
+      available_from: new Date().toISOString(),
+      published_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     });

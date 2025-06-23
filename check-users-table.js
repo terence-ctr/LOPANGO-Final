@@ -4,22 +4,16 @@ import knexConfig from './knexfile.js';
 const config = knexConfig.development;
 const db = knex(config);
 
-async function checkUsersTable() {
+async function checkPropertiesTable() {
   try {
-    const columns = await db.raw('PRAGMA table_info(users)');
-    console.log('Colonnes de la table users :');
+    const columns = await db.raw('PRAGMA table_info(properties)');
+    console.log('Colonnes de la table properties :');
     console.table(columns);
     
     // Vérifier si les colonnes problématiques existent déjà
     const existingColumns = columns.map(col => col.name);
     const problemColumns = [
-      'accepted_privacy_policy',
-      'accepted_privacy_policy_at',
-      'accepted_terms',
-      'accepted_terms_at',
-      'email_verification_expire',
-      'email_verification_token',
-      'mfa_enabled'
+      'equipment',
     ];
     
     console.log('\nColonnes problématiques déjà présentes :');
@@ -30,10 +24,10 @@ async function checkUsersTable() {
     });
     
   } catch (error) {
-    console.error('Erreur lors de la vérification de la table users :', error);
+    console.error('Erreur lors de la vérification de la table properties :', error);
   } finally {
     await db.destroy();
   }
 }
 
-checkUsersTable();
+checkPropertiesTable();

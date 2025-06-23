@@ -44,6 +44,33 @@ export interface Property {
 
 // Créer une nouvelle propriété
 export const createProperty = async (req: Request, res: Response) => {
+  // Vérifier d'abord la connexion à la base de données
+  try {
+    // Tester la connexion
+    await db.raw('SELECT 1');
+    console.log('✅ Connexion à la base de données établie avec succès');
+    
+    // Vérifier si on peut lire les propriétés existantes
+    const existingProperties = await db('properties').select('*').limit(5);
+    console.log(`✅ ${existingProperties.length} propriétés trouvées dans la base de données`);
+    if (existingProperties.length > 0) {
+      console.log('Exemple de propriété existante:', {
+        id: existingProperties[0].id,
+        title: existingProperties[0].title,
+        type: existingProperties[0].type,
+        status: existingProperties[0].status
+      });
+    }
+  } catch (dbError) {
+    console.error('❌ Erreur de connexion à la base de données:', dbError);
+    return res.status(500).json({
+      success: false,
+      message: 'Impossible de se connecter à la base de données',
+      error: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+    });
+  }
+
+  // Démarrer une transaction
   const trx = await db.transaction();
   
   try {
@@ -84,82 +111,247 @@ export const createProperty = async (req: Request, res: Response) => {
 
     // La validation est gérée par le middleware validatePropertyData
 
-    const [propertyId] = await trx('properties').insert({
+    // Préparer les données de la propriété
+    const propertyData: Record<string, any> = {
       owner_id: userId,
       title,
-      description,
+      description: description || '',
       type,
       status,
       address,
       city,
-      postal_code,
+      postal_code: postal_code,
       country,
-      latitude,
-      longitude,
-      area,
-      rooms,
-      bathrooms,
-      floor,
-      furnished,
+      area: area || 0,
+      rooms: rooms || 1,
+      bathrooms: bathrooms || 1,
+      floor: floor || '0',
+      furnished: Boolean(furnished),
       equipment: JSON.stringify(
         Array.isArray(equipment) 
-          ? equipment.filter(eq => propertyConfig.equipment.some(e => e.value === eq))
+          ? equipment.filter(Boolean) // Enlève les valeurs vides
           : []
       ),
-      has_elevator,
-      has_parking,
-      has_balcony,
-      has_terrace,
-      has_garden,
-      has_pool,
-      has_air_conditioning,
-      has_heating,
-      rent,
-      charges,
-      deposit,
-      currency,
-      year_built,
-      is_featured,
+      has_elevator: Boolean(has_elevator),
+      has_parking: Boolean(has_parking),
+      has_balcony: Boolean(has_balcony),
+      has_terrace: Boolean(has_terrace),
+      has_garden: Boolean(has_garden),
+      has_pool: Boolean(has_pool),
+      has_air_conditioning: Boolean(has_air_conditioning),
+      has_heating: Boolean(has_heating),
+      rent: Number(rent) || 0,
+      charges: Number(charges) || 0,
+      deposit: Number(deposit) || 0,
+      currency: currency || 'EUR',
+      year_built: year_built ? Number(year_built) : null,
+      is_featured: Boolean(is_featured),
       available_from: available_from ? new Date(available_from) : null,
       created_at: new Date(),
       updated_at: new Date()
-    }).returning('id');
-
-    // Récupérer la propriété créée avec toutes ses données
-    const [createdProperty] = await trx('properties')
-      .where('id', propertyId)
-      .select('*');
-
-    // Convertir la chaîne JSON equipment en tableau si nécessaire
-    const equipmentList = typeof createdProperty.equipment === 'string' 
-      ? JSON.parse(createdProperty.equipment)
-      : createdProperty.equipment || [];
-
-    // Créer un objet réponse avec les données formatées
-    const responseData = {
-      ...createdProperty,
-      equipment: equipmentList,
-      // Ajouter l'URL complète pour les images si nécessaire
-      images: []
     };
 
-    await trx.commit();
+    // Ne pas inclure les champs qui pourraient ne pas exister dans la base de données
+    const fieldsToExclude = ['latitude', 'longitude'];
+    fieldsToExclude.forEach(field => {
+      if (field in propertyData) {
+        delete propertyData[field];
+      }
+    });
 
-    console.log('Propriété créée avec succès:', responseData);
+    console.log('Tentative d\'insertion de la propriété:', JSON.stringify(propertyData, null, 2));
+
+    // 1. Créer un nouvel objet sans les colonnes problématiques
+    const insertData = { ...propertyData };
+    delete insertData.latitude;
+    delete insertData.longitude;
+
+    // 2. Obtenir les colonnes et les valeurs pour le logging
+    const columns = Object.keys(insertData);
+    const values = Object.values(insertData);
     
-    res.status(201).json({
+    console.log('Colonnes pour l\'insertion:', columns);
+    console.log('Valeurs pour l\'insertion:', values);
+    
+    // 3. Construire la requête manuellement avec les colonnes exactes
+    const columnList = columns.join('`, `');
+    const placeholders = columns.map(() => '?').join(', ');
+    
+    // 4. Exécuter l'insertion avec Knex pour une meilleure gestion du retour
+    const [propertyId] = await trx('properties')
+      .insert(insertData)
+      .returning('id');
+      
+    console.log('Résultat de l\'insertion:', propertyId);
+    
+    if (!propertyId) {
+      // Essayer de récupérer le dernier ID inséré
+      const lastInsert = await trx.raw('SELECT last_insert_rowid() as id');
+      const lastId = lastInsert?.[0]?.id;
+      
+      if (!lastId) {
+        throw new Error('Impossible de récupérer l\'ID de la propriété insérée');
+      }
+      
+      console.log('ID récupéré via last_insert_rowid:', lastId);
+      return lastId;
+    }
+    console.log('ID de propriété créée:', propertyId);
+
+    // 6. Valider d'abord la transaction
+    await trx.commit();
+    console.log('Transaction validée avec succès');
+    
+    // 7. Récupérer la propriété créée avec tous les champs
+    console.log('Récupération de la propriété créée...');
+    
+    // Fonction pour récupérer une propriété par son ID avec tous les champs
+    const fetchProperty = async (id: number) => {
+      console.log(`Tentative de récupération de la propriété ID: ${id}`);
+      
+      // Récupérer d'abord la structure de la table
+      const tableInfo = await db.raw('PRAGMA table_info(properties)');
+      console.log('Structure de la table properties:', tableInfo);
+      
+      // Récupérer la propriété avec tous les champs
+      const result = await db.raw('SELECT * FROM properties WHERE id = ?', [id]);
+      console.log('Résultat brut de la requête:', JSON.stringify(result, null, 2));
+      
+      // Essayer différents formats de réponse
+      let property = null;
+      if (result?.[0]?.[0]) {
+        property = result[0][0];
+      } else if (result?.[0]) {
+        property = result[0];
+      } else if (result) {
+        property = result;
+      }
+      
+      if (property) {
+        console.log('Propriété récupérée avec succès:', JSON.stringify(property, null, 2));
+      } else {
+        console.log('Aucune propriété trouvée avec cet ID');
+      }
+      
+      return property;
+    };
+    
+    // Récupérer la propriété
+    const propertyIdValue = propertyId.id || propertyId;
+    console.log(`ID de propriété à récupérer: ${propertyIdValue}`);
+    
+    // Essayer plusieurs fois de récupérer la propriété
+    let property = null;
+    const maxRetries = 3;
+    
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        property = await fetchProperty(propertyIdValue);
+        if (property) break;
+        
+        if (i < maxRetries - 1) {
+          console.log(`Tentative ${i + 1} échouée, nouvelle tentative dans 200ms...`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      } catch (error) {
+        console.error(`Erreur lors de la tentative ${i + 1}:`, error);
+        if (i === maxRetries - 1) throw error;
+      }
+    }
+    
+    if (!property) {
+      // Dernier recours : essayer avec une requête directe sans transaction
+      try {
+        console.log('Dernière tentative avec une requête directe...');
+        const directResult = await db.raw('SELECT * FROM properties WHERE id = ?', [propertyIdValue]);
+        console.log('Résultat direct:', directResult);
+        
+        if (directResult?.[0]?.[0]) {
+          property = directResult[0][0];
+        } else if (directResult?.[0]) {
+          property = directResult[0];
+        }
+        
+        if (!property) {
+          throw new Error(`Impossible de récupérer la propriété après ${maxRetries} tentatives`);
+        }
+      } catch (error) {
+        console.error('Échec de la récupération directe:', error);
+        throw new Error(`La propriété a été créée mais n'a pas pu être récupérée: ${error.message}`);
+      }
+    }
+    
+    // Fonction pour valider et parser les données de la propriété
+    const processProperty = (property: any) => {
+      if (!property) return null;
+      
+      // Convertir les champs booléens de SQLite (0/1) en boolean
+      const booleanFields = [
+        'furnished', 'has_elevator', 'has_parking', 'has_balcony',
+        'has_terrace', 'has_garden', 'has_pool', 'has_air_conditioning',
+        'has_heating', 'is_active', 'is_featured'
+      ];
+      
+      const processed = { ...property };
+      
+      // Convertir les champs booléens
+      booleanFields.forEach(field => {
+        if (processed[field] !== undefined && processed[field] !== null) {
+          processed[field] = Boolean(processed[field]);
+        }
+      });
+      
+      // Parser le champ equipment si c'est une chaîne JSON
+      if (typeof processed.equipment === 'string') {
+        try {
+          processed.equipment = JSON.parse(processed.equipment);
+        } catch (e) {
+          console.warn('Erreur lors du parsing des équipements:', e);
+          processed.equipment = [];
+        }
+      }
+      
+      // Convertir les dates si nécessaire
+      if (processed.available_from && typeof processed.available_from === 'number') {
+        processed.available_from = new Date(processed.available_from);
+      }
+      
+      return processed;
+    };
+    
+    // Traiter la propriété récupérée
+    const processedProperty = processProperty(property);
+    
+    console.log('Propriété traitée avec succès:', JSON.stringify(processedProperty, null, 2));
+    
+    // Répondre avec succès
+    return res.status(201).json({
       success: true,
-      data: responseData
+      data: processedProperty
     });
 
   } catch (error) {
-    await trx.rollback();
+    // En cas d'erreur, annuler la transaction
+    if (trx) {
+      await trx.rollback();
+      console.error('Transaction annulée en raison d\'une erreur');
+    }
+    
     console.error('Erreur lors de la création de la propriété:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la création de la propriété',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    
+    // Renvoyer une réponse d'erreur détaillée
+    if (error instanceof Error) {
+      res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la création de la propriété',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Une erreur est survenue'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Erreur inconnue lors de la création de la propriété'
+      });
+    }
   }
 };
 

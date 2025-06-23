@@ -894,11 +894,11 @@ export default defineComponent({
         propertyStore.setLoading(true);
         
         console.log('3. Préparation des données pour envoi...');
-        propertyStore.setLoading(true);
-        
-        // Nettoyage des équipements
-        const cleanEquipment = Array.isArray(propertyData.equipment)
-          ? propertyData.equipment.filter(Boolean).map(item => item.toString().trim())
+        // Nettoyer les données d'équipement
+        console.log('3. Nettoyage des données d\'équipement...');
+        const cleanEquipment = (propertyData.equipment && Array.isArray(propertyData.equipment))
+          ? propertyData.equipment.filter((item: any) => item !== null && item !== undefined && item !== '')
+                                 .map((item: any) => item.toString().trim())
           : [];
           
         console.log('3.1 Équipements nettoyés:', cleanEquipment);
