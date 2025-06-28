@@ -1,4 +1,4 @@
-import api from '@/services/api';
+import api from '../services/api';
 
 interface Property {
   id: string | number;
@@ -45,6 +45,11 @@ class PropertyService {
       throw error;
     }
   }
+
+  /**
+   * Récupère les types de propriétés
+   */
+
 
   /**
    * Récupère une propriété par son ID

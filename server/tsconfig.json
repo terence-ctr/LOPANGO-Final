@@ -22,7 +22,7 @@
   },
   "include": [
     "**/*.ts"
-  ],
+, "database/migrations/20250627_create_metadata_tables.cjs"  ],
   "exclude": [
     "node_modules",
     "dist"

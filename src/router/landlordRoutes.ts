@@ -1,6 +1,8 @@
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
 import PropertiesView from '@/views/landlord/PropertiesView.vue';
 import PropertyDetailsView from '@/views/landlord/PropertyDetailsView.vue';
+import ContractsView from '@/views/landlord/ContractsView.vue';
+import ContractCreateView from '@/views/landlord/ContractCreateView.vue';
 
 export const landlordRoutes = [
   {
@@ -28,6 +30,13 @@ export const landlordRoutes = [
         props: true
       },
       {
+        path: 'properties/:id/edit',
+        name: 'landlord-property-edit',
+        component: () => import('@/views/landlord/PropertyEditView.vue'),
+        meta: { title: 'Modifier le bien' },
+        props: true
+      },
+      {
         path: 'tenants',
         name: 'landlord-tenants',
         component: () => import('@/views/landlord/TenantsView.vue'),
@@ -38,6 +47,18 @@ export const landlordRoutes = [
         name: 'landlord-rentals',
         component: () => import('@/views/landlord/RentalsView.vue'),
         meta: { title: 'Gestion des locations' }
+      },
+      {
+        path: 'contracts',
+        name: 'landlord-contracts',
+        component: ContractsView,
+        meta: { title: 'Gestion des contrats' }
+      },
+      {
+        path: 'contracts/create',
+        name: 'landlord-contract-create',
+        component: ContractCreateView,
+        meta: { title: 'Créer un contrat', requiresAuth: true }
       },
       {
         path: 'payments',

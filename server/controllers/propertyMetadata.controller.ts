@@ -2,6 +2,31 @@ import { Request, Response } from 'express';
 import { PropertyMetadata } from '../models/PropertyMetadata';
 
 export const PropertyMetadataController = {
+  // Récupérer toutes les métadonnées
+  async getAllMetadata(req: Request, res: Response) {
+    try {
+            console.log('Fetching all metadata...');
+      const [types, statuses, equipments, currencies] = await Promise.all([
+        PropertyMetadata.getPropertyTypes(),
+        PropertyMetadata.getPropertyStatuses(),
+        PropertyMetadata.getPropertyEquipments(),
+        PropertyMetadata.getCurrencies()
+      ]);
+
+            // Log all metadata IDs
+      console.log('All metadata IDs:', {
+        types: types.map(t => t.id),
+        statuses: statuses.map(s => s.id),
+        equipments: equipments.map(e => e.id),
+        currencies: currencies.map(c => c.id)
+      });
+
+      res.json({ types, statuses, equipments, currencies });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des métadonnées:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  },
   // Récupérer tous les types de propriétés
   async getPropertyTypes(req: Request, res: Response) {
     try {

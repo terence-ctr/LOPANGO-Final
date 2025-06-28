@@ -1,13 +1,13 @@
 // Configuration de l'API
 const config = {
   // URL de base de l'API - sera remplacée par les variables d'environnement en production
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5173/api',
   // URL de base de l'API (dépréciée, utiliser baseURL à la place)
   // @deprecated Utiliser baseURL à la place
-  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:5173/api',
   
   // Timeout des requêtes en millisecondes
-  timeout: 30000, // 30 secondes
+  timeout: 10000, // 10 secondes
   
   // Configuration des endpoints
   // Les endpoints sont définis sans le préfixe /api car il est déjà inclus dans la baseURL
@@ -26,6 +26,11 @@ const config = {
       byOwner: (ownerId: string) => `/properties/owner/${ownerId}`,
       byId: (id: string) => `/properties/${id}`,
       uploadImage: (propertyId: string) => `/properties/${propertyId}/images`,
+    },
+    metadata: {
+      propertyTypes: '/metadata/property-types',
+      propertyStatuses: '/metadata/property-statuses',
+      propertyEquipments: '/metadata/property-equipments'
     },
     // Ajoutez d'autres endpoints au besoin
   },

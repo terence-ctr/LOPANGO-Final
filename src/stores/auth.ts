@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import type { User } from '@/types/user.types';
-import type { RegisterData } from '@/types/auth.types';
-import apiConfig from '@/config/api.config';
-import authService from '@/services/auth.service';
-import { getDefaultRouteForRole } from '@/config/routes';
-import { TOKEN_KEY, USER_DATA_KEY } from '@/utils/auth';
-import api from '@/services/api';
+import axios from 'axios';
+import type { User } from '../types/user.types';
+import type { RegisterData } from '../types/auth.types';
+import apiConfig from '../config/api.config';
+import authService from '../services/auth.service';
+import { getDefaultRouteForRole } from '../config/routes';
+import { TOKEN_KEY, USER_DATA_KEY } from '../utils/auth';
+import api from '../services/api';
 
 // Clé pour le stockage local
 const STORAGE_KEY = 'lopango_auth';
@@ -545,29 +546,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     // Désactiver F5, Ctrl+R, Ctrl+Shift+R, etc.
-    const preventRefresh = (e: KeyboardEvent) => {
+    const preventRefresh: EventListener = (e) => {
       if (
-        (e.ctrlKey && (e.key === 'r' || e.key === 'R' || e.key === 'F5')) ||
-        e.key === 'F5' ||
-        e.key === 'F11' ||
-        (e.key === 'r' && e.altKey) ||
-        (e.key === 'R' && e.altKey) ||
-        (e.key === 'F5' && e.shiftKey)
+        (e instanceof KeyboardEvent && (e.ctrlKey && (e.key === 'r' || e.key === 'R' || e.key === 'F5'))) ||
+        (e instanceof KeyboardEvent && e.key === 'F5') ||
+        (e instanceof KeyboardEvent && e.key === 'F11') ||
+        (e instanceof KeyboardEvent && (e.key === 'r' && e.altKey)) ||
+        (e instanceof KeyboardEvent && (e.key === 'R' && e.altKey)) ||
+        (e instanceof KeyboardEvent && (e.key === 'F5' && e.shiftKey))
       ) {
-        e.preventDefault();
+        if (e instanceof KeyboardEvent) {
+          e.preventDefault();
+        }
         console.log('Rafraîchissement désactivé');
         return false;
       }
       return undefined;
     };
 
-    // Désactiver le menu contextuel (clic droit)
-    const preventContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Désactiver le rafraîchissement avec la molette de la souris
+    // Désactiver le rafraîchissement avec la molette
     const preventMouseWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
@@ -577,13 +574,15 @@ export const useAuthStore = defineStore('auth', () => {
     };
 
     // Désactiver le rafraîchissement tactile
-    const preventTouchRefresh = (e: TouchEvent) => {
+    const preventTouchRefresh: EventListener = (e) => {
+      if (!(e instanceof TouchEvent)) return;
       const touch = e.touches[0];
       if (!touch) return;
       
       const startY = touch.pageY;
       
-      const handleTouchMove = (moveEvent: TouchEvent) => {
+      const handleTouchMove: EventListener = (moveEvent) => {
+        if (!(moveEvent instanceof TouchEvent)) return;
         if (!moveEvent.touches[0]) return;
         const moveY = moveEvent.touches[0].pageY;
         if (moveY < startY && window.scrollY <= 0) {
@@ -601,16 +600,23 @@ export const useAuthStore = defineStore('auth', () => {
       window.addEventListener('touchend', removeTouchMove, { once: true });
     };
 
+    // Fonction pour empêcher le menu contextuel
+    const preventContextMenu = (event: Event) => {
+      event.preventDefault();
+    };
+
     // Ajouter les écouteurs d'événements
     window.addEventListener('keydown', preventRefresh as EventListener, { capture: true });
     window.addEventListener('contextmenu', preventContextMenu as EventListener, { capture: true });
     window.addEventListener('wheel', preventMouseWheel as EventListener, { passive: false });
+
     window.addEventListener('touchstart', preventTouchRefresh as EventListener, { passive: false });
 
     // Nettoyer les écouteurs lors de la déconnexion
     return () => {
       window.removeEventListener('keydown', preventRefresh as EventListener, { capture: true });
       window.removeEventListener('contextmenu', preventContextMenu as EventListener, { capture: true });
+  
       window.removeEventListener('wheel', preventMouseWheel as EventListener);
       window.removeEventListener('touchstart', preventTouchRefresh as EventListener);
     };

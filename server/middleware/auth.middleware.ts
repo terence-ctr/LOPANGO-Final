@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../database';
 import { AppError } from './error.middleware';
@@ -42,6 +42,7 @@ declare global {
         userType: string;
         firstName: string;
         lastName: string;
+        email_verified: boolean;
       };
     }
   }
@@ -115,6 +116,7 @@ const handleExpiredToken = async (req: Request, res: Response, next: NextFunctio
     const user = await db('users')
       .where('id', refreshDecoded.id)
       .where('is_active', true)
+      .select('id', 'email', 'user_type', 'first_name', 'last_name', 'email_verified')
       .first();
 
     if (!user) {
@@ -169,7 +171,7 @@ const handleExpiredToken = async (req: Request, res: Response, next: NextFunctio
       const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as 'lax' | 'strict' | 'none' | undefined,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
         path: '/',
         domain: process.env.NODE_ENV === 'production' ? '.votredomaine.com' : undefined
@@ -192,7 +194,8 @@ const handleExpiredToken = async (req: Request, res: Response, next: NextFunctio
       email: user.email,
       userType: user.user_type,
       firstName: user.first_name,
-      lastName: user.last_name
+      lastName: user.last_name,
+      email_verified: !!user.email_verified
     };
     
     // Poursuivre avec la requête
@@ -215,179 +218,77 @@ const handleExpiredToken = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const authenticateJWT = async (req: Request, res: Response, next: NextFunction) => {
+export const authenticateJWT: RequestHandler = async (req, res, next) => {
   const requestId = req.headers['x-request-id'] || 'no-request-id';
   const logContext = {
     url: req.originalUrl,
     method: req.method,
-    ip: req.ip,
-    userAgent: req.headers['user-agent']
+    ip: req.ip
   };
-  
+
   console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Début authentification`, logContext);
-  
-  // Vérifier si la route est publique
+
   const publicRoutes = ['/auth/login', '/auth/register', '/auth/refresh-token'];
   if (publicRoutes.some(route => req.originalUrl.startsWith(route))) {
     console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Route publique, authentification non requise`);
     return next();
   }
-  
-  // Récupérer le token depuis le header Authorization
+
   const authHeader = req.headers.authorization;
-  
-  if (!authHeader) {
-    console.log('Aucun en-tête d\'autorisation trouvé');
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('Aucun en-tête d\'autorisation valide trouvé');
     return next(new AppError(401, 'Authentification requise'));
   }
 
-  if (!authHeader.startsWith('Bearer ')) {
-    console.log('Format de token invalide (devrait commencer par Bearer)');
-    return next(new AppError(401, 'Format de token invalide'));
-  }
-
   const token = authHeader.split(' ')[1];
-  
-  if (!token) {
-    console.log('Aucun token trouvé dans l\'en-tête d\'autorisation');
-    return next(new AppError(401, 'Token manquant'));
-  }
-  
+
   try {
-    // Vérifier et décoder le token
-    console.log('=== DÉBUT VÉRIFICATION DU TOKEN ===');
-    console.log('Token brut reçu:', token.substring(0, 30) + '...');
-    console.log('JWT_SECRET défini:', JWT_SECRET ? 'OUI' : 'NON');
-    
-    // Ajouter une vérification de la structure du token
-    const tokenParts = token.split('.');
-    console.log('Structure du token:', {
-      parts: tokenParts.length,
-      header: tokenParts[0] ? 'présent' : 'manquant',
-      payload: tokenParts[1] ? 'présent' : 'manquant',
-      signature: tokenParts[2] ? 'présent' : 'manquant'
-    });
-    
-    if (tokenParts.length !== 3) {
-      console.error('Format de token invalide: nombre de parties incorrect');
-      return next(new AppError(401, 'Format de token invalide'));
-    }
-    
-    // Essayer de décoder le payload pour vérification
-    let payload: any;
-    try {
-      payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-      console.log('Payload décodé:', payload);
-    } catch (e) {
-      console.error('Erreur lors du décodage du payload:', e);
-      return next(new AppError(401, 'Format de token invalide'));
-    }
-    
-    // Vérifier si le token est expiré
-    if (payload.exp && payload.exp * 1000 < Date.now()) {
-      console.log('Token expiré, tentative de rafraîchissement...');
-      return handleExpiredToken(req, res, next, token);
-    }
-    
-    // Vérifier le token avec la clé secrète
-    let decoded: TokenPayload;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
-      console.log('Token décodé avec succès:', {
-        id: decoded.id,
-        type: decoded.type,
-        userType: decoded.userType,
-        iat: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : 'non défini',
-        exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'non défini'
-      });
-    } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) {
-        console.log('Token expiré, tentative de rafraîchissement...');
-        return handleExpiredToken(req, res, next, token);
-      }
-      console.error('Erreur de vérification du token:', error);
-      return next(new AppError(401, 'Token invalide'));
-    }
-    
-    // Vérifier que c'est un token d'accès
+    const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
+
     if (decoded.type !== 'access') {
-      console.log('Tentative d\'utilisation d\'un token invalide comme token d\'accès:', decoded.type);
-      return next(new AppError(401, 'Type de token invalide'));
+      return next(new AppError(401, 'Type de token invalide pour cette opération'));
     }
-    
-    // Récupérer l'utilisateur depuis la base de données
+
     const user = await db('users')
-      .where('id', decoded.id)
-      .select(
-        'id',
-        'email',
-        'first_name',
-        'last_name',
-        'user_type',
-        'is_active'
-      )
-      .first()
-      .catch(error => {
-        console.error('Erreur lors de la récupération de l\'utilisateur:', error);
-        throw new AppError(500, 'Erreur lors de la récupération des informations utilisateur');
-      });
+      .where({ id: decoded.id, is_active: true })
+      .select('id', 'email', 'first_name', 'last_name', 'user_type', 'is_active', 'email_verified')
+      .first();
 
     if (!user) {
-      console.log('Utilisateur non trouvé dans la base de données');
-      return next(new AppError(401, 'Utilisateur non autorisé'));
+      return next(new AppError(401, 'Utilisateur non trouvé ou compte inactif'));
     }
 
-    if (!user) {
-      console.log('Utilisateur non trouvé dans la base de données');
-      return next(new AppError(401, 'Utilisateur non autorisé'));
-    }
-
-    // Vérifier si le compte est actif
-    if (user.is_active !== 1) {
-      console.log('Compte utilisateur inactif');
-      return next(new AppError(403, 'Ce compte a été désactivé'));
-    }
-    
-    // Ajouter l'utilisateur à la requête
     req.user = {
       id: user.id,
       email: user.email,
       userType: user.user_type,
       firstName: user.first_name,
-      lastName: user.last_name
+      lastName: user.last_name,
+      email_verified: !!user.email_verified
     };
-    
-    // Vérifier si le token est sur le point d'expirer (moins de 5 minutes)
+
+    // Refresh near-expiry token
     if (decoded.exp) {
       const now = Math.floor(Date.now() / 1000);
       const expiresIn = decoded.exp - now;
-      
       if (expiresIn < 300) { // 5 minutes
-        // Générer un nouveau token
         const { token: newToken, expiresAt } = generateAccessToken(user.id, user.user_type);
-        
-        // Ajouter le nouveau token dans l'en-tête de la réponse
         res.setHeader('X-New-Token', newToken);
         res.setHeader('X-Token-Expires-At', expiresAt);
       }
     }
     
-    console.log('Utilisateur authentifié avec succès:', { 
-      userId: user.id, 
-      userType: user.user_type 
-    });
-    
+    console.log('Utilisateur authentifié avec succès:', { userId: user.id, userType: user.user_type });
     next();
   } catch (error) {
-    console.error('Erreur inattendue lors de l\'authentification:', error);
-    
     if (error instanceof jwt.TokenExpiredError) {
-      return next(new AppError(401, 'Votre session a expiré. Veuillez vous reconnecter.'));
-    } else if (error instanceof AppError) {
-      return next(error);
+      console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Token expiré, tentative de rafraîchissement`);
+      return handleExpiredToken(req, res, next, token);
     }
     
-    next(new AppError(500, 'Une erreur est survenue lors de l\'authentification'));
+    console.error(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Erreur de vérification du token:`, error);
+    return next(new AppError(401, 'Token invalide ou corrompu'));
   }
 };
 
@@ -408,7 +309,7 @@ export const authorize = (roles: string[] = []) => {
       }
 
       // Vérifier si l'utilisateur a l'un des rôles requis
-      if (!roles.includes(req.user.user_type)) {
+      if (!roles.includes(req.user.userType)) {
         throw new AppError(403, 'Droits insuffisants pour accéder à cette ressource');
       }
 
@@ -431,7 +332,7 @@ export const isOwner = (resourceUserId: number | string) => {
       }
 
       // Si l'utilisateur est admin, il a automatiquement accès
-      if (req.user.user_type === 'admin') {
+      if (req.user.userType === 'admin') {
         return next();
       }
 

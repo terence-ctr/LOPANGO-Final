@@ -10,12 +10,13 @@ import { Server as SocketIOServer } from 'socket.io';
 import config from './config';
 import { errorHandler } from './middleware/error.middleware';
 import { logger } from './utils/logger';
-import { initializeSocket } from './socket';
 import { db } from './database/db';
 import { Knex } from 'knex';
 import { authRoutes } from './routes/auth.routes';
 import propertyRoutes from './routes/property.routes';
 import propertyMetadataRoutes from './routes/propertyMetadata.routes';
+import contractRoutes from './routes/contract.routes';
+import userRoutes from './routes/user.routes';
 
 // Les routes suivantes sont commentées car les fichiers correspondants n'existent pas encore
 // import { userRoutes } from './routes/user.routes';
@@ -27,7 +28,6 @@ import propertyMetadataRoutes from './routes/propertyMetadata.routes';
 // import { searchRoutes } from './routes/search.routes';
 // import { reportRoutes } from './routes/report.routes';
 // import { adminRoutes } from './routes/admin.routes';
-import { paymentWebhook } from './controllers/payment.controller';
 
 class App {
   public app: Application;
@@ -156,12 +156,19 @@ class App {
     this.app.use(cors(corsOptions));
     
     // Middleware pour ajouter les en-têtes CORS manuellement
-    this.app.use((req, res, next) => {
+    this.app.use((req: Request, res: Response, next: NextFunction): void => {
       // Définir les en-têtes CORS
       const origin = req.headers.origin || '';
       
       // Vérifier si l'origine est autorisée
-      const isOriginAllowed = corsOptions.origin === '*' || 
+      const allowedOrigins = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        config.frontendUrl
+      ];
+      
+      const isOriginAllowed = allowedOrigins.includes(origin) || 
         (Array.isArray(corsOptions.origin) && corsOptions.origin.some(o => 
           typeof o === 'string' && o === origin
         ));
@@ -177,7 +184,8 @@ class App {
       
       // Répondre immédiatement aux requêtes OPTIONS (pré-vol)
       if (req.method === 'OPTIONS') {
-        return res.status(204).end();
+        res.status(204).end();
+        return;
       }
       
       next();
@@ -185,7 +193,7 @@ class App {
     
     // Middleware pour logger les en-têtes CORS (en développement)
     if (process.env.NODE_ENV === 'development') {
-      this.app.use((req, res, next) => {
+      this.app.use((req: Request, res: Response, next: NextFunction): void => {
         console.log('[CORS] Headers de la requête:', {
           origin: req.headers.origin,
           'access-control-request-method': req.headers['access-control-request-method'],
@@ -220,7 +228,7 @@ class App {
     this.app.use(compression());
     
     // Middleware pour configurer les en-têtes CORS et les cookies
-    this.app.use((req, res, next) => {
+    this.app.use((req: Request, res: Response, next: NextFunction): void => {
       // Définir les en-têtes CORS
       const origin = req.headers.origin;
       if (origin) {
@@ -232,22 +240,23 @@ class App {
       
       // Gérer les requêtes OPTIONS (prévol)
       if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+        res.status(200).end();
+        return;
       }
       
       // Configurer les attributs des cookies
       const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
         domain: process.env.NODE_ENV === 'production' ? '.votredomaine.com' : 'localhost',
         path: '/',
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours en millisecondes
       };
       
       // Si nous avons un refresh token dans la réponse, le définir dans les cookies
-      if (res.locals.refreshToken) {
-        res.cookie('refreshToken', res.locals.refreshToken, {
+      if ((res as any).locals.refreshToken) {
+        res.cookie('refreshToken', (res as any).locals.refreshToken, {
           ...cookieOptions,
           maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours
         });
@@ -292,8 +301,10 @@ class App {
   private initializeRoutes() {
     // Routes API
     this.app.use('/api/auth', authRoutes);
+    this.app.use('/api/properties/metadata', propertyMetadataRoutes);
     this.app.use('/api/properties', propertyRoutes);
-    this.app.use('/api/property-metadata', propertyMetadataRoutes);
+    this.app.use('/api/contracts', contractRoutes);
+    this.app.use('/api/users', userRoutes);
     
     // Route de test
     this.app.get('/api/health', (req: Request, res: Response) => {

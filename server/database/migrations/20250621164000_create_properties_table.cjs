@@ -23,7 +23,7 @@ exports.up = async function(knex) {
       table.string('address').notNullable();
       table.string('city').notNullable();
       table.string('postal_code', 20).notNullable();
-      table.string('country').defaultTo('France');
+      table.string('country').defaultTo('congo');
       table.decimal('latitude', 10, 8);
       table.decimal('longitude', 11, 8);
       

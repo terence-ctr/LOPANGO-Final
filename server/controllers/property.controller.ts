@@ -63,10 +63,10 @@ export const createProperty = async (req: Request, res: Response) => {
     }
   } catch (dbError) {
     console.error('❌ Erreur de connexion à la base de données:', dbError);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: 'Impossible de se connecter à la base de données',
-      error: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+      error: process.env.NODE_ENV === 'development' ? (dbError instanceof Error ? dbError.message : String(dbError)) : undefined
     });
   }
 
@@ -76,17 +76,17 @@ export const createProperty = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         success: false, 
         message: 'Non autorisé' 
       });
     }
 
     const {
-      title, description, type = propertyConfig.defaults.type, 
+      title, description, type = propertyConfig.defaults.type,
       status = propertyConfig.defaults.status as PropertyStatus,
-      address, city, postal_code, country = propertyConfig.defaults.country,
-      latitude, longitude, area, 
+      address, // This is now an object
+      area, 
       rooms = propertyConfig.defaults.rooms, 
       bathrooms = propertyConfig.defaults.bathrooms, 
       floor = propertyConfig.defaults.floor,
@@ -109,6 +109,8 @@ export const createProperty = async (req: Request, res: Response) => {
       available_from
     } = req.body;
 
+    
+
     // La validation est gérée par le middleware validatePropertyData
 
     // Préparer les données de la propriété
@@ -118,20 +120,13 @@ export const createProperty = async (req: Request, res: Response) => {
       description: description || '',
       type,
       status,
-      address,
-      city,
-      postal_code: postal_code,
-      country,
+      address: address,
       area: area || 0,
       rooms: rooms || 1,
       bathrooms: bathrooms || 1,
       floor: floor || '0',
       furnished: Boolean(furnished),
-      equipment: JSON.stringify(
-        Array.isArray(equipment) 
-          ? equipment.filter(Boolean) // Enlève les valeurs vides
-          : []
-      ),
+      equipment: equipment ? JSON.stringify(equipment) : JSON.stringify([]),
       has_elevator: Boolean(has_elevator),
       has_parking: Boolean(has_parking),
       has_balcony: Boolean(has_balcony),
@@ -145,8 +140,8 @@ export const createProperty = async (req: Request, res: Response) => {
       deposit: Number(deposit) || 0,
       currency: currency || 'EUR',
       year_built: year_built ? Number(year_built) : null,
-      is_featured: Boolean(is_featured),
-      available_from: available_from ? new Date(available_from) : null,
+      is_featured: is_featured || false,
+      available_from: available_from || null,
       created_at: new Date(),
       updated_at: new Date()
     };
@@ -277,7 +272,7 @@ export const createProperty = async (req: Request, res: Response) => {
         }
       } catch (error) {
         console.error('Échec de la récupération directe:', error);
-        throw new Error(`La propriété a été créée mais n'a pas pu être récupérée: ${error.message}`);
+        throw new Error(`La propriété a été créée mais n'a pas pu être récupérée: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     
@@ -374,7 +369,8 @@ export const getProperties = async (req: Request, res: Response) => {
     console.error('Erreur lors de la récupération des propriétés:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la récupération des propriétés'
+      message: 'Erreur lors de la récupération des propriétés',
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 };
@@ -383,14 +379,17 @@ export const getProperties = async (req: Request, res: Response) => {
 export const getPropertyById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    console.log(`[CONTROLLER] Tentative de récupération de la propriété avec l'ID: ${id}`);
     const property = await db('properties').where({ id }).first();
     
     if (!property) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Propriété non trouvée'
       });
     }
+
+    console.log(`[CONTROLLER] Propriété trouvée: ${property.title}`);
     
     // Convertir les équipements de JSON en tableau
     const formattedProperty = {
@@ -406,7 +405,8 @@ export const getPropertyById = async (req: Request, res: Response) => {
     console.error('Erreur lors de la récupération de la propriété:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la récupération de la propriété'
+      message: 'Erreur lors de la récupération de la propriété',
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 };
@@ -420,7 +420,7 @@ export const updateProperty = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     
     if (!userId) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         success: false, 
         message: 'Non autorisé' 
       });
@@ -433,7 +433,7 @@ export const updateProperty = async (req: Request, res: Response) => {
       
     if (!existingProperty) {
       await trx.rollback();
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Propriété non trouvée ou accès non autorisé'
       });
@@ -465,7 +465,7 @@ export const updateProperty = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la mise à jour de la propriété',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 };
@@ -479,7 +479,7 @@ export const deleteProperty = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     
     if (!userId) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         success: false, 
         message: 'Non autorisé' 
       });
@@ -492,7 +492,7 @@ export const deleteProperty = async (req: Request, res: Response) => {
       
     if (!property) {
       await trx.rollback();
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Propriété non trouvée ou accès non autorisé'
       });
@@ -514,7 +514,7 @@ export const deleteProperty = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la suppression de la propriété',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 };

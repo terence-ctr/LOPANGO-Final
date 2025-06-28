@@ -10,6 +10,7 @@ export interface User {
   password: string;
   firstName: string;
   lastName: string;
+  nationality: string;
   phone: string;
   dateOfBirth: Date;
   gender: Gender;

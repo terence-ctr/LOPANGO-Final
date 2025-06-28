@@ -19,7 +19,7 @@ const testProperty = {
   street: '123 Rue de Test',
   city: 'Paris',
   postalCode: '75001',
-  country: 'France',
+  country: 'congo',
   area: 65,
   floorArea: 65,
   rooms: 2,

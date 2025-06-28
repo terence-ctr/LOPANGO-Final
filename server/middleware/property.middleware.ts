@@ -10,7 +10,7 @@ export const isPropertyOwner = async (req: Request, res: Response, next: NextFun
     const userId = req.user?.id;
 
     if (isNaN(propertyId)) {
-      return next(new AppError('ID de propriété invalide', 400));
+      return next(new AppError(400, 'ID de propriété invalide'));
     }
 
     const property = await db('properties')
@@ -18,12 +18,12 @@ export const isPropertyOwner = async (req: Request, res: Response, next: NextFun
       .first();
 
     if (!property) {
-      return next(new AppError('Propriété non trouvée', 404));
+      return next(new AppError(404, 'Propriété non trouvée'));
     }
 
     // Vérifier si l'utilisateur est le propriétaire ou un administrateur
     if (property.owner_id !== userId && req.user?.userType !== 'ADMIN') {
-      return next(new AppError('Non autorisé à accéder à cette propriété', 403));
+      return next(new AppError(403, 'Non autorisé à accéder à cette propriété'));
     }
 
     // Ajouter la propriété à la requête pour une utilisation ultérieure
@@ -74,34 +74,13 @@ export const validatePropertyData = (req: Request, res: Response, next: NextFunc
     console.log(`✅ Type valide: ${propertyData.type}`);
   }
 
-  // Vérification de l'adresse
+  // Vérification de l'adresse (nouvelle structure)
   console.log('\n=== VALIDATION DE L\'ADRESSE ===');
-  if (!propertyData.address || propertyData.address.trim() === '') {
-    console.log('❌ Erreur: L\'adresse est obligatoire');
-    errors.address = 'L\'adresse est obligatoire';
+  if (!propertyData.address || typeof propertyData.address !== 'string' || propertyData.address.trim() === '') {
+    console.log('❌ Erreur: L\'adresse est obligatoire et doit être une chaîne de caractères.');
+    errors.address = 'L\'adresse est obligatoire.';
   } else {
-    console.log('✅ Adresse fournie');
-  }
-
-  // Vérification de la ville
-  console.log('\n=== VALIDATION DE LA VILLE ===');
-  if (!propertyData.city || propertyData.city.trim() === '') {
-    console.log('❌ Erreur: La ville est obligatoire');
-    errors.city = 'La ville est obligatoire';
-  } else {
-    console.log(`✅ Ville fournie: ${propertyData.city}`);
-  }
-
-  // Vérification du code postal
-  console.log('\n=== VALIDATION DU CODE POSTAL ===');
-  if (!propertyData.postal_code) {
-    console.log('❌ Erreur: Le code postal est obligatoire');
-    errors.postal_code = 'Le code postal est obligatoire';
-  } else if (!/^\d{5}$/.test(propertyData.postal_code)) {
-    console.log(`❌ Erreur: Code postal invalide: ${propertyData.postal_code}`);
-    errors.postal_code = 'Code postal invalide (5 chiffres requis)';
-  } else {
-    console.log(`✅ Code postal valide: ${propertyData.postal_code}`);
+    console.log('✅ Adresse fournie:', propertyData.address);
   }
 
   // Vérification de la surface
@@ -151,7 +130,7 @@ export const validatePropertyData = (req: Request, res: Response, next: NextFunc
     
     const validEquipment = propertyConfig.equipment.map(e => e.value);
     const invalidEquipment = propertyData.equipment.filter(
-      (eq: string) => !validEquipment.includes(eq)
+      (eq: string) => !propertyConfig.equipment.some(e => e.value === eq)
     );
     
     if (invalidEquipment.length > 0) {
@@ -169,11 +148,7 @@ export const validatePropertyData = (req: Request, res: Response, next: NextFunc
   
   if (Object.keys(errors).length > 0) {
     console.log('❌ Des erreurs de validation ont été trouvées:', errors);
-    return res.status(400).json({
-      success: false,
-      message: 'Erreur de validation des données',
-      errors
-    });
+    return next(new AppError(400, 'Erreur de validation des données', Object.entries(errors).map(([field, message]) => ({ field, message }))));
   }
   
   console.log('✅ Toutes les validations ont réussi');
@@ -215,7 +190,7 @@ export const propertyExists = async (req: Request, res: Response, next: NextFunc
     const propertyId = parseInt(req.params.id, 10);
 
     if (isNaN(propertyId)) {
-      return next(new AppError('ID de propriété invalide', 400));
+      return next(new AppError(400, 'ID de propriété invalide'));
     }
 
     const property = await db('properties')
@@ -223,14 +198,12 @@ export const propertyExists = async (req: Request, res: Response, next: NextFunc
       .first();
 
     if (!property) {
-      return next(new AppError('Propriété non trouvée', 404));
+      return next(new AppError(404, 'Propriété non trouvée'));
     }
 
-    // Vérifier si la propriété est disponible (sauf pour les administrateurs)
-    if (property.status !== 'DISPONIBLE' && 
-        req.user?.userType !== 'ADMIN' && 
-        property.owner_id !== req.user?.id) {
-      return next(new AppError('Cette propriété n\'est pas disponible', 403));
+    // Vérifier si l'utilisateur a accès à la propriété
+    if (req.user?.userType !== 'ADMIN' && property.owner_id !== req.user?.id) {
+      return next(new AppError(403, 'Cette propriété n\'est pas disponible'));
     }
 
     // Ajouter la propriété à la requête pour une utilisation ultérieure
@@ -253,13 +226,13 @@ export const canEditProperty = async (req: Request, res: Response, next: NextFun
     // Ici, vous pouvez ajouter des règles supplémentaires
     // Par exemple, empêcher la modification d'une propriété déjà louée
     if (req.property.status === 'LOUE') {
-      return next(new AppError('Impossible de modifier une propriété déjà louée', 403));
+      return next(new AppError(403, 'Impossible de modifier une propriété déjà louée'));
     }
     return next();
   }
 
   // Sinon, accès refusé
-  return next(new AppError('Non autorisé à modifier cette propriété', 403));
+  return next(new AppError(403, 'Non autorisé à modifier cette propriété'));
 };
 
 // Vérifie si l'utilisateur peut supprimer la propriété
@@ -279,11 +252,11 @@ export const canDeleteProperty = async (req: Request, res: Response, next: NextF
       .first();
 
     if (hasActiveRentals) {
-      return next(new AppError('Impossible de supprimer une propriété avec des locations en cours', 403));
+      return next(new AppError(403, 'Impossible de supprimer une propriété avec des locations en cours'));
     }
     return next();
   }
 
   // Sinon, accès refusé
-  return next(new AppError('Non autorisé à supprimer cette propriété', 403));
+  return next(new AppError(403, 'Non autorisé à supprimer cette propriété'));
 };

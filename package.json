@@ -64,6 +64,7 @@
     "@types/sequelize": "^4.28.14",
     "@types/uuid": "^9.0.7",
     "@types/validator": "^13.12.3",
+    "@types/yup": "^0.29.14",
     "@vueuse/motion": "^3.0.3",
     "axios": "^1.10.0",
     "bcrypt-ts": "^7.0.0",
@@ -108,7 +109,8 @@
     "vue3-toastify": "^0.2.8",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
-    "xss-clean": "^0.1.4"
+    "xss-clean": "^0.1.4",
+    "yup": "^1.6.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.27.2",
@@ -123,6 +125,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.18",
+    "@types/date-fns": "^2.5.3",
     "@types/express": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/morgan": "^1.9.9",

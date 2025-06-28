@@ -2,62 +2,52 @@
 export type PropertyType = 'APPARTEMENT' | 'MAISON' | 'VILLA' | 'CHATEAU' | 'PARKING' | 'LOCAL_COMMERCIAL' | 'BUREAU' | 'ENTREPOT' | 'TERRAIN' | 'AUTRE';
 
 // Statuts des biens immobiliers
-export type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_ENTRETIEN' | 'VENDU' | 'INDISPONIBLE' | 'RESERVE' | 'EN_NEGOCIATION';
+export type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_MAINTENANCE' | 'EN_ENTRETIEN' | 'VENDU' | 'INDISPONIBLE' | 'RESERVE' | 'EN_NEGOCIATION';
+
+// Interfaces pour les métadonnées
+export interface MetadataItem {
+  id: number;
+  value: string;
+  label: string;
+  is_active: boolean;
+  display_order: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface PropertyTypeMetadata extends MetadataItem {
+  value: PropertyType;
+}
+
+export interface PropertyStatusMetadata extends MetadataItem {
+  value: PropertyStatus;
+  color: string;
+}
+
+export interface PropertyEquipmentMetadata extends MetadataItem {
+  value: string;
+}
+
+export interface CurrencyMetadata {
+  id: number;
+  code: string;
+  name: string;
+  symbol: string;
+  is_active: boolean;
+  display_order: number;
+  created_at: number;
+  updated_at: number;
+}
 
 export interface PropertyAddress {
   street: string;
+  quartier?: string;
+  commune?: string;
   city: string;
   postalCode: string;
   country: string;
   latitude?: number;
   longitude?: number;
-}
-
-export interface PropertyFeatures {
-  type: PropertyType;
-  area: number;
-  rooms: number;
-  bathrooms: number;
-  floor: string;
-  furnished: boolean;
-  equipment: string[];
-  hasElevator?: boolean;
-  hasParking?: boolean;
-  hasBalcony?: boolean;
-  hasTerrace?: boolean;
-  hasGarden?: boolean;
-  hasPool?: boolean;
-  hasAirConditioning?: boolean;
-  hasHeating?: boolean;
-  yearBuilt?: number;
-  floorArea?: number;
-  landArea?: number;
-}
-
-export interface PropertyFinancials {
-  rent: number;
-  charges: number;
-  deposit: number;
-  currency: string;
-  pricePerSquareMeter?: number;
-  priceHistory?: Array<{
-    price: number;
-    date: Date;
-    type: 'rent' | 'sale';
-  }>;
-}
-
-export interface PropertyStatusInfo {
-  status: PropertyStatus;
-  availableFrom?: Date;
-  isActive: boolean;
-  lastRentedDate?: Date;
-  nextAvailableDate?: Date;
-  isFeatured?: boolean;
-  isFurnished?: boolean;
-  // Ajout des champs pour correspondre au schéma de validation
-  parcelNumber?: string;
-  name?: string;
 }
 
 export interface PropertyImage {
@@ -80,27 +70,48 @@ export interface PropertyDocument {
 }
 
 export interface Property {
-  id: string | number;
+  id?: string | number;
   title: string;
   description?: string;
   slug?: string;
-  address: PropertyAddress;
-  features: PropertyFeatures;
-  financials: PropertyFinancials;
-  status: PropertyStatusInfo;
-  images: PropertyImage[];
-  documents?: PropertyDocument[];
-  ownerId: string | number;
-  managerId?: string | number;
-  tenantId?: string | number;
-  createdAt: Date;
-  updatedAt: Date;
+  address: string;
+  type: PropertyType;
+  area: number;
+  rooms: number;
+  bedrooms?: number;
+  bathrooms: number;
+  floor?: number | string;
+  furnished: boolean;
+  equipment?: string[];
+  heatingType?: string;
+  energyRating?: string;
+  constructionYear?: number;
+  has_air_conditioning?: boolean;
+  has_balcony?: boolean;
+  has_elevator?: boolean;
+  has_garden?: boolean;
+  has_heating?: boolean;
+  has_parking?: boolean;
+  has_pool?: boolean;
+  has_terrace?: boolean;
+  year_built?: number;
+  available_from?: number;
+  rent: number;
+  charges?: number;
+  deposit?: number;
+  currency?: string;
+  usage?: 'residentiel' | 'commercial' | 'bureau' | 'autre';
+  leaseType?: string;
+  status: PropertyStatus;
+  images?: PropertyImage[];
+  ownerId?: string | number;
+  tenantId?: string | number | null;
+  customFields?: Record<string, any>;
+  createdAt?: Date;
+  updatedAt?: Date;
   publishedAt?: Date;
   tags?: string[];
-  customFields?: Record<string, any>;
 }
-
-
 
 // Libellés pour l'affichage des types de biens
 export const propertyTypeLabels: Record<PropertyType, string> = {
@@ -120,6 +131,7 @@ export const propertyTypeLabels: Record<PropertyType, string> = {
 export const propertyStatusLabels: Record<PropertyStatus, string> = {
   'DISPONIBLE': 'Disponible',
   'LOUE': 'Loué',
+  'EN_MAINTENANCE': 'En maintenance',
   'EN_ENTRETIEN': 'En entretien',
   'VENDU': 'Vendu',
   'INDISPONIBLE': 'Indisponible',
@@ -139,6 +151,8 @@ export interface PropertyFormData {
   
   // Adresse
   street: string;
+  quartier?: string;
+  commune?: string;
   city: string;
   postalCode: string;
   country: string;
@@ -176,6 +190,7 @@ export interface PropertyFormData {
   documents?: File[];
   
   // Métadonnées
+  description?: string;
   isFeatured?: boolean;
   availableFrom?: string; // Format YYYY-MM-DD
 }

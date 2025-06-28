@@ -8,16 +8,16 @@ const db = knex({
   useNullAsDefault: true
 });
 
-async function listRefreshTokens() {
+async function listUsers() {
   try {
-    const refreshTokens = await db('refresh_tokens').select('id', 'user_id', 'token', 'expires_at', 'created_at', 'updated_at');
-    console.log('Tokens de rafraîchissement existants :');
-    console.table(refreshTokens);
+    const users = await db('users').select('id', 'user_type', 'first_name', 'last_name', 'email', 'is_active', 'email_verified', 'created_at', 'updated_at', 'address', 'identity', 'properties', 'refresh_tokens');
+    console.log('users de rafraîchissement existants :');
+    console.table(users);
   } catch (error) {
-    console.error('Erreur lors de la récupération des tokens de rafraîchissement :', error);
+    console.error('Erreur lors de la récupération des users de rafraîchissement :', error);
   } finally {
     await db.destroy();
   }
 }
 
-listRefreshTokens();
+listUsers();

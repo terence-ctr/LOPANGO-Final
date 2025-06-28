@@ -42,7 +42,7 @@
             </button>
           </div>
           <PropertyForm
-            :initialData="propertyData"
+            :property="propertyData || undefined"
             @submit="handleSubmit"
             @cancel="handleCancel"
           />
@@ -50,7 +50,28 @@
       </div>
     </div>
 
-    <section class="border border-gray-200 rounded-md overflow-hidden">
+    <!-- Loading State -->
+    <div v-if="loading" class="flex justify-center items-center h-64">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-red-700">
+            {{ error }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <section v-else class="border border-gray-200 rounded-md overflow-hidden">
       <!-- Message quand il n'y a pas de propriétés -->
       <div v-if="properties.length === 0" class="p-8 text-center text-gray-500">
         <div class="mx-auto w-16 h-16 mb-4 text-gray-300">
@@ -77,7 +98,7 @@
               <th class="py-3 px-4 font-semibold w-12">#</th>
               <th class="py-3 px-4 font-semibold min-w-[120px]">Nom</th>
               <th class="py-3 px-4 font-semibold min-w-[280px]">Adresse</th>
-              <th class="py-3 px-4 font-semibold min-w-[140px]">Locataire</th>
+              <th class="py-3 px-4 font-semibold min-w-[140px]">Type</th>
               <th class="py-3 px-4 font-semibold w-20">Loyer mensuel</th>
               <th class="py-3 px-4 font-semibold w-20">Statut</th>
               <th class="py-3 px-4 font-semibold w-12"></th>
@@ -90,27 +111,23 @@
               class="border-b border-gray-100"
             >
               <td class="py-3 px-4 font-normal">{{ property.id }}</td>
-              <td class="py-3 px-4 font-normal">{{ property.nom }}</td>
+              <td class="py-3 px-4 font-normal">{{ property.title }}</td>
               <td
                 class="py-3 px-4 font-normal whitespace-nowrap overflow-hidden text-ellipsis max-w-[280px]"
-                :title="property.adresse"
+                :title="property.address"
               >
-                {{ property.adresse }}
+                {{ property.address }}
               </td>
-              <td
-                class="py-3 px-4 font-semibold text-blue-700 cursor-pointer hover:underline"
-              >
-                {{ property.locataire }}
-              </td>
-              <td class="py-3 px-4 font-normal">{{ property.loyer }}</td>
+              <td class="py-3 px-4 font-normal">{{ getPropertyTypeLabelText(property.type) }}</td>
+              <td class="py-3 px-4 font-normal">{{ formatCurrency(property.rent) }}</td>
               <td
                 class="py-3 px-4 font-semibold flex items-center gap-1"
-                :class="property.statut === 'Actif' ? 'text-green-600' : 'text-gray-600'"
+                :class="getStatusClass(property.status)"
               >
-                <template v-if="property.statut === 'Actif'">
+                <template v-if="property.status === 'DISPONIBLE'">
                   <i class="fas fa-arrow-up text-green-600 text-[10px]"></i>
                 </template>
-                {{ property.statut }}
+                {{ getStatusLabelText(property.status) }}
               </td>
               <td class="py-3 px-4 relative text-center">
                 <button
@@ -118,26 +135,26 @@
                   aria-haspopup="true"
                   aria-label="Actions"
                   class="text-gray-400 hover:text-gray-600 focus:outline-none"
-                  @click="toggleMenu(property.id)"
+                  @click="toggleMenu(String(property.id))"
                 >
                   <i class="fas fa-ellipsis-h"></i>
                 </button>
                 <div
-                  v-if="openMenuId === property.id"
+                  v-if="openMenuId === String(property.id)"
                   class="absolute right-0 top-8 w-36 bg-white border border-gray-200 rounded-md shadow-lg text-xs z-10"
                   role="menu"
                 >
                   <button
                     class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
                     role="menuitem"
-                    @click="openModal('details', property)"
+                    @click="viewPropertyDetails(property)"
                   >
                     <i class="fas fa-eye"></i> Voir détails
                   </button>
                   <button
                     class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
                     role="menuitem"
-                    @click="openModal('edit', property)"
+                    @click="editProperty(property)"
                   >
                     <i class="fas fa-pen"></i> Éditer
                   </button>
@@ -159,120 +176,39 @@
     <!-- Modal Overlay -->
     <div
       v-if="modalVisible"
-      class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+      class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[9999]"
       @click.self="closeModal"
     >
-      <div class="bg-white rounded-lg max-w-md w-full p-6 relative">
+      <div class="bg-white rounded-lg max-w-md w-full mx-4 p-6 relative shadow-2xl">
         <button
           aria-label="Close modal"
-          class="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+          class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 text-xl"
           @click="closeModal"
         >
-          <i class="fas fa-times text-lg"></i>
+          <i class="fas fa-times"></i>
         </button>
 
-        <template v-if="modalType === 'details'">
-          <h2 class="text-lg font-semibold mb-4">Détails de la propriété</h2>
-          <p><strong>Nom:</strong> {{ modalData.nom }}</p>
-          <p><strong>Adresse:</strong> {{ modalData.adresse }}</p>
-          <p><strong>Locataire:</strong> {{ modalData.locataire }}</p>
-          <p><strong>Loyer mensuel:</strong> {{ modalData.loyer }}</p>
-          <p><strong>Statut:</strong> {{ modalData.statut }}</p>
-        </template>
-
-        <template v-else-if="modalType === 'edit'">
-          <h2 class="text-lg font-semibold mb-4">Éditer la propriété</h2>
-          <form @submit.prevent="saveEdit" class="space-y-4 text-sm">
-            <div>
-              <label class="block mb-1 font-medium" for="nom">Nom</label>
-              <input
-                id="nom"
-                v-model="editForm.nom"
-                type="text"
-                class="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              />
-            </div>
-            <div>
-              <label class="block mb-1 font-medium" for="adresse">Adresse</label>
-              <input
-                id="adresse"
-                v-model="editForm.adresse"
-                type="text"
-                class="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              />
-            </div>
-            <div>
-              <label class="block mb-1 font-medium" for="locataire">Locataire</label>
-              <input
-                id="locataire"
-                v-model="editForm.locataire"
-                type="text"
-                class="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              />
-            </div>
-            <div>
-              <label class="block mb-1 font-medium" for="loyer">Loyer mensuel</label>
-              <input
-                id="loyer"
-                v-model="editForm.loyer"
-                type="text"
-                class="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              />
-            </div>
-            <div>
-              <label class="block mb-1 font-medium" for="statut">Statut</label>
-              <select
-                id="statut"
-                v-model="editForm.statut"
-                class="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              >
-                <option>Actif</option>
-                <option>Inactif</option>
-              </select>
-            </div>
-            <div class="flex justify-end space-x-3">
-              <button
-                type="button"
-                class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100"
-                @click="closeModal"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                class="px-4 py-2 rounded bg-blue-900 text-white hover:bg-blue-800"
-              >
-                Enregistrer
-              </button>
-            </div>
-          </form>
-        </template>
-
-        <template v-else-if="modalType === 'delete'">
-          <h2 class="text-lg font-semibold mb-4 text-red-600">
-            Supprimer la propriété
-          </h2>
-          <p>
-            Êtes-vous sûr de vouloir supprimer cette propriété ? Cette action est
-            irréversible.
+        <template v-if="modalType === 'delete' && propertyData">
+          <h3 class="text-lg font-bold text-gray-800 mb-2">
+            Confirmer la suppression
+          </h3>
+          <p class="text-sm text-gray-600 mb-6">
+            Êtes-vous sûr de vouloir supprimer la propriété
+            <strong class="font-semibold">"{{ propertyData.title }}"</strong>? Cette
+            action est irréversible.
           </p>
-          <div class="mt-6 flex justify-end space-x-3">
+          <div class="flex justify-end gap-3">
             <button
-              type="button"
-              class="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100"
               @click="closeModal"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              type="button"
             >
               Annuler
             </button>
             <button
-              type="button"
-              class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
               @click="confirmDelete"
+              class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+              type="button"
             >
               Supprimer
             </button>
@@ -284,381 +220,142 @@
 </template>
 
 <script setup lang="ts">
+  // ...
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
-import type { ToastOptions } from 'vue-toastification';
+import { storeToRefs } from 'pinia';
 import PropertyForm from '@/components/landlord/properties/PropertyForm.vue';
-import type { PropertyFormData } from '@/types/property';
-import PropertyService from '@/services/property.service';
+import { usePropertyStore } from '@/stores/propertyStore';
+import { 
+  type Property, 
+  type PropertyStatus,
+  propertyStatusLabels,
+  propertyTypeLabels
+} from '@/types/property';
 
-// Définition des types
-type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_ENTRETIEN' | 'INDISPONIBLE' | 'BROUILLON';
-
-interface Property {
-  id: string | number;
-  title: string;
-
-  street?: string;
-  postalCode?: string;
-  city?: string;
-  tenant_id?: string | number | null;
-  rent?: number;
-  currency?: string;
-  status: PropertyStatus;
-  [key: string]: any; // Pour les propriétés supplémentaires
-}
-
-interface PropertyTableItem {
-  id: string | number;
-  nom: string;
-  adresse: string;
-  locataire: string;
-  loyer: string;
-  statut: string;
-  [key: string]: any; // Pour les propriétés supplémentaires
-}
-
-// Références réactives
+// Store, router, toast
 const router = useRouter();
 const toast = useToast();
+const propertyStore = usePropertyStore();
+const { properties, loading, error } = storeToRefs(propertyStore);
 
-// État du composant
-const search = ref<string>("");
+// Local component state
+const search = ref('');
 const openMenuId = ref<string | null>(null);
-const modalVisible = ref<boolean>(false);
-const modalType = ref<'details' | 'edit' | 'delete' | null>(null);
-const isAddPropertyModalOpen = ref<boolean>(false);
-const properties = ref<PropertyTableItem[]>([]);
+const modalVisible = ref(false);
+const modalType = ref<'edit' | 'delete' | null>(null);
+const isAddPropertyModalOpen = ref(false);
+const propertyData = ref<Partial<Property> | null>(null);
 
-// Données du formulaire
-const propertyData = reactive<PropertyFormData>({
-  // Informations de base
-  id: undefined,
-  title: '',
-  type: 'APPARTEMENT',
-  status: 'DISPONIBLE',
-  name: '',
-  
-  // Adresse
-  street: '',
-  city: '',
-  postalCode: '',
-  country: 'Congo',
-  latitude: undefined,
-  longitude: undefined,
-  
-  // Caractéristiques
-  area: 0,
-  rooms: 1,
-  bathrooms: 1,
-  floor: '0',
-  furnished: false,
-  equipment: [],
-  hasElevator: false,
-  hasParking: false,
-  hasBalcony: false,
-  hasTerrace: false,
-  hasGarden: false,
-  hasPool: false,
-  hasAirConditioning: false,
-  hasHeating: false,
-  yearBuilt: new Date().getFullYear(),
-  floorArea: 0,
-  landArea: 0,
-  parcelNumber: '',
-  
-  // Financier
-  rent: 0,
-  charges: 0,
-  deposit: 0,
-  currency: 'EUR',
-  
-  // Fichiers
-  images: [],
-  documents: [],
-  
-  // Métadonnées
-  isFeatured: false,
-  availableFrom: new Date().toISOString().split('T')[0] // Aujourd'hui par défaut
-});
-
-// Données de la modale
-const modalData = reactive({
-  id: null as string | number | null,
-  nom: "",
-  adresse: "",
-  locataire: "",
-  loyer: "",
-  statut: "",
-});
-
-// Données du formulaire d'édition
-const editForm = reactive({
-  id: null as string | number | null,
-  nom: "",
-  adresse: "",
-  locataire: "",
-  loyer: "",
-  statut: "Actif",
-});
-
-// Propriétés calculées
-const filteredProperties = computed<PropertyTableItem[]>(() => {
+// Computed properties
+const filteredProperties = computed(() => {
   if (!search.value) return properties.value;
-  return properties.value.filter((p) =>
-    [p.id, p.nom, p.adresse, p.locataire, p.loyer, p.statut]
-      .join(" ")
-      .toLowerCase()
-      .includes(search.value.toLowerCase())
+  const searchLower = search.value.toLowerCase();
+  return properties.value.filter((p: Property) =>
+    p.title.toLowerCase().includes(searchLower) ||
+    p.address.toLowerCase().includes(searchLower) ||
+    p.type.toLowerCase().includes(searchLower)
   );
 });
 
-// Méthodes
+// Methods
+const formatCurrency = (amount: number, currency = 'EUR'): string => {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount);
+};
+
+const getStatusLabelText = (status: PropertyStatus): string => {
+  return propertyStatusLabels[status] || status;
+};
+
+const getPropertyTypeLabelText = (type: string): string => {
+  return propertyTypeLabels[type as keyof typeof propertyTypeLabels] || type;
+};
+
+const getStatusClass = (status: PropertyStatus): string => {
+  const statusClasses: Record<string, string> = {
+    DISPONIBLE: 'text-green-600',
+    LOUE: 'text-blue-600',
+    EN_MAINTENANCE: 'text-pink-600',
+    EN_ENTRETIEN: 'text-yellow-600',
+    VENDU: 'text-red-600',
+    INDISPONIBLE: 'text-gray-600',
+    RESERVE: 'text-purple-600',
+    EN_NEGOCIATION: 'text-orange-600',
+  };
+  return statusClasses[status] || 'text-gray-600';
+};
+
 const openAddPropertyModal = () => {
-  // Réinitialiser les données du formulaire
-  Object.assign(propertyData, {
-    title: '',
-    type: 'T1',
-    area: 0,
-    rooms: 1,
-    bathrooms: 1,
-    floor: '0',
-    furnished: false,
-    equipment: [],
-    rent: 0,
-    charges: 0,
-    status: 'DISPONIBLE',
-    street: '',
-    city: '',
-    postalCode: '',
-    country: 'France',
-    currency: 'EUR',
-    isFeatured: false
-  });
+  propertyData.value = null;
   isAddPropertyModalOpen.value = true;
 };
 
-const handleSubmit = async (property: PropertyFormData) => {
-  // Afficher un message de chargement
-  const loadingToast = toast.info('Création de la propriété en cours...', { 
-    timeout: false 
-  } as ToastOptions);
-  
-  console.log('Données du formulaire soumises:', JSON.stringify(property, null, 2));
-  
-  try {
-    // 1. Appeler le service pour créer la propriété
-    console.log('Appel de PropertyService.createProperty...');
-    const newProperty = await PropertyService.createProperty(property);
-    console.log('Réponse de createProperty:', newProperty);
-    
-    if (!newProperty) {
-      throw new Error('Aucune donnée reçue du serveur après la création de la propriété');
-    }
-    
-    // 2. Fermer le message de chargement
-    toast.dismiss(loadingToast);
-    
-    // 3. Afficher un message de succès
-    toast.success('Propriété créée avec succès !');
-    
-    // 4. Fermer la modale
-    isAddPropertyModalOpen.value = false;
-    
-    // 5. Recharger la liste des propriétés en arrière-plan
-    // (sans attendre la fin du chargement pour une meilleure expérience utilisateur)
-    loadProperties().catch(error => {
-      console.error('Erreur lors du rechargement de la liste des propriétés:', error);
-    });
-    
-    // 6. Vérifier que nous avons un ID valide avant de rediriger
-    const propertyId = newProperty.id || (newProperty.data && newProperty.data.id);
-    
-    if (propertyId) {
-      console.log('Redirection vers la propriété:', `/landlord/properties/${propertyId}`);
-      
-      // Utiliser replace au lieu de push pour éviter des problèmes de navigation
-      router.replace({
-        name: 'landlord-property-details',
-        params: { id: propertyId }
-      }).catch(error => {
-        console.error('Erreur lors de la redirection:', error);
-        // En cas d'erreur, rediriger vers la liste des propriétés
-        router.push('/landlord/properties');
-      });
-    } else {
-      console.warn('Aucun ID de propriété valide trouvé dans la réponse:', newProperty);
-      // Rediriger vers la liste des propriétés si aucun ID n'est trouvé
-      router.push('/landlord/properties');
-    }
-  } catch (error) {
-    console.error('Erreur lors de la création de la propriété:', error);
-    
-    // Fermer le message de chargement s'il est toujours actif
-    toast.dismiss(loadingToast);
-    
-    // Déterminer le message d'erreur approprié
-    let errorMessage = 'Une erreur est survenue lors de la création de la propriété';
-    
-    if (error.response) {
-      // Erreur de l'API avec un code de statut
-      if (error.response.status === 401) {
-        errorMessage = 'Vous devez être connecté pour effectuer cette action';
-      } else if (error.response.status === 400) {
-        errorMessage = 'Données invalides. Veuillez vérifier les informations saisies.';
-      } else if (error.response.data?.message) {
-        errorMessage = error.response.data.message;
-      }
-    } else if (error.request) {
-      // La requête a été faite mais aucune réponse n'a été reçue
-      errorMessage = 'Impossible de se connecter au serveur. Vérifiez votre connexion Internet.';
-    } else if (error.message) {
-      // Erreur levée manuellement
-      errorMessage = error.message;
-    }
-    
-    // Afficher le message d'erreur
-    toast.error(errorMessage, { 
-      timeout: 5000,
-      closeOnClick: false,
-      pauseOnFocusLoss: true,
-      pauseOnHover: true
-    });
-    
-    // Réafficher le formulaire avec les données saisies
-    isAddPropertyModalOpen.value = true;
-  }
+const handleSubmit = () => {
+  isAddPropertyModalOpen.value = false;
+  propertyStore.fetchProperties();
 };
 
 const handleCancel = () => {
   isAddPropertyModalOpen.value = false;
 };
 
-const loadProperties = async () => {
-  try {
-    const data = await PropertyService.getProperties() as Property[];
-    // Formater les données pour correspondre au format attendu par le template
-    properties.value = data.map((property: Property): PropertyTableItem => ({
-      id: property.id,
-      nom: property.title,
-      adresse: `${property.address || ''}`.trim(),
-      locataire: property.tenant_id ? 'À définir' : 'Aucun',
-      loyer: `${property.rent || 0} ${property.currency || 'EUR'}`,
-      statut: property.status === 'DISPONIBLE' ? 'Disponible' : 
-             property.status === 'LOUE' ? 'Loué' :
-             property.status === 'EN_ENTRETIEN' ? 'En entretien' :
-             property.status === 'INDISPONIBLE' ? 'Indisponible' : 'Brouillon',
-      ...property
-    }));
-  } catch (error) {
-    console.error('Erreur lors du chargement des propriétés:', error);
-    toast.error('Impossible de charger la liste des propriétés');
-  }
+const loadProperties = () => {
+  propertyStore.fetchProperties();
 };
 
-const toggleMenu = (id: string) => {
-  if (openMenuId.value === id) {
-    openMenuId.value = null;
-  } else {
-    openMenuId.value = id;
-  }
+const toggleMenu = (id: string | number) => {
+  const menuId = String(id);
+  openMenuId.value = openMenuId.value === menuId ? null : menuId;
 };
 
-const openModal = (type: 'details' | 'edit' | 'delete', property: PropertyTableItem) => {
+const openModal = (type: 'edit' | 'delete', property: Property) => {
   openMenuId.value = null;
-
-  if (type === "details") {
-    // Rediriger vers la page de détails de la propriété
-    router.push({ name: 'landlord-property-details', params: { id: property.id } });
-    return;
-  }
-  
-  // Pour les autres types (edit/delete), on garde l'ancien comportement
   modalType.value = type;
   modalVisible.value = true;
 
-  if (type === "edit") {
-    // Convertir les données du tableau au format du formulaire
-    Object.assign(editForm, {
-      id: property.id,
-      nom: property.nom,
-      adresse: property.adresse,
-      locataire: property.locataire,
-      loyer: property.loyer,
-      statut: property.statut
-    });
-  } else if (type === "delete") {
-    Object.assign(modalData, property);
+  if (type === 'delete') {
+    propertyData.value = property;
   }
 };
 
 const closeModal = () => {
   modalVisible.value = false;
   modalType.value = null;
-  // Clear modal data
-  Object.assign(modalData, {
-    id: null,
-    nom: "",
-    adresse: "",
-    locataire: "",
-    loyer: "",
-    statut: "",
-  });
+  propertyData.value = null;
 };
 
-// Charger les propriétés au montage du composant
+const editProperty = (property: Property) => {
+  if (property.id) {
+    router.push({ name: 'landlord-property-edit', params: { id: property.id } });
+  }
+};
+
+const viewPropertyDetails = (property: Property) => {
+  if (property.id) {
+    router.push({ name: 'landlord-property-details', params: { id: property.id } });
+  }
+};
+
+const confirmDelete = async () => {
+  if (!propertyData.value?.id) return;
+  try {
+    await propertyStore.deleteProperty(Number(propertyData.value.id));
+    toast.success('Propriété supprimée avec succès');
+    closeModal();
+  } catch (err) {
+    toast.error('Erreur lors de la suppression.');
+  }
+};
+
 onMounted(() => {
   loadProperties();
-});
-
-// Fonction pour sauvegarder les modifications
-const saveEdit = () => {
-  const index = properties.value.findIndex((p) => p.id === editForm.id);
-  if (index !== -1) {
-    properties.value[index] = { ...editForm };
-  }
-  closeModal();
-};
-
-// Fonction pour confirmer la suppression
-const confirmDelete = () => {
-  properties.value = properties.value.filter((p) => p.id !== modalData.id);
-  closeModal();
-};
-
-// Ajouter un événement pour fermer les menus contextuels lors d'un clic en dehors
-onMounted(() => {
   document.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
-    if (
-      !target.closest("button[aria-label='Actions']") &&
-      !target.closest("div[role='menu']")
-    ) {
+    if (!target.closest("button[aria-label='Actions']") && !target.closest("div[role='menu']")) {
       openMenuId.value = null;
     }
   });
-});
-
-// Exposer les propriétés et méthodes au template
-defineExpose({
-  search,
-  openMenuId,
-  modalVisible,
-  modalType,
-  isAddPropertyModalOpen,
-  properties: filteredProperties,
-  modalData,
-  editForm,
-  openAddPropertyModal,
-  handleSubmit,
-  handleCancel,
-  toggleMenu,
-  openModal,
-  closeModal,
-  saveEdit,
-  confirmDelete,
-  loadProperties,
 });
 </script>
 
@@ -669,4 +366,4 @@ defineExpose({
 body {
   font-family: "Inter", sans-serif;
 }
-</style>
+</style> 

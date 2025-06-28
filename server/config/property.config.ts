@@ -56,7 +56,7 @@ export const propertyConfig = {
   defaults: {
     type: 'APPARTEMENT',
     status: 'DISPONIBLE',
-    country: 'France',
+    country: 'Congo',
     currency: 'EUR',
     rooms: 1,
     bathrooms: 1,

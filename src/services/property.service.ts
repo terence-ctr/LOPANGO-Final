@@ -1,60 +1,5 @@
 import api from './api';
-
-export interface Property {
-  // Identifiants
-  id?: number;
-  owner_id?: number;
-  
-  // Informations de base
-  title: string;
-  description: string;
-  type: string;
-  status: string;
-  
-  // Adresse
-  address: string;
-  street?: string;
-  city: string;
-  postal_code: string;
-  country: string;
-  latitude?: number;
-  longitude?: number;
-  
-  // Caractéristiques
-  area: number;
-  land_area?: number;
-  rooms: number;
-  bathrooms: number;
-  floor: string | number;
-  furnished: boolean;
-  equipment: string[];
-  
-  // Équipements
-  has_elevator: boolean;
-  has_parking: boolean;
-  has_balcony: boolean;
-  has_terrace: boolean;
-  has_garden: boolean;
-  has_pool: boolean;
-  has_air_conditioning: boolean;
-  has_heating: boolean;
-  
-  // Financier
-  rent: number;
-  charges: number;
-  deposit?: number;
-  currency: string;
-  
-  // Métadonnées
-  year_built?: number;
-  is_featured: boolean;
-  available_from?: string;
-  created_at?: string;
-  updated_at?: string;
-  
-  // Champs calculés côté frontend
-  fullAddress?: string;
-}
+import type { Property } from '@/types/property';
 
 class PropertyService {
   // Créer une propriété (alias pour createProperty pour la rétrocompatibilité)
@@ -86,9 +31,6 @@ class PropertyService {
         
         // Adresse
         address: propertyData.address || '',
-        city: propertyData.city || '',
-        postal_code: propertyData.postal_code || '',
-        country: propertyData.country || 'France',
         
         // Caractéristiques
         area: Number(propertyData.area) || 0,
@@ -116,8 +58,8 @@ class PropertyService {
         
         // Autres
         year_built: propertyData.year_built ? Number(propertyData.year_built) : undefined,
-        available_from: propertyData.available_from || undefined,
-        is_featured: Boolean(propertyData.is_featured),
+        available_from: propertyData.available_from ? new Date(propertyData.available_from) : undefined,
+
         
         // Propriétaire
         owner_id: user.id
@@ -315,6 +257,22 @@ class PropertyService {
       }
       
       throw new Error(error.message || 'Une erreur est survenue lors de la récupération de la propriété');
+    }
+  }
+
+  // Mettre à jour une propriété
+  static async update(id: number, propertyData: Partial<Property>) {
+    try {
+      const response = await api.put(`/properties/${id}`, propertyData);
+      return response.data;
+    } catch (error: any) {
+      console.error(`Erreur lors de la mise à jour de la propriété ${id}:`, error);
+      if (error.response) {
+        if (error.response.data && error.response.data.message) {
+          throw new Error(error.response.data.message);
+        }
+      }
+      throw new Error('Une erreur est survenue lors de la mise à jour de la propriété');
     }
   }
 

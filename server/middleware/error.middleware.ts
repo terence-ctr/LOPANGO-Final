@@ -54,7 +54,17 @@ export const errorHandler = (
 
   // Erreur personnalisée avec statut
   if (err.statusCode) {
-    return res.status(err.statusCode).json({
+    // Vérifier que le code de statut est un nombre valide
+    const statusCode = Number(err.statusCode);
+    if (isNaN(statusCode) || statusCode < 100 || statusCode > 599) {
+      console.error('Code de statut invalide:', err.statusCode);
+      return res.status(500).json({
+        message: 'Erreur interne du serveur',
+        error: err.message,
+        ...(err.errors && { errors: err.errors }),
+      });
+    }
+    return res.status(statusCode).json({
       message: err.message,
       ...(err.errors && { errors: err.errors }),
     });

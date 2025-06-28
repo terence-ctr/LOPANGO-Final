@@ -143,16 +143,10 @@ const tenantMenu = [
 const landlordMenu = [
   { to: '/landlord/dashboard', icon: 'chart-pie', label: 'Tableau de bord' },
   { to: '/landlord/properties', icon: 'building', label: 'Mes propriétés' },
-  { to: '/landlord/properties/add', icon: 'plus-circle', label: 'Ajouter un bien' },
   { to: '/landlord/tenants', icon: 'users', label: 'Locataires' },
   { to: '/landlord/contracts', icon: 'file-contract', label: 'Contrats' },
   { to: '/landlord/payments', icon: 'money-bill-wave', label: 'Paiements' },
-  { to: '/landlord/income', icon: 'chart-line', label: 'Revenus' },
-  { to: '/landlord/expenses', icon: 'receipt', label: 'Dépenses' },
-  { to: '/landlord/maintenance', icon: 'tools', label: 'Maintenance' },
-  { to: '/landlord/reports', icon: 'chart-bar', label: 'Rapports' },
-  { to: '/landlord/messages', icon: 'envelope', label: 'Messages' },
-];
+ ];
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -167,23 +161,12 @@ const userName = computed(() => {
   const user = authStore.user;
   
   if (!user) {
-    console.log('Aucun utilisateur connecté');
     return 'Utilisateur';
   }
   
-  // Utiliser first_name et last_name (avec underscore) qui sont les noms des champs dans l'API
-  const firstName = user.first_name || user.firstName || '';
-  const lastName = user.last_name || user.lastName || '';
-  
-  console.log('Données utilisateur disponibles:', {
-    firstName,
-    lastName,
-    email: user.email
-  });
-  
   // Construire le nom complet
-  if (firstName || lastName) {
-    return `${firstName} ${lastName}`.trim();
+  if (user.firstName || user.lastName) {
+    return `${user.firstName || ''} ${user.lastName || ''}`.trim();
   }
   
   // Fallback sur l'email

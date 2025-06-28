@@ -1,135 +1,103 @@
-export type ContractStatus = 'active' | 'pending' | 'ended' | 'cancelled';
+export type ContractStatus = 'active' | 'pending' | 'ended' | 'cancelled' | 'draft';
 
-export interface Adresse {
-  ville: string;
-  quartier: string;
-  commune: string;
-  province: string;
-  codePostal: string;
-  avenue: string;
-  numero: string;
+// Aligned with backend property address structure
+export interface Address {
+  street: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  quartier?: string;
+  commune?: string;
 }
 
+// Aligned with authStore and backend user model
 export interface User {
   id: string | number;
-  nom: string;
-  prenom: string;
-  nationalite: string;
-  typePiece: 'permis de conduire' | 'passeport' | 'carte_sejour'  | 'carte_electeur' | 'autre';
-  numeroPiece: string;
-  adresse: Adresse;
+  firstName: string;
+  lastName: string;
   email?: string;
   telephone?: string;
-  dateNaissance?: string;
-  lieuNaissance?: string;
+  // Fields specific to contract context
+  nationality?: string;
+  idType?: 'permis de conduire' | 'passeport' | 'carte_sejour' | 'carte_electeur' | 'autre';
+  idNumber?: string;
+  address?: Address;
+  birthDate?: string;
+  birthPlace?: string;
 }
 
+// Aligned with backend property model
 export interface Property {
   id: string | number;
-  nom: string;
-  adresse: string;
+  title: string;
+  address: Address;
   type: 'appartement' | 'maison' | 'bureau' | 'local' | 'autre';
-  loyer: number;
-  garantie: number;
+  rent: number;
+  charges?: number;
+  deposit: number;
   usage: 'residentiel' | 'commercial' | 'bureau' | 'autre';
-  surface: number;
-  nombrePieces: number;
-  etage?: number;
-  codePostal: string;
-  ville: string;
-  province: string;
-  pays: string;
+  area: number;
+  rooms: number;
+  bathrooms?: number;
+  floor?: number;
   description?: string;
-  equipements?: string[];
+  equipment?: string[];
   photos?: string[];
-  bailleurId: string | number;
-  dateAjout: string;
-  dateMiseAJour: string;
+  ownerId: string | number;
+  availableFrom?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
+// A single, clean interface for the contract form data
 export interface ContractFormData {
-  // Informations du bailleur
-  bailleurId: string | number;
-  bailleurNationalite: string;
-  bailleurTypePiece: string;
-  bailleurNumeroPiece: string;
-  bailleurNumeroPostal: string;
-  bailleurProvince: string;
-  bailleurQuartier: string;
-  bailleurCommune: string;
-  
-  // Informations du locataire
-  locataireId: string | number;
-  locataireNationalite: string;
-  locataireTypePiece: string;
-  locataireNumeroPiece: string;
-  locataireNumeroPostal: string;
-  locataireProvince: string;
-  locataireQuartier: string;
-  locataireCommune: string;
-  
-  // Informations de la propriété
-  proprieteId: string | number;
+  // Landlord (Bailleur) Info
+  landlordId: string;
+  landlordNationality: string;
+  landlordIdType: string;
+  landlordIdNumber: string;
+  landlordAddress: Address;
+
+  // Tenant (Locataire) Info
+  tenantId: string;
+  tenantNationality: string;
+  tenantIdType: string;
+  tenantIdNumber: string;
+  tenantAddress: Address;
+
+  // Property Info
+  propertyId: string;
+
+  // Contract Details
   usage: string;
-  loyer: string | number;
-  devise: string;
-  garantie: string | number;
-  duree: string;
-  dateDebut: string;
-  dateFin: string;
-  statut: 'draft' | 'pending' | 'active' | 'ended' | 'cancelled';
+  rent: string; // Form values are often strings
+  currency: string;
+  deposit: string;
+  duration: string; // e.g., "1 an", "3 ans"
+  startDate: string;
+  endDate: string;
+  status: ContractStatus;
+  specialConditions?: string;
 }
 
 export interface Contract {
   id?: string | number;
-  bailleurId: string | number;
-  locataireId: string | number;
-  proprieteId: string | number;
-  dateDebut: string;
-  dateFin: string | null;
-  loyer: number;
-  garantie: number;
-  devise: string;
-  duree: string;
-  statut: ContractStatus;
-  conditionsSpeciales?: string;
-  dateCreation?: string;
-  dateMiseAJour?: string;
-  // Références aux objets liés (optionnel, pour le chargement des données liées)
-  bailleur?: User;
-  locataire?: User;
-  propriete?: Property;
+  landlordId: string | number;
+  tenantId: string | number;
+  propertyId: string | number;
+  startDate: string;
+  endDate: string | null;
+  rent: number;
+  deposit: number;
+  currency: string;
+  duration: string;
+  status: ContractStatus;
+  specialConditions?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  // Expanded objects for easy data access in frontend
+  landlord?: User;
+  tenant?: User;
+  property?: Property;
 }
 
-export interface ContractFormData {
-  // Bailleur
-  bailleurId: string;
-  bailleurNationalite: string;
-  bailleurTypePiece: string;
-  bailleurNumeroPiece: string;
-  bailleurVille: string;
-  bailleurQuartier: string;
-  bailleurAvenue: string;
-  bailleurNumero: string;
-  
-  // Locataire
-  locataireId: string;
-  locataireNationalite: string;
-  locataireTypePiece: string;
-  locataireNumeroPiece: string;
-  locataireVille: string;
-  locataireQuartier: string;
-  locataireAvenue: string;
-  locataireNumero: string;
-  
-  // Propriété
-  proprieteId: string;
-  usage: string;
-  loyer: string;
-  devise: string;
-  garantie: string;
-  duree: string;
-  dateDebut: string;
-  dateFin: string;
-  statut: ContractStatus;
-}

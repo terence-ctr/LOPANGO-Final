@@ -7,7 +7,7 @@ export const addressSchema = yup.object().shape({
     .string()
     .matches(/^(|[0-9]{5})$/, 'Le code postal doit contenir 5 chiffres'),
   city: yup.string().required('La ville est requise'),
-  country: yup.string().default('France'),
+  country: yup.string().default('congo'),
   additionalInfo: yup.string(),
   parcelNumber: yup.string().required('Le numéro de parcelle est requis')
 });
@@ -26,14 +26,9 @@ export const propertyBaseSchema = yup.object().shape({
   parcelNumber: yup.string().required('Le numéro de parcelle est requis'),
   name: yup.string().required('Le nom de la propriété est requis'),
   title: yup.string(),
-  description: yup.string(),
   price: yup.number().typeError('Le prix doit être un nombre').positive('Le prix doit être positif'),
-  address: yup.string(),
-  city: yup.string(),
-  postalCode: yup
-    .string()
-    .matches(/^(|[0-9]{5})$/, 'Le code postal doit contenir 5 chiffres'),
-  country: yup.string().default('France'),
+  description: yup.string(),
+  address: addressSchema.required('L\'adresse est requise'),
   type: yup.string().required('Le type de propriété est requis'),
   status: yup
     .string()
@@ -42,8 +37,6 @@ export const propertyBaseSchema = yup.object().shape({
       'Statut invalide'
     )
     .default('Disponible'),
-  description: yup.string(),
-  address: addressSchema.required('L\'adresse est requise'),
   surface: yup
     .number()
     .typeError('La surface doit être un nombre')
@@ -114,9 +107,9 @@ export const validateProperty = async (data: any, isUpdate = false) => {
     const schema = isUpdate ? propertyUpdateSchema : propertyCreateSchema;
     await schema.validate(data, { abortEarly: false });
     return { isValid: true, errors: null };
-  } catch (err) {
+  } catch (err: any) {
     if (err instanceof yup.ValidationError) {
-      const errors = err.inner.reduce((acc, currentError) => {
+      const errors = err.inner.reduce((acc: any, currentError: any) => {
         return {
           ...acc,
           [currentError.path || '']: currentError.message

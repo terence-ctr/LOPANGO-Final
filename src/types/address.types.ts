@@ -1,5 +1,7 @@
 export interface Address {
   street: string;
+  quartier?: string;
+  commune?: string;
   city: string;
   postalCode: string;
   country: string;

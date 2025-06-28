@@ -94,7 +94,7 @@ const refreshToken = async (): Promise<string | null> => {
     console.error('Erreur lors du rafraîchissement du token:', error);
     // Déconnecter l'utilisateur en cas d'erreur de rafraîchissement
     const authStore = useAuthStore();
-    authStore.logout(true);
+    authStore.logout();
     return null;
   }
 };
@@ -171,9 +171,16 @@ api.interceptors.request.use(
       const token = getAuthToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        // Enhanced logging for debugging permissions
+        console.log(
+          `[API DEBUG] Attaching auth token for protected endpoint: ${config.url}`,
+          {
+            url: config.url,
+            token: token // Log the full token for debugging purposes
+          }
+        );
       } else {
-        // Si pas de token, supprimer l'en-tête d'autorisation
-        delete config.headers.Authorization;
+        console.warn(`[API DEBUG] No auth token found for protected endpoint: ${config.url}`);
       }
     }
     
@@ -248,6 +255,12 @@ api.interceptors.response.use(
     // Log détaillé pour le débogage
     if (error.response) {
       // La requête a été faite et le serveur a répondu avec un code d'erreur
+      console.error('[API] Erreur de réponse détaillée:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers,
+        config: error.config
+      });
       console.error('[API] Erreur de réponse:', {
         status: error.response.status,
         statusText: error.response.statusText,

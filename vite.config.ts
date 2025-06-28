@@ -3,6 +3,11 @@ import vue from '@vitejs/plugin-vue';
 import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url))
+    }
+  },
   plugins: [
     vue({
       template: {
@@ -25,11 +30,6 @@ export default defineConfig({
       }
     })
   ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
-  },
   server: {
     proxy: {
       // Configuration du proxy pour toutes les requêtes API
