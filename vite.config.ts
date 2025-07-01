@@ -5,7 +5,9 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Alias pour les mocks
+      '@/components': fileURLToPath(new URL(process.env.VITEST ? './src/__mocks__/components' : './src/components', import.meta.url))
     }
   },
   plugins: [
@@ -37,8 +39,6 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
-        // Réécrire le chemin pour supprimer le préfixe /api avant d'envoyer au serveur
-        rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.error('Erreur de proxy:', err);

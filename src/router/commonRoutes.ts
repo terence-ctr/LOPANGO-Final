@@ -3,12 +3,18 @@ import { useAuthStore } from '@/stores/auth';
 
 // Import des composants communs
 import DashboardView from '../views/DashboardView.vue';
+import ProfileView from '../views/ProfileView.vue';
+import SettingsView from '../views/SettingsView.vue';
+import HelpView from '../views/HelpView.vue';
+import AboutView from '../views/AboutView.vue';
 
 // Import des composants d'erreur
-import NotFoundView from '@/views/NotFoundView.vue';
-import ErrorView from '@/views/ErrorView.vue';
+import NotFoundView from '@/views/errors/NotFoundPage.vue';
+import ErrorView from '@/views/errors/ErrorPage.vue';
 
-// Routes communes accessibles à tous les utilisés authentifiés
+// Import du composant de paiement
+import PaymentPage from '@/views/payments/PaymentPage.vue';
+
 export const commonRoutes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -19,6 +25,18 @@ export const commonRoutes: RouteRecordRaw[] = [
       title: 'Tableau de bord',
       subtitle: 'Bienvenue sur votre espace',
     },
+  },
+  {
+    path: '/payment/:paymentId',
+    name: 'payment',
+    component: PaymentPage,
+    meta: {
+      requiresAuth: true,
+      title: 'Paiement sécurisé',
+      subtitle: 'Effectuez votre paiement en toute sécurité',
+      roles: ['tenant', 'landlord'] // Accessible aux locataires et propriétaires
+    },
+    props: true // Passe les paramètres de route en tant que props
   },
   {
     path: '/profile',
@@ -47,7 +65,7 @@ export const commonRoutes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       title: 'Aide',
-      subtitle: 'Centre d'aide et support',
+      subtitle: 'Centre d\'aide et support',
     },
   },
   {
@@ -57,7 +75,7 @@ export const commonRoutes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       title: 'À propos',
-      subtitle: 'Informations sur l'application',
+      subtitle: 'À propos de l\'application',
     },
   },
 ];
@@ -82,18 +100,28 @@ export const errorRoutes: RouteRecordRaw[] = [
   },
 ];
 
+// Définition du type pour les métadonnées de route
+interface RouteMeta {
+  requiresAuth?: boolean;
+  title?: string;
+  subtitle?: string;
+  roles?: string[];
+  [key: string]: any; // Permet d'autres propriétés optionnelles
+}
+
 // Fonction pour vérifier l'accès à une route
 export const canAccessRoute = (route: RouteRecordRaw, userRole: string): boolean => {
   const authStore = useAuthStore();
+  const meta = route.meta as RouteMeta | undefined;
   
   // Toutes les routes communes nécessitent une authentification
-  if (route.meta?.requiresAuth && !authStore.isAuthenticated) {
+  if (meta?.requiresAuth && !authStore.isAuthenticated) {
     return false;
   }
 
   // Vérifier les rôles autorisés si spécifiés
-  if (route.meta?.allowedRoles && route.meta.allowedRoles.length > 0) {
-    return route.meta.allowedRoles.includes(userRole);
+  if (meta?.roles && Array.isArray(meta.roles) && meta.roles.length > 0) {
+    return meta.roles.includes(userRole);
   }
 
   return true;

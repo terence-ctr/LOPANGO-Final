@@ -4,6 +4,14 @@ import { propertyConfig, PropertyStatus, PropertyType } from '../config/property
 import { AppError } from '../middleware/error.middleware';
 
 // Interface pour le type Property
+export interface Address {
+  street: string;
+  city: string;
+  postal_code: string;
+  country: string;
+  [key: string]: any; // Pour la rétrocompatibilité
+}
+
 export interface Property {
   id?: number;
   owner_id: number;
@@ -11,7 +19,7 @@ export interface Property {
   description?: string;
   type: string;
   status: string;
-  address: string;
+  address: string | Address; // Peut être une chaîne (rétrocompatibilité) ou un objet Address
   city: string;
   postal_code: string;
   country: string;
@@ -82,10 +90,13 @@ export const createProperty = async (req: Request, res: Response) => {
       });
     }
 
-    const {
+    let {
       title, description, type = propertyConfig.defaults.type,
       status = propertyConfig.defaults.status as PropertyStatus,
-      address, // This is now an object
+      address, // Peut être un objet ou une chaîne
+      city,
+      postal_code,
+      country = 'congo',
       area, 
       rooms = propertyConfig.defaults.rooms, 
       bathrooms = propertyConfig.defaults.bathrooms, 
@@ -109,9 +120,38 @@ export const createProperty = async (req: Request, res: Response) => {
       available_from
     } = req.body;
 
-    
+    // Gestion de l'adresse
+    let addressData: Address = {
+      street: '',
+      city: '',
+      postal_code: '',
+      country: 'congo'
+    };
 
-    // La validation est gérée par le middleware validatePropertyData
+    if (typeof address === 'string') {
+      // Si l'adresse est une chaîne, on la met dans le champ street
+      addressData.street = address;
+      addressData.city = city || '';
+      addressData.postal_code = postal_code || '';
+      addressData.country = country || 'congo';
+    } else if (typeof address === 'object' && address !== null) {
+      // Si l'adresse est un objet, on extrait les champs
+      addressData = {
+        street: address.street || address.address || '',
+        city: address.city || city || '',
+        postal_code: address.postal_code || address.postalCode || postal_code || '',
+        country: address.country || country || 'congo',
+        ...address // Conserver les autres champs pour la rétrocompatibilité
+      };
+    } else {
+      // Cas où address est null/undefined, on utilise les champs individuels
+      addressData = {
+        street: '',
+        city: city || '',
+        postal_code: postal_code || '',
+        country: country || 'congo'
+      };
+    }
 
     // Préparer les données de la propriété
     const propertyData: Record<string, any> = {
@@ -120,7 +160,10 @@ export const createProperty = async (req: Request, res: Response) => {
       description: description || '',
       type,
       status,
-      address: address,
+      address: addressData.street, // Stockage rétrocompatible
+      city: addressData.city,
+      postal_code: addressData.postal_code,
+      country: addressData.country,
       area: area || 0,
       rooms: rooms || 1,
       bathrooms: bathrooms || 1,
@@ -423,7 +466,7 @@ export const getPropertyById = async (req: Request, res: Response) => {
     const property = await db('properties').where({ id }).first();
     
     if (!property) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         message: 'Propriété non trouvée'
       });
@@ -431,11 +474,32 @@ export const getPropertyById = async (req: Request, res: Response) => {
 
     console.log(`[CONTROLLER] Propriété trouvée: ${property.title}`);
     
+    // Créer un objet d'adresse standardisé
+    const address: Address = {
+      street: property.address || '',
+      city: property.city || '',
+      postal_code: property.postal_code || '',
+      country: property.country || 'France'
+    };
+    
     // Convertir les équipements de JSON en tableau
     const formattedProperty = {
       ...property,
-      equipment: property.equipment ? JSON.parse(property.equipment) : []
+      address, // Ajouter l'objet d'adresse standardisé
+      equipment: property.equipment ? JSON.parse(property.equipment) : [],
+      // Inclure les champs d'adresse individuels pour la rétrocompatibilité
+      city: property.city,
+      postal_code: property.postal_code,
+      country: property.country
     };
+    
+    // Supprimer les champs obsolètes s'ils existent
+    if ('quartier' in formattedProperty) {
+      delete formattedProperty.quartier;
+    }
+    if ('commune' in formattedProperty) {
+      delete formattedProperty.commune;
+    }
     
     res.json({
       success: true,
@@ -460,7 +524,8 @@ export const updateProperty = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     
     if (!userId) {
-      res.status(401).json({ 
+      await trx.rollback();
+      return res.status(401).json({ 
         success: false, 
         message: 'Non autorisé' 
       });
@@ -473,13 +538,44 @@ export const updateProperty = async (req: Request, res: Response) => {
       
     if (!existingProperty) {
       await trx.rollback();
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         message: 'Propriété non trouvée ou accès non autorisé'
       });
     }
     
-    const updates = { ...req.body };
+    let updates = { ...req.body };
+    
+    // Gestion de l'adresse si elle est fournie dans la requête
+    if (updates.address !== undefined) {
+      let addressData: Partial<Address> = {};
+      
+      if (typeof updates.address === 'string') {
+        // Si l'adresse est une chaîne, on la met dans le champ street
+        addressData.street = updates.address;
+        addressData.city = updates.city || existingProperty.city || '';
+        addressData.postal_code = updates.postal_code || existingProperty.postal_code || '';
+        addressData.country = updates.country || existingProperty.country || 'France';
+      } else if (typeof updates.address === 'object' && updates.address !== null) {
+        // Si l'adresse est un objet, on extrait les champs
+        addressData = {
+          street: updates.address.street || updates.address.address || existingProperty.address || '',
+          city: updates.address.city || updates.city || existingProperty.city || '',
+          postal_code: updates.address.postal_code || updates.address.postalCode || 
+                       updates.postal_code || existingProperty.postal_code || '',
+          country: updates.address.country || updates.country || existingProperty.country || 'France'
+        };
+      }
+      
+      // Mettre à jour les champs d'adresse individuels
+      updates = {
+        ...updates,
+        address: addressData.street,
+        city: addressData.city,
+        postal_code: addressData.postal_code,
+        country: addressData.country
+      };
+    }
     
     // Mettre à jour les champs modifiés
     if (updates.equipment && Array.isArray(updates.equipment)) {
@@ -488,15 +584,26 @@ export const updateProperty = async (req: Request, res: Response) => {
     
     updates.updated_at = new Date();
     
+    // Supprimer les champs inutiles qui pourraient être passés
+    const fieldsToExclude = ['id', 'owner_id', 'created_at'];
+    fieldsToExclude.forEach(field => delete updates[field]);
+    
     await trx('properties')
       .where({ id })
       .update(updates);
     
     await trx.commit();
     
+    // Récupérer la propriété mise à jour pour la réponse
+    const updatedProperty = await db('properties').where({ id }).first();
+    
     res.json({
       success: true,
-      message: 'Propriété mise à jour avec succès'
+      message: 'Propriété mise à jour avec succès',
+      data: {
+        ...updatedProperty,
+        equipment: updatedProperty.equipment ? JSON.parse(updatedProperty.equipment) : []
+      }
     });
     
   } catch (error) {

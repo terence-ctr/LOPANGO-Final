@@ -1,135 +1,99 @@
 <template>
-  <section class="bg-white rounded-xl shadow-md p-4 sm:p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="font-extrabold text-base">
-        Vos paiements récents
-      </h2>
-      <router-link 
-        to="/tenant/payments" 
-        class="text-gray-400 hover:text-gray-700 text-lg"
-        aria-label="Voir tous les paiements"
-      >
-        <font-awesome-icon :icon="['fas', 'arrow-right']" />
-      </router-link>
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="p-4 border-b border-gray-200">
+      <div class="flex justify-between items-center">
+        <h3 class="text-sm font-medium text-gray-900">Derniers paiements</h3>
+        <router-link 
+          to="/tenant/payments" 
+          class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          Voir tout
+        </router-link>
+      </div>
     </div>
     
-    <!-- Version Desktop (tableau) -->
-    <div class="hidden md:block overflow-x-auto">
-      <table class="w-full text-xs sm:text-sm text-gray-600 border border-gray-200 rounded-lg">
-        <thead>
-          <tr class="border-b border-gray-200 text-left">
-            <th class="py-3 px-3 font-semibold w-10">#</th>
-            <th class="py-3 px-3 font-semibold">Propriété</th>
-            <th class="py-3 px-3 font-semibold w-24">Montant</th>
-            <th class="py-3 px-3 font-semibold w-36">Garantie utilisée</th>
-            <th class="py-3 px-3 font-semibold w-32">Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr 
-            v-for="(payment, index) in payments" 
-            :key="`desktop-${payment.id}`" 
-            class="border-b border-gray-200 hover:bg-gray-50 transition-colors"
-          >
-            <td class="py-3 px-3 font-mono">
-              {{ String(index + 1).padStart(2, '0') }}
-            </td>
-            <td class="py-3 px-3 font-medium">
-              {{ payment.property }}
-            </td>
-            <td class="py-3 px-3 font-medium">
-              {{ payment.amount }}
-            </td>
-            <td class="py-3 px-3">
-              <span 
-                class="inline-flex items-center px-2 py-1 rounded text-xs font-medium whitespace-nowrap"
-                :class="payment.usedGuarantee ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
-              >
-                {{ payment.usedGuarantee ? 'Oui' : 'Non' }}
-              </span>
-            </td>
-            <td class="py-3 px-3 text-gray-500">
-              {{ payment.date }}
-            </td>
-          </tr>
-          
-          <tr v-if="payments.length === 0">
-            <td colspan="5" class="py-4 text-center text-gray-500 text-sm">
-              Aucun paiement récent
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    
-    <!-- Version Mobile (cartes) -->
-    <div class="md:hidden space-y-3">
+    <div class="divide-y divide-gray-200">
       <div 
-        v-for="(payment, index) in payments" 
-        :key="`mobile-${payment.id}`"
-        class="p-4 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+        v-for="(payment, index) in recentPayments" 
+        :key="index"
+        class="p-4 hover:bg-gray-50 transition-colors"
       >
-        <div class="flex justify-between items-start">
-          <div class="font-medium text-gray-900">
-            {{ payment.property }}
-          </div>
-          <div class="text-sm font-mono text-gray-500">
-            #{{ String(index + 1).padStart(2, '0') }}
-          </div>
-        </div>
-        
-        <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
-          <div class="text-gray-600">Montant:</div>
-          <div class="font-medium">{{ payment.amount }}</div>
-          
-          <div class="text-gray-600">Date:</div>
-          <div class="text-gray-700">{{ payment.date }}</div>
-          
-          <div class="text-gray-600">Garantie:</div>
+        <div class="flex items-center justify-between">
           <div>
+            <p class="text-sm font-medium text-gray-900">{{ payment.reference }}</p>
+            <p class="text-xs text-gray-500">{{ payment.date }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-medium" :class="getAmountClass(payment.amount)">
+              {{ formatCurrency(payment.amount) }}
+            </p>
             <span 
-              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
-              :class="payment.usedGuarantee ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+              :class="getStatusClasses(payment.status)"
             >
-              {{ payment.usedGuarantee ? 'Utilisée' : 'Non utilisée' }}
+              {{ getStatusText(payment.status) }}
             </span>
           </div>
         </div>
       </div>
       
-      <div v-if="payments.length === 0" class="text-center py-4 text-gray-500">
-        Aucun paiement récent
+      <div v-if="recentPayments.length === 0" class="p-4 text-center">
+        <p class="text-sm text-gray-500">Aucun paiement récent</p>
       </div>
     </div>
-    
-    <div v-if="showViewAll && payments.length > 0" class="mt-4 md:mt-6 text-center">
-      <router-link 
-        to="/tenant/payments" 
-        class="text-blue-600 hover:text-blue-800 text-sm font-medium inline-flex items-center px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
-      >
-        Voir tous les paiements
-        <font-awesome-icon :icon="['fas', 'arrow-right']" class="ml-1 text-xs" />
-      </router-link>
-    </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { defineProps, withDefaults } from 'vue';
+import { computed } from 'vue';
+import type { Payment } from '../../../types/payment';
 
-interface Payment {
-  id: number | string;
-  property: string;
-  amount: string;
-  usedGuarantee: boolean;
-  date: string;
-}
+const props = defineProps<{
+  payments: Payment[];
+  maxItems?: number;
+}>();
 
-const props = withDefaults(defineProps<{
-  payments?: Payment[];
-  showViewAll?: boolean;
-}>(), {
-  payments: () => [],
-  showViewAll: true
+const maxItemsToShow = props.maxItems || 5;
+
+const recentPayments = computed(() => {
+  if (!props.payments) return [];
+  return [...props.payments]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, maxItemsToShow);
 });
+
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+};
+
+const getStatusClasses = (status: string): string => {
+  const classes = {
+    paid: 'bg-green-100 text-green-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    overdue: 'bg-red-100 text-red-800',
+    failed: 'bg-gray-100 text-gray-800'
+  };
+  
+  return classes[status as keyof typeof classes] || 'bg-gray-100 text-gray-800';
+};
+
+const getStatusText = (status: string): string => {
+  const statusMap = {
+    paid: 'Payé',
+    pending: 'En attente',
+    overdue: 'En retard',
+    failed: 'Échoué'
+  };
+  
+  return statusMap[status as keyof typeof statusMap] || status;
+};
+
+const getAmountClass = (amount: number): string => {
+  return amount >= 0 ? 'text-green-600' : 'text-red-600';
+};
 </script>

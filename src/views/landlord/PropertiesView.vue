@@ -72,8 +72,14 @@
     </div>
 
     <section v-else class="border border-gray-200 rounded-md overflow-hidden">
+      <!-- Loading state -->
+      <div v-if="loading" class="p-8 text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p class="mt-2 text-gray-600">Chargement de vos propriétés...</p>
+      </div>
+      
       <!-- Message quand il n'y a pas de propriétés -->
-      <div v-if="properties.length === 0" class="p-8 text-center text-gray-500">
+      <div v-else-if="!properties || properties.length === 0" class="p-8 text-center text-gray-500">
         <div class="mx-auto w-16 h-16 mb-4 text-gray-300">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -114,9 +120,9 @@
               <td class="py-3 px-4 font-normal">{{ property.title }}</td>
               <td
                 class="py-3 px-4 font-normal whitespace-nowrap overflow-hidden text-ellipsis max-w-[280px]"
-                :title="property.address"
+                :title="formatAddress(property.address)"
               >
-                {{ property.address }}
+                {{ formatAddress(property.address) }}
               </td>
               <td class="py-3 px-4 font-normal">{{ getPropertyTypeLabelText(property.type) }}</td>
               <td class="py-3 px-4 font-normal">{{ formatCurrency(property.rent) }}</td>
@@ -230,6 +236,7 @@ import { usePropertyStore } from '@/stores/propertyStore';
 import { 
   type Property, 
   type PropertyStatus,
+  type PropertyAddress,
   propertyStatusLabels,
   propertyTypeLabels
 } from '@/types/property';
@@ -238,7 +245,34 @@ import {
 const router = useRouter();
 const toast = useToast();
 const propertyStore = usePropertyStore();
-const { properties, loading, error } = storeToRefs(propertyStore);
+
+// Access store state with proper typing
+const { getProperties, isLoading, propertyError } = storeToRefs(propertyStore);
+
+// Create local refs with proper types
+const properties = ref<Property[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+
+// Initialize data
+onMounted(async () => {
+  await loadProperties();
+});
+
+// Function to load properties from store
+const loadProperties = async () => {
+  loading.value = true;
+  try {
+    await propertyStore.fetchProperties();
+    properties.value = propertyStore.getProperties || [];
+    error.value = null;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load properties';
+    toast.error(error.value);
+  } finally {
+    loading.value = false;
+  }
+};
 
 // Local component state
 const search = ref('');
@@ -248,15 +282,38 @@ const modalType = ref<'edit' | 'delete' | null>(null);
 const isAddPropertyModalOpen = ref(false);
 const propertyData = ref<Partial<Property> | null>(null);
 
+// Format address for display
+const formatAddress = (address: string | PropertyAddress): string => {
+  if (typeof address === 'string') return address;
+  return `${address.street || ''}, ${address.postal_code || ''} ${address.city || ''}`.trim();
+};
+
 // Computed properties
 const filteredProperties = computed(() => {
   if (!search.value) return properties.value;
+  
   const searchLower = search.value.toLowerCase();
-  return properties.value.filter((p: Property) =>
-    p.title.toLowerCase().includes(searchLower) ||
-    p.address.toLowerCase().includes(searchLower) ||
-    p.type.toLowerCase().includes(searchLower)
-  );
+  
+  return properties.value.filter((p) => {
+    // Handle address which can be string or PropertyAddress object
+    let addressStr = '';
+    if (typeof p.address === 'string') {
+      addressStr = p.address.toLowerCase();
+    } else if (p.address) {
+      const addr = p.address as PropertyAddress;
+      addressStr = `${addr.street || ''} ${addr.city || ''} ${addr.postal_code || ''}`.toLowerCase();
+    }
+    
+    // Safe property access with optional chaining
+    const title = p.title?.toLowerCase() || '';
+    const type = p.type?.toLowerCase() || '';
+    
+    return (
+      title.includes(searchLower) ||
+      addressStr.includes(searchLower) ||
+      type.includes(searchLower)
+    );
+  });
 });
 
 // Methods
@@ -300,9 +357,7 @@ const handleCancel = () => {
   isAddPropertyModalOpen.value = false;
 };
 
-const loadProperties = () => {
-  propertyStore.fetchProperties();
-};
+// loadProperties is already defined above with async/await pattern
 
 const toggleMenu = (id: string | number) => {
   const menuId = String(id);

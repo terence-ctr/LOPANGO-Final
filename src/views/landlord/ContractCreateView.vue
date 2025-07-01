@@ -217,8 +217,9 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, onMounted, watch, defineComponent } from 'vue';
+import { reactive, computed, onMounted, watch, defineComponent, Ref } from 'vue';
 import { useRouter } from 'vue-router';
+import type { Property } from '@/types/property';
 import { mapContractToApiFormat } from '@/utils/contractMapper';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
@@ -258,8 +259,18 @@ const contractStore = useContractStore();
 const tenantStore = useTenantStore();
 const landlordStore = useLandlordStore();
 
+// Charger les propriétés au montage du composant
+onMounted(async () => {
+  try {
+    await propertyStore.fetchProperties();
+  } catch (error) {
+    console.error('Erreur lors du chargement des propriétés:', error);
+  }
+});
+
 const { currentUser: currentUser } = storeToRefs(authStore);
-const { properties } = storeToRefs(propertyStore);
+const propertyStoreRefs = storeToRefs(propertyStore);
+const properties = computed(() => propertyStore.getProperties);
 const { tenants } = storeToRefs(tenantStore);
 const { landlords } = storeToRefs(landlordStore);
 
@@ -312,7 +323,10 @@ const form = reactive({
   },
 });
 
-const selectedProperty = computed(() => properties.value.find(p => p.id === form.contract.propertyId));
+const selectedProperty = computed(() => {
+  if (!properties?.value) return null;
+  return properties.value.find((p: Property) => p.id === form.contract.propertyId);
+});
 
 const selectedTenant = computed(() => {
   if (!form.tenant.id) return null;

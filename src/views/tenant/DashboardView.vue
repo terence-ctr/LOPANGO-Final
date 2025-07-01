@@ -33,8 +33,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import DashboardService from '@/services/dashboard.service';
 
 // Components
 import PropertiesCard from '@/components/tenant/dashboard/PropertiesCard.vue';
@@ -42,96 +43,114 @@ import CalendarCard from '@/components/tenant/dashboard/CalendarCard.vue';
 import RecentPayments from '@/components/tenant/dashboard/RecentPayments.vue';
 import AlertsCard from '@/components/tenant/dashboard/AlertsCard.vue';
 
+// Utils
+import { convertMockPaymentToPayment } from '@/utils/converters';
+
+// Mocks
+import { 
+  fetchMockProperties, 
+  fetchMockRecentPayments, 
+  fetchMockRecentAlerts 
+} from '@/__mocks__/dashboard.mock';
+
+// Types pour les alertes mockées
+type MockAlert = {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  date: string;
+  read: boolean;
+  propertyId?: string;
+  contractId?: string;
+  propertyName?: string;
+};
+
+// Types
+import type { Payment } from '@/types/payment';
+
 const router = useRouter();
 
+// Types
+import type { MockProperty, MockPayment } from '@/__mocks__';
 
+type DashboardAlert = {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  timestamp: string;
+  read: boolean;
+  propertyId?: string;
+  contractId?: string;
+  tenant: string;
+  property: string;
+};
 
-// Properties data
-const properties = ref([
-  { id: 1, name: 'Appartement B20', status: 'active' },
-  { id: 2, name: 'Appartement B10', status: 'active' }
-]);
+// States
+const properties = ref<MockProperty[]>([]);
+const mockPayments = ref<MockPayment[]>([]);
+const recentPayments = computed<Payment[]>(() => 
+  mockPayments.value.map(convertMockPaymentToPayment)
+);
+const mockAlerts = ref<MockAlert[]>([]);
+const alerts = computed<DashboardAlert[]>(() => 
+  mockAlerts.value.map(alert => ({
+    id: alert.id,
+    title: alert.title,
+    message: alert.message,
+    type: alert.type,
+    timestamp: alert.date, // Utilisation de la propriété 'date' du mock
+    read: alert.read,
+    tenant: 'Locataire', // Valeur par défaut
+    property: alert.propertyName || 'Propriété inconnue',
+    propertyId: alert.propertyId,
+    contractId: alert.contractId
+  }))
+);
+const loading = ref(false);
+const error = ref('');
 
-// Recent payments data
-const recentPayments = ref([
-  { 
-    id: 1, 
-    property: 'Appartement B20', 
-    amount: '450$', 
-    usedGuarantee: false, 
-    date: '30/03/2024' 
-  },
-  { 
-    id: 2, 
-    property: 'Appartement B20', 
-    amount: '450$', 
-    usedGuarantee: false, 
-    date: '30/02/2024' 
-  },
-  { 
-    id: 3, 
-    property: 'Appartement B20', 
-    amount: '450$', 
-    usedGuarantee: true, 
-    date: '30/01/2024' 
-  },
-  { 
-    id: 4, 
-    property: 'Appartement B20', 
-    amount: '450$', 
-    usedGuarantee: false, 
-    date: '30/12/2023' 
-  },
-  { 
-    id: 5, 
-    property: 'Appartement B20', 
-    amount: '450$', 
-    usedGuarantee: false, 
-    date: '30/11/2023' 
-  }
-]);
-
-// Alerts data
-const alerts = ref([
-  { 
-    id: 1, 
-    tenant: 'Marcel Senga', 
-    message: ' a dépassé son ultimatum de loyer.',
-    type: 'error' as const,
-    timestamp: new Date(Date.now() - 3600000 * 2)
-  },
-  { 
-    id: 2, 
-    tenant: 'Marcel Senga', 
-    message: ' est très proche de son ultimatum de loyer',
-    type: 'warning' as const,
-    timestamp: new Date(Date.now() - 86400000)
-  },
-  { 
-    id: 3, 
-    tenant: 'Jason Isamene', 
-    message: ' est très proche de son ultimatum de loyer',
-    type: 'warning' as const,
-    timestamp: new Date(Date.now() - 172800000)
-  },
-  { 
-    id: 4, 
-    tenant: 'Elie Oko', 
-    message: ' est très proche de son ultimatum de loyer',
-    type: 'warning' as const,
-    timestamp: new Date(Date.now() - 259200000)
-  }
-]);
-
-// Computed
-const hasUnreadAlerts = computed(() => {
+const hasUnreadAlerts = computed((): boolean => {
   return alerts.value.some(alert => !alert.read);
 });
 
-// Methods
 const navigateToAlerts = () => {
   router.push('/tenant/alerts');
 };
+
+const fetchDashboardData = async () => {
+  loading.value = true;
+  error.value = '';
+
+  try {
+    // Récupérer les propriétés
+    console.log('[Dashboard] Récupération des propriétés...');
+    properties.value = await fetchMockProperties();
+    console.log('[Dashboard] Propriétés récupérées:', properties.value);
+    
+    // Récupérer les paiements récents
+    console.log('[Dashboard] Récupération des paiements récents...');
+    mockPayments.value = await fetchMockRecentPayments();
+    console.log('[Dashboard] Paiements récents récupérés:', mockPayments.value);
+    
+    // Récupérer les alertes récentes
+    console.log('[Dashboard] Récupération des alertes récentes...');
+    mockAlerts.value = await fetchMockRecentAlerts();
+    console.log('[Dashboard] Alertes récentes récupérées:', mockAlerts.value);
+  } catch (err) {
+    console.error('Erreur lors de la récupération des données du tableau de bord:', err);
+    error.value = 'Impossible de charger les données du tableau de bord. Veuillez réessayer.';
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(async () => {
+  console.log('[Dashboard] Chargement du tableau de bord locataire...');
+  await fetchDashboardData();
+  console.log('[Dashboard] Chargement terminé.');
+});
 </script>
 
 <style scoped>

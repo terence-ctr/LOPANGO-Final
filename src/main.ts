@@ -73,7 +73,7 @@ router.beforeEach((to, from, next) => {
 app.component('FontAwesomeIcon', FontAwesomeIcon)
 
 // Enregistrer la directive click-outside globalement
-app.directive('click-outside', ClickOutside)
+app.directive('click-outside', ClickOutside);
 
 // Configuration de vue3-toastify
 const toastOptions = {

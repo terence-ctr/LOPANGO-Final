@@ -1,103 +1,115 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter, useRoute, type RouteLocationNormalizedLoaded } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 
-defineProps({
-  isOpen: {
-    type: Boolean,
-    required: true
-  },
-  isMobile: {
-    type: Boolean,
-    required: true
-  }
-})
+interface NavigationItem {
+  name: string
+  icon: string
+  route: string
+  params?: Record<string, any>
+}
 
-const emit = defineEmits(['close'])
+defineProps<{
+  isOpen: boolean
+  isMobile: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'close'): void
+}>()
+
 const router = useRouter()
-const route = useRoute()
+const route = useRoute() as RouteLocationNormalizedLoaded
 const authStore = useAuthStore()
 
+// Utilisateur actuel depuis le store d'authentification
+const user = computed(() => authStore.user);
+
+// Type d'utilisateur formaté
+const userType = computed(() => {
+  if (!user.value) return '';
+  return user.value.userType?.toLowerCase() || '';
+});
+
 const isAdmin = computed(() => {
-  console.log('[Sidebar] Rôle de l\'utilisateur:', authStore.user?.role);
-  return authStore.user?.role === 'admin';
+  return userType.value === 'admin';
+});
+
+const navigationItems = computed<NavigationItem[]>(() => {
+  const baseItems: NavigationItem[] = [
+    { 
+      name: 'Dashboard', 
+      icon: 'home', 
+      route: 'landlord-dashboard' 
+    },
+    { 
+      name: 'Properties', 
+      icon: 'building', 
+      route: 'landlord-properties'
+    },
+    { 
+      name: 'Tenants', 
+      icon: 'users', 
+      route: 'landlord-tenants'
+    },
+    { 
+      name: 'Financial', 
+      icon: 'chart-pie', 
+      route: 'landlord-payments' 
+    },
+    { 
+      name: 'Maintenance', 
+      icon: 'wrench', 
+      route: 'landlord-maintenance' 
+    },
+    { 
+      name: 'Documents', 
+      icon: 'document-text', 
+      route: 'landlord-documents' 
+    },
+    { 
+      name: 'Paiements', 
+      icon: 'credit-card', 
+      route: 'payment',
+      params: { paymentId: 'new' }
+    },
+    { 
+      name: 'Calendar', 
+      icon: 'calendar', 
+      route: 'landlord-calendar' 
+    },
+    { 
+      name: 'Options', 
+      icon: 'cog', 
+      route: 'landlord-custom-options' 
+    }
+  ]
+
+  if (isAdmin.value) {
+    baseItems.push({
+      name: 'Users',
+      icon: 'user-group',
+      route: 'users'
+    })
+  }
+
+  return baseItems
 })
 
-const navigationItems = computed(() => {
-  console.log('[Sidebar] Chargement des éléments de navigation pour le rôle:', authStore.user?.role);
-  console.log('[Sidebar] Utilisateur authentifié:', authStore.isAuthenticated);
-  console.log('[Sidebar] Données utilisateur:', authStore.user);
-  
-  return [
-  { 
-    name: 'Dashboard', 
-    icon: 'home', 
-    route: 'landlord-dashboard' 
-  },
-  { 
-    name: 'Properties', 
-    icon: 'building', 
-    route: 'landlord-properties'
-  },
-  { 
-    name: 'Tenants', 
-    icon: 'users', 
-    route: 'landlord-tenants'
-  },
-  { 
-    name: 'Financial', 
-    icon: 'chart-pie', 
-    route: 'landlord-payments' 
-  },
-  { 
-    name: 'Maintenance', 
-    icon: 'wrench', 
-    route: 'landlord-maintenance' 
-  },
-  { 
-    name: 'Documents', 
-    icon: 'document-text', 
-    route: 'landlord-documents' 
-  },
-  { 
-    name: 'Calendar', 
-    icon: 'calendar', 
-    route: 'landlord-calendar' 
-  },
-  { 
-    name: 'Options', 
-    icon: 'cog', 
-    route: 'landlord-custom-options' 
-  },
-  ...(isAdmin.value ? [{ 
-    name: 'Users', 
-    icon: 'user-group', 
-    route: 'users' 
-  }] : [])
-]);
-
-// Log quand les éléments de navigation changent
-watch(navigationItems, (newItems) => {
-  console.log('[Sidebar] Éléments de navigation mis à jour:', newItems);
-}, { immediate: true, deep: true });
-
-// Log quand l'utilisateur change
-watch(() => authStore.user, (newUser) => {
-  console.log('[Sidebar] Utilisateur mis à jour:', newUser);
-  console.log('[Sidebar] Type d\'utilisateur:', newUser?.role || 'Aucun');
-}, { immediate: true, deep: true });
-
-const isActive = (routeName: string) => {
+const isActive = (routeName: string): boolean => {
   return route.name === routeName
 }
 
-const navigate = (routeName: string) => {
-  router.push({ name: routeName })
+const navigate = (routeName: string, params?: Record<string, any>): void => {
+  router.push({ 
+    name: routeName,
+    ...(params && { params })
+  })
   emit('close')
 }
 
-const logout = () => {
+const logout = (): void => {
   authStore.logout()
 }
 </script>
@@ -129,15 +141,15 @@ const logout = () => {
     <!-- Navigation links -->
     <nav class="mt-5 px-2 space-y-1">
       <div 
-        v-for="item in navigationItems" 
-        :key="item.route" 
+        v-for="(item, index) in navigationItems" 
+        :key="index" 
         class="group flex items-center px-2 py-2 text-base font-medium rounded-md cursor-pointer transition-colors duration-200"
         :class="[
           isActive(item.route) 
             ? 'bg-primary-50 text-primary-700' 
             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
         ]"
-        @click="navigate(item.route)"
+        @click="navigate(item.route, item.params)"
       >
         <div 
           class="mr-3 h-6 w-6 transition-colors duration-200" 
@@ -161,12 +173,14 @@ const logout = () => {
       <div class="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer" @click="navigate('profile')">
         <div class="flex-shrink-0">
           <div class="h-8 w-8 rounded-full bg-primary-200 flex items-center justify-center text-primary-600 font-semibold">
-            {{ authStore.user?.name.charAt(0).toUpperCase() }}
+            {{ user?.firstName?.charAt(0)?.toUpperCase() || 'U' }}
           </div>
         </div>
         <div class="ml-3">
-          <p class="text-sm font-medium text-gray-700">{{ authStore.user?.name }}</p>
-          <p class="text-xs font-medium text-gray-500">{{ authStore.user?.role }}</p>
+          <p class="text-sm font-medium text-gray-700">
+            {{ user?.firstName || '' }} {{ user?.lastName || '' }}
+          </p>
+          <p class="text-xs font-medium text-gray-500">{{ userType }}</p>
         </div>
       </div>
       

@@ -1,30 +1,39 @@
-import { DirectiveBinding } from 'vue';
+import type { DirectiveBinding, ObjectDirective } from 'vue';
 
-/**
- * Directive personnalisée pour détecter les clics en dehors d'un élément
- * Utilisation : v-click-outside="maMethode"
- */
-const ClickOutside = {
-  beforeMount(el: HTMLElement, binding: DirectiveBinding) {
-    // Stocker la fonction de rappel dans un attribut de l'élément
-    el._clickOutside = (event: MouseEvent) => {
+type ClickOutsideElement = HTMLElement & {
+  __clickOutsideHandler__: (event: MouseEvent) => void;
+};
+
+const clickOutsideDirective: ObjectDirective = {
+  beforeMount(el: ClickOutsideElement, binding: DirectiveBinding) {
+    // Vérifier que la valeur de la directive est une fonction
+    if (typeof binding.value !== 'function') {
+      const compName = binding.instance?.$options?.name || 'component';
+      console.warn(`[v-click-outside] La fonction fournie à v-click-outside dans le composant ${compName} n'est pas valide.`);
+      return;
+    }
+
+    // Créer le gestionnaire d'événement
+    const clickOutsideHandler = (event: MouseEvent) => {
       // Vérifier si le clic est en dehors de l'élément
       if (!(el === event.target || el.contains(event.target as Node))) {
         binding.value(event);
       }
     };
-    
+
+    // Stocker la référence au gestionnaire pour pouvoir le supprimer plus tard
+    el.__clickOutsideHandler__ = clickOutsideHandler;
+
     // Ajouter l'écouteur d'événement
-    document.addEventListener('click', el._clickOutside);
+    document.addEventListener('click', clickOutsideHandler);
   },
   
-  unmounted(el: HTMLElement) {
-    // Nettoyer l'écouteur d'événement lors du démontage du composant
-    if (el._clickOutside) {
-      document.removeEventListener('click', el._clickOutside);
-      delete el._clickOutside;
+  unmounted(el: ClickOutsideElement) {
+    // Nettoyer l'écouteur d'événement lorsque le composant est démonté
+    if (el.__clickOutsideHandler__) {
+      document.removeEventListener('click', el.__clickOutsideHandler__);
     }
-  },
-} as any;
+  }
+};
 
-export default ClickOutside;
+export default clickOutsideDirective;

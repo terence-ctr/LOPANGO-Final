@@ -41,10 +41,8 @@ export interface CurrencyMetadata {
 
 export interface PropertyAddress {
   street: string;
-  quartier?: string;
-  commune?: string;
   city: string;
-  postalCode: string;
+  postal_code: string;
   country: string;
   latitude?: number;
   longitude?: number;
@@ -70,11 +68,13 @@ export interface PropertyDocument {
 }
 
 export interface Property {
+  _id?: string;
   id?: string | number;
+  name?: string;
   title: string;
   description?: string;
   slug?: string;
-  address: string;
+  address: string | PropertyAddress;
   type: PropertyType;
   area: number;
   rooms: number;
@@ -107,9 +107,9 @@ export interface Property {
   ownerId?: string | number;
   tenantId?: string | number | null;
   customFields?: Record<string, any>;
-  createdAt?: Date;
-  updatedAt?: Date;
-  publishedAt?: Date;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+  publishedAt?: string | Date;
   tags?: string[];
 }
 
@@ -141,7 +141,7 @@ export const propertyStatusLabels: Record<PropertyStatus, string> = {
 
 // Pour le formulaire d'ajout/édition
 export interface PropertyFormData {
-  // Identifiant (pour la modification)
+  // Identifiant
   id?: string | number;
   
   // Informations de base
@@ -151,10 +151,8 @@ export interface PropertyFormData {
   
   // Adresse
   street: string;
-  quartier?: string;
-  commune?: string;
   city: string;
-  postalCode: string;
+  postal_code: string;
   country: string;
   fullAddress: string;
   latitude?: number;

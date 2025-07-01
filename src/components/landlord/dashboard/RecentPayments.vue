@@ -1,135 +1,149 @@
 <template>
-  <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6 max-w-4xl w-full">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="font-bold text-base">Vos paiements récents</h2>
-      <button 
-        v-if="payments.length > 0"
-        aria-label="Voir tous" 
-        class="text-blue-600 hover:text-blue-800 text-sm font-medium focus:outline-none flex items-center gap-1"
-        type="button"
-        @click="viewAllPayments"
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="p-4 border-b border-gray-200">
+      <div class="flex justify-between items-center">
+        <h3 class="text-sm font-medium text-gray-900">Derniers paiements</h3>
+        <router-link 
+          to="/landlord/payments" 
+          class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          Voir tout
+        </router-link>
+      </div>
+    </div>
+    
+    <div class="divide-y divide-gray-200">
+      <div 
+        v-for="payment in recentPayments" 
+        :key="payment.id"
+        class="p-4 hover:bg-gray-50 transition-colors duration-150"
       >
-        Voir tout <i class="fas fa-arrow-right text-xs"></i>
-      </button>
-    </div>
-    
-    <div v-if="isLoading" class="p-4 text-center">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-      <p class="mt-2 text-sm text-gray-600">Chargement des paiements...</p>
-    </div>
-    
-    <div v-else-if="error" class="p-4 text-center text-red-600">
-      <p>{{ error }}</p>
-      <button 
-        @click="fetchRecentPayments" 
-        class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
-      >
-        Réessayer
-      </button>
-    </div>
-    
-    <div v-else-if="payments.length === 0" class="p-4 text-center text-gray-500">
-      <p>Aucun paiement récent</p>
-    </div>
-    
-    <div v-else class="overflow-hidden rounded-lg border border-gray-200">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Propriété</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Garantie utilisée</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-            <th scope="col" class="relative px-6 py-3">
-              <span class="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <tr v-for="(payment, index) in payments" :key="payment.id" class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-              {{ index + 1 }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ payment.property }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-              {{ formatAmount(payment.amount) }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span 
-                :class="{
-                  'px-2 inline-flex text-xs leading-5 font-semibold rounded-full': true,
-                  'bg-green-100 text-green-800': !payment.usedGuarantee,
-                  'bg-red-100 text-red-800': payment.usedGuarantee
-                }"
-              >
-                {{ payment.usedGuarantee ? 'Oui' : 'Non' }}
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ formatDate(payment.paymentDate) }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-              <button class="text-blue-600 hover:text-blue-900 mr-3">
-                <i class="fas fa-eye"></i>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-gray-900">
+              {{ payment.tenantName || 'Locataire' }}
+            </p>
+            <p class="text-xs text-gray-500">
+              {{ formatDate(payment.date) }}
+            </p>
+          </div>
+          <div class="text-right">
+            <p :class="['text-sm font-medium', getAmountClass(payment.amount)]">
+              {{ formatCurrency(payment.amount) }}
+            </p>
+            <span 
+              :class="[
+                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                getStatusClasses(payment.status)
+              ]"
+            >
+              {{ getStatusText(payment.status) }}
+            </span>
+          </div>
+        </div>
+        <p v-if="payment.reference" class="mt-1 text-xs text-gray-500 truncate">
+          Réf: {{ payment.reference }}
+        </p>
+      </div>
+      
+      <div v-if="recentPayments.length === 0" class="p-4 text-center">
+        <p class="text-sm text-gray-500">Aucun paiement récent</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import DashboardService, { type Payment } from '@/services/dashboard.service';
+import type { Payment } from '@/types/payment';
 
-const payments = ref<Payment[]>([]);
-const isLoading = ref(true);
-const error = ref<string | null>(null);
+const recentPayments = ref<Payment[]>([]);
 
-const fetchRecentPayments = async () => {
-  try {
-    isLoading.value = true;
-    const data = await DashboardService.getRecentPayments({ limit: 5 });
-    payments.value = data;
-  } catch (err) {
-    console.error('Erreur lors du chargement des paiements récents:', err);
-    error.value = 'Impossible de charger les paiements récents';
-  } finally {
-    isLoading.value = false;
-  }
+// Données de test (à remplacer par un appel API)
+onMounted(() => {
+  // Simuler un chargement des données
+  setTimeout(() => {
+    const now = new Date().toISOString();
+    recentPayments.value = [
+      {
+        id: '1',
+        amount: 1200,
+        currency: 'EUR',
+        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'paid',
+        reference: 'PAY-2023-001',
+        tenantId: 't1',
+        tenantName: 'Jean Dupont',
+        propertyId: '1',
+        propertyName: 'Appartement T2',
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: '2',
+        amount: 850,
+        currency: 'EUR',
+        date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'pending',
+        reference: 'PAY-2023-002',
+        tenantId: 't2',
+        tenantName: 'Marie Martin',
+        propertyId: '2',
+        propertyName: 'Studio République',
+        createdAt: now,
+        updatedAt: now
+      }
+    ];
+  }, 300);
+});
+
+const formatDate = (dateString: string): string => {
+  const options: Intl.DateTimeFormatOptions = { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  };
+  return new Date(dateString).toLocaleDateString('fr-FR', options);
 };
 
-// Formatage du montant
-const formatAmount = (amount: number): string => {
+const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
-    currency: 'XOF',
+    currency: 'EUR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(amount);
 };
 
-// Formatage de la date
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+const getStatusClasses = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'failed':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
 };
 
-// Charger les données au montage du composant
-onMounted(() => {
-  fetchRecentPayments();
-});
+const getStatusText = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return 'Payé';
+    case 'pending':
+      return 'En attente';
+    case 'failed':
+      return 'Échoué';
+    default:
+      return status;
+  }
+};
 
-const viewAllPayments = () => {
-  // Implémentez la navigation vers la page complète des paiements
-  console.log('View all payments');
+const getAmountClass = (amount: number): string => {
+  return amount >= 0 ? 'text-green-600' : 'text-red-600';
 };
 </script>

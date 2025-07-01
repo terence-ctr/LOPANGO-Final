@@ -1,7 +1,7 @@
 <template>
   <div class="max-w-[1040px] mx-auto px-4 py-8">
     <!-- En-tête -->
-    <header class="flex justify-between items-center mb-8">
+    <div class="flex justify-between items-center mb-8">
       <h1 class="font-extrabold text-lg leading-6">
         Mes contrats
       </h1>
@@ -13,9 +13,8 @@
         >
           <i class="far fa-bell"></i>
         </button>
-       
       </div>
-    </header>
+    </div>
 
     <!-- Barre d'outils -->
     <div class="flex flex-wrap gap-3 mb-6">
@@ -42,12 +41,7 @@
         type="search"
       />
       
-      <button 
-        class="ml-auto bg-blue-900 text-white rounded-md px-4 py-2 text-sm font-semibold hover:bg-blue-800 transition-colors"
-        @click="$emit('add-contract')"
-      >
-        Ajouter
-      </button>
+
     </div>
 
     <!-- Tableau des contrats -->
@@ -58,7 +52,7 @@
             <th class="py-2 px-3 font-semibold w-[2.5rem]">#</th>
             <th class="py-2 px-3 font-semibold min-w-[8rem]">Nom</th>
             <th class="py-2 px-3 font-semibold min-w-[14rem]">Adresse</th>
-            <th class="py-2 px-3 font-semibold min-w-[10rem]">Locataire</th>
+            <th class="py-2 px-3 font-semibold min-w-[10rem]">bailleur</th>
             <th class="py-2 px-3 font-semibold min-w-[12rem]">Dates du contrat</th>
             <th class="py-2 px-3 font-semibold min-w-[7rem]">Statut</th>
             <th class="py-2 px-3 w-[2.5rem]"></th>
@@ -80,8 +74,13 @@
             <td class="py-2 px-3">
               {{ contract.address }}
             </td>
-            <td class="py-2 px-3 font-semibold text-blue-600 hover:underline cursor-pointer">
-              {{ contract.tenant }}
+            <td class="py-2 px-3">
+              <div class="font-semibold text-blue-600 hover:underline cursor-pointer">
+                {{ contract.landlord?.firstName }} {{ contract.landlord?.lastName }}
+              </div>
+              <div class="text-xs text-gray-500">
+                {{ contract.landlord?.email }}
+              </div>
             </td>
             <td class="py-2 px-3 text-gray-500">
               {{ formatDateRange(contract.startDate, contract.endDate) }}
@@ -157,27 +156,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-
-// Props
-defineProps({
-  contracts: {
-    type: Array as () => Contract[],
-    required: true,
-    default: () => []
-  },
-  userAvatar: {
-    type: String,
-    default: 'https://storage.googleapis.com/a1aa/image/66d62902-f9f1-4694-0f1c-b27f90b7b9f0.jpg'
-  },
-  itemsPerPage: {
-    type: Number,
-    default: 10
-  }
-});
 
 // Émits
 const emit = defineEmits([
@@ -188,17 +170,36 @@ const emit = defineEmits([
   'update:searchQuery'
 ]);
 
+// Props
+const props = withDefaults(defineProps<{
+  contracts: Contract[];
+  itemsPerPage?: number;
+  userAvatar?: string;
+}>(), {
+  itemsPerPage: 10,
+  userAvatar: 'https://storage.googleapis.com/a1aa/image/66d62902-f9f1-4694-0f1c-b27f90b7b9f0.jpg'
+});
+
 // Types
 type ContractStatus = 'active' | 'pending' | 'ended' | 'cancelled';
+
+interface Landlord {
+  id: string | number;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
 
 interface Contract {
   id: string | number;
   name: string;
   address: string;
-  tenant: string;
+  landlord: Landlord;
   startDate: string | Date;
   endDate: string | Date | null;
   status: ContractStatus;
+  paymentStatus?: string;
+  paymentDays?: number;
 }
 
 // Données réactives
@@ -206,7 +207,7 @@ const searchQuery = ref('');
 const selectedColumns = ref('');
 const currentPage = ref(1);
 
-// Données de test (à remplacer par des props)
+// Colonnes disponibles pour le filtre
 const availableColumns = [
   { value: 'name', label: 'Nom' },
   { value: 'address', label: 'Adresse' },
@@ -215,48 +216,33 @@ const availableColumns = [
   { value: 'status', label: 'Statut' }
 ];
 
-// Données de test (à remplacer par des props)
-const sampleContracts: Contract[] = [
-  {
-    id: 1,
-    name: 'Appartement B20',
-    address: 'Luapula A16, C/Barumbu, Immeuble Dan',
-    tenant: 'Elie Oko',
-    startDate: '2023-05-01',
-    endDate: null,
-    status: 'pending'
-  },
-  {
-    id: 2,
-    name: 'Appartement B20',
-    address: 'Luapula A16, C/Kin, Immeuble Boketshu',
-    tenant: 'Meschack Kapanga',
-    startDate: '2023-02-01',
-    endDate: '2023-05-01',
-    status: 'active'
-  },
-  {
-    id: 3,
-    name: 'Appartement B20',
-    address: 'Luapula A16, C/Lemba, Immeuble Dan',
-    tenant: 'Marcel Senga',
-    startDate: '2022-02-01',
-    endDate: '2022-05-01',
-    status: 'ended'
-  }
-];
+// Utilisation des contrats passés en props
+const contractsList = computed(() => props.contracts || []);
 
 // Computed
 const filteredContracts = computed(() => {
-  // Ici, vous pourriez implémenter la logique de filtrage
-  // en fonction de searchQuery et selectedColumns
-  const start = (currentPage.value - 1) * 10; // itemsPerPage par défaut
-  const end = start + 10; // itemsPerPage par défaut
-  return sampleContracts.slice(start, end);
+  // Filtrer par terme de recherche
+  let result = [...contractsList.value];
+  // Filtrer par colonnes sélectionnées (sécurité contre l'accès par index de chaîne)
+  if (selectedColumns.value) {
+    const column = selectedColumns.value as keyof Contract;
+    result = result.filter(contract => {
+      if (column in contract) {
+        return contract[column];
+      }
+      return true; // Si la colonne n'existe pas, on garde le contrat
+    });
+  }
+  // Pagination
+  const start = (currentPage.value - 1) * props.itemsPerPage;
+  const end = start + props.itemsPerPage;
+  return result.slice(start, end);
 });
 
-const totalItems = computed(() => sampleContracts.length);
-const totalPages = computed(() => Math.ceil(totalItems.value / 10)); // itemsPerPage par défaut
+const totalItems = computed(() => contractsList.value.length);
+const totalPages = computed(() => {
+  return Math.ceil(totalItems.value / props.itemsPerPage);
+});
 
 // Méthodes
 const formatDateRange = (startDate: string | Date, endDate: string | Date | null): string => {

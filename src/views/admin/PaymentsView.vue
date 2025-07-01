@@ -1,391 +1,348 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">Gestion des paiements</h1>
-      <div class="flex space-x-4">
-        <button 
-          @click="showAddPaymentModal = true"
-          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-          </svg>
-          Nouveau paiement
-        </button>
-        <button 
-          @click="exportPayments"
-          class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-          </svg>
-          Exporter
-        </button>
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-2xl font-bold">Mes paiements</h1>
+          <p class="text-gray-600">Consultez l'historique et l'état de vos paiements</p>
+        </div>
+        <div class="flex space-x-4">
+          <button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+            Télécharger mon relevé
+          </button>
+        </div>
       </div>
-    </div>
-
-    <!-- Filtres et recherche -->
-    <div class="bg-white p-4 rounded-lg shadow mb-6">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Rechercher</label>
-          <input 
-            type="text" 
-            v-model="searchQuery"
-            placeholder="Numéro, locataire..."
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+  
+      <!-- Résumé des paiements -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500">Paiement actuel</p>
+              <p class="text-2xl font-bold">{{ formatCurrency(currentMonthPayment?.amount || 0) }}</p>
+              <p class="text-sm text-gray-500">Échéance le {{ formatDate(currentMonthPayment?.dueDate) }}</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
-          <select 
-            v-model="typeFilter"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Tous les types</option>
-            <option value="rent">Loyer</option>
-            <option value="security">Dépôt de garantie</option>
-            <option value="service">Charges</option>
-            <option value="tax">Taxe</option>
-          </select>
+  
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500">Prochain paiement</p>
+              <p class="text-2xl font-bold">{{ formatCurrency(nextMonthPayment?.amount || 0) }}</p>
+              <p class="text-sm text-gray-500">Échéance le {{ formatDate(nextMonthPayment?.dueDate) }}</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Statut</label>
-          <select 
-            v-model="statusFilter"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Tous les statuts</option>
-            <option value="paid">Payé</option>
-            <option value="pending">En attente</option>
-            <option value="failed">Échoué</option>
-            <option value="refunded">Remboursé</option>
-          </select>
+  
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-amber-100 text-amber-600 mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-500">Solde dû</p>
+              <p class="text-2xl font-bold">{{ formatCurrency(overdueAmount) }}</p>
+              <p class="text-sm text-amber-600" v-if="overdueAmount > 0">Paiement en retard</p>
+              <p class="text-sm text-gray-500" v-else>À jour</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Période</label>
-          <div class="flex space-x-2">
-            <input 
-              type="date" 
-              v-model="startDate"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <span class="text-gray-500">-</span>
-            <input 
-              type="date" 
-              v-model="endDate"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+      </div>
+  
+      <!-- Historique des paiements -->
+      <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-lg font-medium">Historique des paiements</h2>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Référence
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Période
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Montant
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date de paiement
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Statut
+                </th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <tr v-for="payment in payments" :key="payment.id" class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ payment.reference }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">{{ payment.period }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ formatCurrency(payment.amount) }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">
+                    {{ payment.paidDate ? formatDate(payment.paidDate) : '—' }}
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span 
+                    :class="getStatusClasses(payment.status)"
+                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                  >
+                    {{ getStatusText(payment.status) }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button 
+                    v-if="payment.status === 'pending'" 
+                    @click="makePayment(payment)"
+                    class="text-blue-600 hover:text-blue-900 mr-3"
+                  >
+                    Payer maintenant
+                  </button>
+                  <button 
+                    @click="viewReceipt(payment)" 
+                    class="text-gray-600 hover:text-gray-900"
+                    :class="{ 'text-gray-300 cursor-not-allowed': !payment.receiptAvailable }"
+                    :disabled="!payment.receiptAvailable"
+                  >
+                    Reçu
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+          <div class="flex-1 flex justify-between sm:hidden">
+            <button class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+              Précédent
+            </button>
+            <button class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+              Suivant
+            </button>
+          </div>
+          <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+              <p class="text-sm text-gray-700">
+                Affichage de <span class="font-medium">1</span> à <span class="font-medium">{{ payments.length }}</span> sur <span class="font-medium">{{ payments.length }}</span> résultats
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Section d'aide -->
+      <div class="mt-8 bg-blue-50 rounded-lg p-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h2a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-blue-800">Besoin d'aide pour vos paiements ?</h3>
+            <div class="mt-2 text-sm text-blue-700">
+              <p>Si vous rencontrez des difficultés pour effectuer un paiement ou si vous avez des questions, n'hésitez pas à contacter notre service client.</p>
+            </div>
+            <div class="mt-4">
+              <button class="inline-flex items-center text-sm font-medium text-blue-700 hover:text-blue-600">
+                Contacter le support
+                <svg class="ml-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Table des paiements -->
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paiement</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Locataire</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bien</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-              <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="payment in filteredPayments" :key="payment.id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ payment.reference }}</div>
-                <div class="text-sm text-gray-500">{{ formatDate(payment.createdAt) }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ payment.tenant.name }}</div>
-                <div class="text-sm text-gray-500">{{ payment.tenant.email }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ payment.property.address }}</div>
-                <div class="text-sm text-gray-500">{{ payment.property.type }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span class="text-sm font-medium text-gray-900">{{ formatCurrency(payment.amount) }}</span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" :class="getTypeBadgeClass(payment.type)">
-                  {{ formatType(payment.type) }}
-                </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span class="text-sm text-gray-900">{{ formatDate(payment.paymentDate) }}</span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="getStatusBadgeClass(payment.status)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
-                  {{ formatStatus(payment.status) }}
-                </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button 
-                  v-if="payment.status === 'pending'"
-                  @click="confirmPayment(payment)"
-                  class="text-green-600 hover:text-green-900 mr-4"
-                >
-                  Valider
-                </button>
-                <button 
-                  @click="editPayment(payment)"
-                  class="text-blue-600 hover:text-blue-900 mr-4"
-                >
-                  Modifier
-                </button>
-                <button 
-                  @click="confirmDeletePayment(payment)"
-                  class="text-red-600 hover:text-red-900"
-                >
-                  Supprimer
-                </button>
-              </td>
-            </tr>
-            <tr v-if="filteredPayments.length === 0">
-              <td colspan="8" class="px-6 py-4 text-center text-gray-500">
-                Aucun paiement trouvé
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Pagination -->
-    <div class="mt-6">
-      <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-        <button 
-          @click="currentPage--"
-          :disabled="currentPage === 1"
-          class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-        >
-          <span class="sr-only">Précédent</span>
-          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-          </svg>
-        </button>
-        <button 
-          v-for="page in totalPages"
-          :key="page"
-          @click="currentPage = page"
-          :class="{
-            'z-10 bg-blue-50 border-blue-500 text-blue-600': currentPage === page,
-            'bg-white border-gray-300 text-gray-500 hover:bg-gray-50': currentPage !== page
-          }"
-          class="relative inline-flex items-center px-4 py-2 border text-sm font-medium"
-        >
-          {{ page }}
-        </button>
-        <button 
-          @click="currentPage++"
-          :disabled="currentPage >= totalPages"
-          class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-        >
-          <span class="sr-only">Suivant</span>
-          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-          </svg>
-        </button>
-      </nav>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-const searchQuery = ref('');
-const typeFilter = ref('');
-const statusFilter = ref('');
-const startDate = ref('');
-const endDate = ref('');
-const currentPage = ref(1);
-const itemsPerPage = 10;
-
-// Données factices pour l'exemple
-const payments = ref([
-  {
-    id: 1,
-    reference: 'PAY-2024-001',
-    type: 'rent',
-    status: 'paid',
-    amount: 1200,
-    paymentDate: new Date('2024-02-01'),
-    createdAt: new Date('2024-01-25'),
-    tenant: {
-      name: 'Jean Dupont',
-      email: 'jean.dupont@example.com'
+  </template>
+  
+  <script setup lang="ts">
+  import { ref, computed, onMounted } from 'vue';
+  
+  // Données factices pour les paiements
+  const payments = ref([
+    {
+      id: 1,
+      reference: 'PAY-2025-006',
+      period: 'Juillet 2025',
+      amount: 850,
+      dueDate: '2025-07-05',
+      paidDate: '2025-07-01',
+      status: 'paid',
+      receiptAvailable: true
     },
-    property: {
-      address: '123 Rue de Paris, 75000 Paris',
-      type: 'Appartement'
-    }
-  },
-  {
-    id: 2,
-    reference: 'PAY-2024-002',
-    type: 'security',
-    status: 'pending',
-    amount: 2400,
-    paymentDate: new Date('2024-01-15'),
-    createdAt: new Date('2024-01-10'),
-    tenant: {
-      name: 'Marie Martin',
-      email: 'marie.martin@example.com'
+    {
+      id: 2,
+      reference: 'PAY-2025-005',
+      period: 'Juin 2025',
+      amount: 850,
+      dueDate: '2025-06-05',
+      paidDate: '2025-06-01',
+      status: 'paid',
+      receiptAvailable: true
     },
-    property: {
-      address: '25 Avenue des Champs-Élysées, 75008 Paris',
-      type: 'Appartement'
+    {
+      id: 3,
+      reference: 'PAY-2025-004',
+      period: 'Mai 2025',
+      amount: 850,
+      dueDate: '2025-05-05',
+      paidDate: '2025-05-02',
+      status: 'paid',
+      receiptAvailable: true
+    },
+    {
+      id: 4,
+      reference: 'PAY-2025-003',
+      period: 'Avril 2025',
+      amount: 850,
+      dueDate: '2025-04-05',
+      paidDate: '2025-04-01',
+      status: 'paid',
+      receiptAvailable: true
+    },
+    {
+      id: 5,
+      reference: 'PAY-2025-002',
+      period: 'Mars 2025',
+      amount: 850,
+      dueDate: '2025-03-05',
+      paidDate: '2025-03-01',
+      status: 'paid',
+      receiptAvailable: true
+    },
+    {
+      id: 6,
+      reference: 'PAY-2025-001',
+      period: 'Février 2025',
+      amount: 800, // Augmentation du loyer
+      dueDate: '2025-02-05',
+      paidDate: '2025-02-01',
+      status: 'paid',
+      receiptAvailable: true,
+      notes: 'Dernier paiement avant augmentation de loyer'
     }
-  }
-]);
-
-// Calculer le nombre total de pages
-const totalPages = computed(() => {
-  return Math.ceil(filteredPayments.value.length / itemsPerPage);
-});
-
-// Filtrer les paiements
-const filteredPayments = computed(() => {
-  let filtered = [...payments.value];
-
-  // Filtrer par recherche
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(payment => 
-      payment.reference.toLowerCase().includes(query) ||
-      payment.tenant.name.toLowerCase().includes(query) ||
-      payment.property.address.toLowerCase().includes(query)
-    );
-  }
-
-  // Filtrer par type
-  if (typeFilter.value) {
-    filtered = filtered.filter(payment => payment.type === typeFilter.value);
-  }
-
-  // Filtrer par statut
-  if (statusFilter.value) {
-    filtered = filtered.filter(payment => payment.status === statusFilter.value);
-  }
-
-  // Filtrer par période
-  if (startDate.value) {
-    const start = new Date(startDate.value);
-    filtered = filtered.filter(payment => 
-      new Date(payment.paymentDate) >= start
-    );
-  }
-  if (endDate.value) {
-    const end = new Date(endDate.value);
-    filtered = filtered.filter(payment => 
-      new Date(payment.paymentDate) <= end
-    );
-  }
-
-  // Paginer les résultats
-  const start = (currentPage.value - 1) * itemsPerPage;
-  return filtered.slice(start, start + itemsPerPage);
-});
-
-// Méthodes utilitaires
-const formatDate = (date: Date) => {
-  return new Intl.DateTimeFormat('fr-FR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }).format(date);
-};
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR'
-  }).format(amount);
-};
-
-const getTypeBadgeClass = (type: string) => {
-  switch (type) {
-    case 'rent':
-      return 'bg-blue-100 text-blue-800';
-    case 'security':
-      return 'bg-green-100 text-green-800';
-    case 'service':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'tax':
-      return 'bg-purple-100 text-purple-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
-};
-
-const formatType = (type: string) => {
-  switch (type) {
-    case 'rent':
-      return 'Loyer';
-    case 'security':
-      return 'Dépôt de garantie';
-    case 'service':
-      return 'Charges';
-    case 'tax':
-      return 'Taxe';
-    default:
-      return type;
-  }
-};
-
-const getStatusBadgeClass = (status: string) => {
-  switch (status) {
-    case 'paid':
-      return 'bg-green-100 text-green-800';
-    case 'pending':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'failed':
-      return 'bg-red-100 text-red-800';
-    case 'refunded':
-      return 'bg-blue-100 text-blue-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
-};
-
-const formatStatus = (status: string) => {
-  switch (status) {
-    case 'paid':
-      return 'Payé';
-    case 'pending':
-      return 'En attente';
-    case 'failed':
-      return 'Échoué';
-    case 'refunded':
-      return 'Remboursé';
-    default:
-      return status;
-  }
-};
-
-// Méthodes d'action
-const showAddPaymentModal = ref(false);
-
-const confirmPayment = (payment: any) => {
-  console.log('Valider le paiement:', payment);
-};
-
-const editPayment = (payment: any) => {
-  console.log('Modifier le paiement:', payment);
-};
-
-const confirmDeletePayment = (payment: any) => {
-  console.log('Supprimer le paiement:', payment);
-};
-
-const exportPayments = () => {
-  console.log('Exporter les paiements');
-};
-</script>
+  ]);
+  
+  // Paiement du mois en cours
+  const currentMonthPayment = computed(() => {
+    return {
+      amount: 850,
+      dueDate: '2025-08-05',
+      status: 'pending'
+    };
+  });
+  
+  // Paiement du mois prochain
+  const nextMonthPayment = computed(() => {
+    return {
+      amount: 850,
+      dueDate: '2025-09-05',
+      status: 'upcoming'
+    };
+  });
+  
+  // Montant des paiements en retard
+  const overdueAmount = computed(() => {
+    // Dans un cas réel, on filtrerait les paiements en retard
+    return 0;
+  });
+  
+  // Formater la date
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return '—';
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString('fr-FR', options);
+  };
+  
+  // Formater la monnaie
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
+  
+  // Obtenir les classes CSS en fonction du statut
+  const getStatusClasses = (status: string): string => {
+    const classes = {
+      paid: 'bg-green-100 text-green-800',
+      pending: 'bg-yellow-100 text-yellow-800',
+      overdue: 'bg-red-100 text-red-800',
+      upcoming: 'bg-blue-100 text-blue-800',
+    };
+    return classes[status as keyof typeof classes] || 'bg-gray-100 text-gray-800';
+  };
+  
+  // Obtenir le texte du statut
+  const getStatusText = (status: string): string => {
+    const statusMap = {
+      paid: 'Payé',
+      pending: 'En attente',
+      overdue: 'En retard',
+      upcoming: 'À venir',
+    };
+    return statusMap[status as keyof typeof statusMap] || status;
+  };
+  
+  // Effectuer un paiement
+  const makePayment = (payment: any) => {
+    // Ici, vous pourriez intégrer une passerelle de paiement
+    console.log('Paiement en cours pour:', payment);
+    
+    // Simulation de paiement réussi après 1,5 secondes
+    setTimeout(() => {
+      const index = payments.value.findIndex(p => p.id === payment.id);
+      if (index !== -1) {
+        payments.value[index] = {
+          ...payments.value[index],
+          status: 'paid',
+          paidDate: new Date().toISOString().split('T')[0],
+          receiptAvailable: true
+        };
+        
+        // Afficher une notification de succès
+        alert('Paiement effectué avec succès !');
+      }
+    }, 1500);
+  };
+  
+  // Voir un reçu
+  const viewReceipt = (payment: any) => {
+    // Ici, vous pourriez afficher un PDF ou une page de reçu
+    console.log('Voir le reçu pour le paiement:', payment);
+    window.open(`/receipts/${payment.reference}.pdf`, '_blank');
+  };
+  
+  // Chargement initial des données
+  onMounted(() => {
+    // Ici, vous pourriez charger les données depuis une API
+    console.log('Chargement des paiements du locataire...');
+  });
+  </script>
+  

@@ -104,5 +104,6 @@ export interface Contract {
   landlord?: User;
   tenant?: User;
   property?: Property;
+  paymentDay?: number | null;
 }
 

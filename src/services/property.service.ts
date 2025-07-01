@@ -189,7 +189,7 @@ class PropertyService {
     }
   }
 
-  // Récupérer toutes les propriétés
+  // Récupérer toutes les propriétés (pour les administrateurs)
   static async getProperties(): Promise<Property[]> {
     try {
       const response = await api.get('/properties');
@@ -220,6 +220,40 @@ class PropertyService {
       }
       
       throw new Error('Une erreur est survenue lors de la récupération des propriétés');
+    }
+  }
+
+  // Récupérer les propriétés de l'utilisateur connecté
+  static async getMyProperties(): Promise<Property[]> {
+    try {
+      const response = await api.get('/properties/my-properties');
+      
+      // Si la réponse contient un tableau de propriétés dans data
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        return response.data.data;
+      }
+      
+      // Si la réponse contient directement un tableau de propriétés
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      
+      // Si nous n'avons toujours pas de données, retourner un tableau vide
+      return [];
+    } catch (error: any) {
+      console.error('Erreur lors de la récupération de vos propriétés:', error);
+      
+      // Améliorer le message d'erreur
+      if (error.response) {
+        if (error.response.status === 401) {
+          throw new Error('Veuillez vous connecter pour accéder à cette ressource');
+        }
+        if (error.response.data && error.response.data.message) {
+          throw new Error(error.response.data.message);
+        }
+      }
+      
+      throw new Error('Une erreur est survenue lors de la récupération de vos propriétés');
     }
   }
 

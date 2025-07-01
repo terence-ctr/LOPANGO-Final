@@ -141,9 +141,10 @@ interface PaymentAlert extends Omit<Alert, 'type' | 'property' | 'contract' | 'd
   contractId: string;
   severity: 'low' | 'medium' | 'high';
   paymentStatus: {
-    status: 'on_time' | 'upcoming' | 'overdue';
+    status: 'on_time' | 'late' | 'pending' | 'unknown' | 'overdue' | 'upcoming';
     days: number;
   };
+  read: boolean;
   actionRequired: boolean;
 }
 
@@ -229,22 +230,53 @@ const allAlerts = computed<CombinedAlert[]>(() => {
 const fetchRecentAlerts = async () => {
   try {
     isLoading.value = true;
-    const response = await DashboardService.getRecentAlerts();
-    // Filtrer les alertes de paiement qui sont déjà gérées séparément
-    const regularAlerts = (Array.isArray(response) ? response : [])
-      .filter((alert: any) => alert.type !== 'PAYMENT')
-      .map((alert: any) => {
-        const regularAlert: RegularAlert = {
+    // Récupérer les alertes non lues en priorité
+    const response = await DashboardService.getRecentAlerts({
+      limit: 10,
+      statuses: ['NEW', 'IN_PROGRESS'],
+      sortBy: 'createdAt',
+      sortOrder: 'desc' as const
+    });
+    
+    // Formater les alertes pour correspondre à l'interface attendue
+    const regularAlerts = (Array.isArray(response) ? response : []).map((alert: any) => {
+      // Vérifier si c'est une alerte de paiement
+      if (alert.type === 'PAYMENT') {
+        const paymentAlert: PaymentAlert = {
           ...alert,
-          type: alert.type as Exclude<Alert['type'], 'PAYMENT'>,
-          read: alert.status === 'READ' || alert.status === 'RESOLVED',
+          type: 'PAYMENT',
           propertyId: alert.property?.id || '',
-          status: alert.status || 'NEW',
-          actionRequired: alert.actionRequired || false
+          contractId: alert.contract?.id || '',
+          severity: (alert.priority?.toLowerCase() as 'low' | 'medium' | 'high') || 'medium',
+          paymentStatus: {
+            status: 'on_time', // Valeur par défaut, à mettre à jour selon les données réelles
+            days: 0
+          },
+          read: alert.status !== 'NEW',
+          actionRequired: alert.status === 'NEW'
         };
-        return regularAlert;
-      });
-    alerts.value = regularAlerts;
+        return paymentAlert;
+      }
+      
+      // Pour les autres types d'alertes
+      const regularAlert: RegularAlert = {
+        id: alert.id,
+        type: alert.type as Exclude<Alert['type'], 'PAYMENT'>,
+        title: alert.title,
+        message: alert.message,
+        priority: alert.priority || 'MEDIUM',
+        status: alert.status || 'NEW',
+        createdAt: alert.createdAt || new Date().toISOString(),
+        updatedAt: alert.updatedAt || new Date().toISOString(),
+        read: alert.status !== 'NEW',
+        propertyId: alert.property?.id,
+        actionRequired: alert.status === 'NEW',
+        actionUrl: alert.metadata?.actionUrl
+      };
+      return regularAlert;
+    });
+    
+    alerts.value = regularAlerts as CombinedAlert[];
   } catch (err) {
     console.error('Erreur lors de la récupération des alertes:', err);
     error.value = 'Impossible de charger les alertes';

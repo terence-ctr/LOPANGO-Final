@@ -31,15 +31,17 @@ export const usePropertyStore = defineStore('property', () => {
   const getCurrencies = computed(() => currencies.value);
   const getCurrentProperty = computed(() => currentProperty.value);
   const getProperties = computed(() => properties.value);
+  const userProperties = computed(() => properties.value); // Alias pour la compatibilité avec le système d'alertes
 
   async function fetchProperties() {
     loading.value = true;
     error.value = null;
     try {
-      properties.value = await PropertyService.getProperties();
+      // Utiliser getMyProperties pour ne récupérer que les propriétés de l'utilisateur connecté
+      properties.value = await PropertyService.getMyProperties();
     } catch (e: any) {
-      error.value = e.message || 'Failed to fetch properties';
-      console.error('Error fetching properties:', e);
+      error.value = e.message || 'Impossible de charger vos propriétés';
+      console.error('Erreur lors du chargement des propriétés:', e);
     } finally {
       loading.value = false;
     }
@@ -172,14 +174,6 @@ export const usePropertyStore = defineStore('property', () => {
   return {
     // États
     propertyToken,
-    loading,
-    error,
-    propertyTypes,
-    propertyStatuses,
-    propertyEquipments,
-    currencies,
-    properties,
-
     // Getters
     getPropertyToken,
     isLoading,
@@ -190,19 +184,20 @@ export const usePropertyStore = defineStore('property', () => {
     getCurrencies,
     getCurrentProperty,
     getProperties,
+    userProperties, // Exposer le getter userProperties
 
     // Actions
-    setPropertyToken,
-    setLoading,
-    setError,
-    clearError,
-    loadStoredToken,
-    clearPropertyToken,
     fetchPropertyMetadata,
     fetchPropertyById,
     createProperty,
     updateProperty,
     fetchProperties,
-    deleteProperty
+    deleteProperty,
+    setPropertyToken,
+    setLoading,
+    setError,
+    clearError,
+    loadStoredToken,
+    clearPropertyToken
   };
 });

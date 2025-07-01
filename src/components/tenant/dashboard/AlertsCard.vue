@@ -15,13 +15,14 @@
           class="mt-0.5 flex-shrink-0"
         />
         <div>
-          <p>
-            <span class="font-semibold">{{ alert.tenant }}</span>
-            <span>{{ alert.message }}</span>
-          </p>
-          <p v-if="alert.timestamp" class="text-xs opacity-75 mt-1">
-            {{ formatTimestamp(alert.timestamp) }}
-          </p>
+          <p class="font-semibold">{{ alert.title }}</p>
+          <p class="text-sm">{{ alert.message }}</p>
+          <div class="flex justify-between items-center mt-1">
+            <span class="text-xs opacity-75">{{ alert.property }}</span>
+            <span class="text-xs opacity-75">
+              {{ formatTimestamp(alert.timestamp) }}
+            </span>
+          </div>
         </div>
       </div>
       
@@ -48,14 +49,18 @@
 <script setup lang="ts">
 import { defineProps, withDefaults } from 'vue';
 
-interface Alert {
-  id: number | string;
-  tenant: string;
+type Alert = {
+  id: string;
+  title: string;
   message: string;
-  type: 'error' | 'warning' | 'info' | 'success';
-  timestamp?: Date | string;
-  read?: boolean;
-}
+  type: 'info' | 'warning' | 'error' | 'success';
+  timestamp: string | Date;
+  read: boolean;
+  propertyId?: string;
+  contractId?: string;
+  tenant: string;
+  property: string;
+};
 
 const props = withDefaults(defineProps<{
   alerts?: Alert[];
@@ -66,37 +71,18 @@ const props = withDefaults(defineProps<{
 });
 
 const getAlertClasses = (alert: Alert) => {
-  const baseClasses = {
-    'bg-opacity-10': true,
-    'hover:bg-opacity-20': true,
-  };
+  const baseClasses = 'bg-opacity-10 hover:bg-opacity-20';
   
   switch (alert.type) {
     case 'error':
-      return {
-        ...baseClasses,
-        'bg-red-100': true,
-        'text-red-600': true,
-      };
+      return `${baseClasses} bg-red-100 text-red-600`;
     case 'warning':
-      return {
-        ...baseClasses,
-        'bg-yellow-100': true,
-        'text-yellow-600': true,
-      };
+      return `${baseClasses} bg-yellow-100 text-yellow-600`;
     case 'success':
-      return {
-        ...baseClasses,
-        'bg-green-100': true,
-        'text-green-600': true,
-      };
+      return `${baseClasses} bg-green-100 text-green-600`;
     case 'info':
     default:
-      return {
-        ...baseClasses,
-        'bg-blue-100': true,
-        'text-blue-600': true,
-      };
+      return `${baseClasses} bg-blue-100 text-blue-600`;
   }
 };
 
