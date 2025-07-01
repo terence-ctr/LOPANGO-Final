@@ -21,7 +21,7 @@ export default {
       loadExtensions: ['.mjs', '.js', '.cjs']
     },
     seeds: {
-      directory: './server/database/seeds',
+      directory: './server/database/seeders',
       loadExtensions: ['.mjs', '.js', '.cjs']
     },
     pool: {
@@ -44,7 +44,7 @@ export default {
       loadExtensions: ['.mjs', '.js', '.cjs']
     },
     seeds: {
-      directory: './server/database/seeds',
+      directory: './server/database/seeders',
       loadExtensions: ['.mjs', '.js', '.cjs']
     },
     pool: {
@@ -66,7 +66,7 @@ export default {
       loadExtensions: ['.mjs', '.js', '.cjs']
     },
     seeds: {
-      directory: './server/database/seeds',
+      directory: './server/database/seeders',
       loadExtensions: ['.mjs', '.js', '.cjs']
     },
     pool: {

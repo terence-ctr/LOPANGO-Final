@@ -17,6 +17,8 @@ import propertyRoutes from './routes/property.routes';
 import propertyMetadataRoutes from './routes/propertyMetadata.routes';
 import contractRoutes from './routes/contract.routes';
 import userRoutes from './routes/user.routes';
+import { alertRoutes } from './routes/alert.routes';
+import { paymentRoutes } from './routes/payment.routes';
 
 // Les routes suivantes sont commentées car les fichiers correspondants n'existent pas encore
 // import { userRoutes } from './routes/user.routes';
@@ -305,6 +307,8 @@ class App {
     this.app.use('/api/properties', propertyRoutes);
     this.app.use('/api/contracts', contractRoutes);
     this.app.use('/api/users', userRoutes);
+    this.app.use('/api/alerts', alertRoutes);
+    this.app.use('/api/payments', paymentRoutes);
     
     // Route de test
     this.app.get('/api/health', (req: Request, res: Response) => {

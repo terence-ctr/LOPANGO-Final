@@ -350,6 +350,46 @@ export const createProperty = async (req: Request, res: Response) => {
   }
 };
 
+// Récupérer les propriétés de l'utilisateur connecté
+export const getMyProperties = async (req: Request, res: Response) => {
+  try {
+    // L'ID de l'utilisateur est ajouté par le middleware d'authentification
+    const userId = (req as any).user.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utilisateur non authentifié'
+      });
+    }
+    
+    // Récupérer les 5 propriétés les plus récentes de l'utilisateur
+    const properties = await db('properties')
+      .where('owner_id', userId)
+      .orderBy('created_at', 'desc')
+      .limit(5)
+      .select('*');
+    
+    // Convertir les équipements de JSON en tableau
+    const formattedProperties = properties.map(prop => ({
+      ...prop,
+      equipment: prop.equipment ? JSON.parse(prop.equipment) : []
+    }));
+    
+    res.json({
+      success: true,
+      data: formattedProperties
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération de vos propriétés:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de vos propriétés',
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    });
+  }
+};
+
 // Récupérer toutes les propriétés
 export const getProperties = async (req: Request, res: Response) => {
   try {

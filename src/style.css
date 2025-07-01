@@ -28,12 +28,15 @@ html, body {
   padding: 0;
   height: 100%;
   width: 100%;
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
+  overscroll-behavior: none;
 }
 
 h1 {
@@ -67,6 +70,7 @@ button:focus-visible {
 #app {
   margin: 0;
   padding: 0;
+  touch-action: manipulation;
 }
 
 @media (prefers-color-scheme: light) {
@@ -80,4 +84,15 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+/* Améliorer la gestion des événements tactiles pour les éléments interactifs */
+button, input, select, textarea, a {
+  touch-action: manipulation;
+}
+
+/* Empêcher les problèmes de défilement sur les conteneurs scrollables */
+.scrollable, [data-scrollable] {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }

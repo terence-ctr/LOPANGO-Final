@@ -2,13 +2,14 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
-import type { User } from '../types/user.types';
+import type { User, UserType } from '../types/user.types';
 import type { RegisterData } from '../types/auth.types';
 import apiConfig from '../config/api.config';
 import authService from '../services/auth.service';
 import { getDefaultRouteForRole } from '../config/routes';
 import { TOKEN_KEY, USER_DATA_KEY } from '../utils/auth';
 import api from '../services/api';
+import { setupTouchEventHandlers } from '@/utils/auth';
 
 // Clé pour le stockage local
 const STORAGE_KEY = 'lopango_auth';
@@ -287,16 +288,21 @@ export const useAuthStore = defineStore('auth', () => {
         // S'assurer que le userType est correctement défini
         const userData = response.data;
         
-        // Normaliser le userType
-        if (userData.userType) {
-          userData.userType = userData.userType.toString().toLowerCase().trim();
-        } else if (userData.user_type) {
-          userData.userType = userData.user_type.toString().toLowerCase().trim();
-          delete userData.user_type; // Nettoyer l'ancienne clé
+        // Normaliser le userType pour s'assurer qu'il correspond au type UserType
+        if ('user_type' in userData) {
+          userData.userType = (userData as any).user_type as UserType;
+          delete (userData as any).user_type; // Nettoyer l'ancienne clé
+        }
+        
+        // S'assurer que le userType est valide
+        const validUserTypes: UserType[] = ['tenant', 'landlord', 'agent', 'admin'];
+        if (userData.userType && !validUserTypes.includes(userData.userType as UserType)) {
+          console.warn(`Invalid userType: ${userData.userType}. Defaulting to 'tenant'.`);
+          userData.userType = 'tenant' as UserType;
         }
         
         console.log('Utilisateur authentifié avec succès:', {
-          id: userData.id,
+          _id: userData._id,
           email: userData.email,
           userType: userData.userType,
           hasRole: !!userData.userType,
@@ -337,11 +343,15 @@ export const useAuthStore = defineStore('auth', () => {
       await logout();
       return false;
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erreur lors de la vérification de l\'authentification:', err);
       
+      // Vérification du type d'erreur pour accéder à response.status en toute sécurité
+      const isAxiosError = axios.isAxiosError(err);
+      const status = isAxiosError ? err.response?.status : null;
+      
       // Ne pas afficher d'erreur pour les erreurs 401 (gérées dans le catch précédent)
-      if (err.response?.status !== 401) {
+      if (status !== 401) {
         error.value = 'Erreur lors de la vérification de l\'authentification';
       }
       
@@ -357,7 +367,7 @@ export const useAuthStore = defineStore('auth', () => {
   };
   
   // Connexion
-  const login = async (credentials: { email: string; password: string; userType: string }): Promise<boolean> => {
+  const login = async (credentials: { email: string; password: string; userType: UserType }): Promise<boolean> => {
     setLoading(true);
     setError(null);
     
@@ -401,14 +411,15 @@ export const useAuthStore = defineStore('auth', () => {
         // Créer une copie de l'objet utilisateur
         const normalizedUser = { ...userData };
         
-        // Normaliser le userType
-        if (normalizedUser.userType) {
-          normalizedUser.userType = normalizedUser.userType.toString().toLowerCase().trim();
-        } else if (normalizedUser.user_type) {
-          normalizedUser.userType = normalizedUser.user_type.toString().toLowerCase().trim();
+        // Normaliser le userType pour s'assurer qu'il correspond au type UserType
+        if (normalizedUser.user_type) {
+          normalizedUser.userType = normalizedUser.user_type as UserType;
           delete normalizedUser.user_type; // Nettoyer l'ancienne clé
         } else if (credentials.userType) {
-          normalizedUser.userType = credentials.userType.toLowerCase().trim();
+          // S'assurer que le userType est valide
+          const validUserTypes: UserType[] = ['tenant', 'landlord', 'agent', 'admin'];
+          const userType = credentials.userType.toLowerCase().trim() as UserType;
+          normalizedUser.userType = validUserTypes.includes(userType) ? userType : 'tenant' as UserType;
         }
         
         // S'assurer que le nom est correctement formaté
@@ -555,10 +566,10 @@ export const useAuthStore = defineStore('auth', () => {
         (e instanceof KeyboardEvent && (e.key === 'R' && e.altKey)) ||
         (e instanceof KeyboardEvent && (e.key === 'F5' && e.shiftKey))
       ) {
-        if (e instanceof KeyboardEvent) {
+        if (e.cancelable) {
           e.preventDefault();
+          console.log('Rafraîchissement désactivé');
         }
-        console.log('Rafraîchissement désactivé');
         return false;
       }
       return undefined;
@@ -566,59 +577,47 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Désactiver le rafraîchissement avec la molette
     const preventMouseWheel = (e: WheelEvent) => {
-      if (e.ctrlKey) {
+      if (e.ctrlKey && e.cancelable) {
         e.preventDefault();
         return false;
       }
       return undefined;
     };
 
-    // Désactiver le rafraîchissement tactile
-    const preventTouchRefresh: EventListener = (e) => {
-      if (!(e instanceof TouchEvent)) return;
-      const touch = e.touches[0];
-      if (!touch) return;
-      
-      const startY = touch.pageY;
-      
-      const handleTouchMove: EventListener = (moveEvent) => {
-        if (!(moveEvent instanceof TouchEvent)) return;
-        if (!moveEvent.touches[0]) return;
-        const moveY = moveEvent.touches[0].pageY;
-        if (moveY < startY && window.scrollY <= 0) {
-          moveEvent.preventDefault();
-        }
-      };
-
-      window.addEventListener('touchmove', handleTouchMove as EventListener, { passive: false });
-      
-      const removeTouchMove = () => {
-        window.removeEventListener('touchmove', handleTouchMove as EventListener);
-        window.removeEventListener('touchend', removeTouchMove);
-      };
-      
-      window.addEventListener('touchend', removeTouchMove, { once: true });
-    };
-
     // Fonction pour empêcher le menu contextuel
     const preventContextMenu = (event: Event) => {
-      event.preventDefault();
+      if (event.cancelable) {
+        event.preventDefault();
+      }
     };
 
-    // Ajouter les écouteurs d'événements
+    // Gestionnaire pour les événements tactiles - éviter les erreurs de cancellation
+    const handleTouchEvents = (event: TouchEvent) => {
+      // Ne pas empêcher les événements tactiles pendant le défilement
+      // Cela évite les erreurs "cancelable=false"
+      if (event.type === 'touchmove' && !event.cancelable) {
+        return; // Laisser l'événement se propager normalement
+      }
+    };
+
+    // Ajouter les écouteurs d'événements avec des options appropriées
     window.addEventListener('keydown', preventRefresh as EventListener, { capture: true });
     window.addEventListener('contextmenu', preventContextMenu as EventListener, { capture: true });
     window.addEventListener('wheel', preventMouseWheel as EventListener, { passive: false });
-
-    window.addEventListener('touchstart', preventTouchRefresh as EventListener, { passive: false });
+    
+    // Ajouter les gestionnaires d'événements tactiles avec passive: true pour éviter les erreurs
+    window.addEventListener('touchstart', handleTouchEvents as EventListener, { passive: true });
+    window.addEventListener('touchmove', handleTouchEvents as EventListener, { passive: true });
+    window.addEventListener('touchend', handleTouchEvents as EventListener, { passive: true });
 
     // Nettoyer les écouteurs lors de la déconnexion
     return () => {
       window.removeEventListener('keydown', preventRefresh as EventListener, { capture: true });
       window.removeEventListener('contextmenu', preventContextMenu as EventListener, { capture: true });
-  
       window.removeEventListener('wheel', preventMouseWheel as EventListener);
-      window.removeEventListener('touchstart', preventTouchRefresh as EventListener);
+      window.removeEventListener('touchstart', handleTouchEvents as EventListener);
+      window.removeEventListener('touchmove', handleTouchEvents as EventListener);
+      window.removeEventListener('touchend', handleTouchEvents as EventListener);
     };
   };
 
@@ -633,11 +632,15 @@ export const useAuthStore = defineStore('auth', () => {
     // Désactiver le rafraîchissement de page
     cleanupSessionPersistence = disablePageRefresh();
     
+    // Configurer les gestionnaires d'événements tactiles
+    const cleanupTouchHandlers = setupTouchEventHandlers();
+    
     // Nettoyer lors de la déconnexion
     return (): void => {
       if (cleanupSessionPersistence) {
         cleanupSessionPersistence();
       }
+      cleanupTouchHandlers();
     };
   };
 

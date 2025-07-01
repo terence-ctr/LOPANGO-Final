@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import api from '@/services/api';
-import type { Contract, ContractFormData } from '@/types/contract';
+import type { Contract } from '@/types/contract';
+import type { ApiContractData } from '@/utils/contractMapper';
 
 export const useContractStore = defineStore('contract', () => {
   const contracts = ref<Contract[]>([]);
@@ -13,6 +14,24 @@ export const useContractStore = defineStore('contract', () => {
     error.value = null;
     try {
       const response = await api.get('/contracts');
+      console.log('Données des contrats reçues de l\'API:', response.data);
+      
+      // Log détaillé pour chaque contrat
+      response.data.forEach((contract: any, index: number) => {
+        console.log(`Contrat #${index + 1}:`, {
+          id: contract.id,
+          tenant: contract.tenant ? {
+            id: contract.tenant.id,
+            firstName: contract.tenant.firstName,
+            lastName: contract.tenant.lastName
+          } : 'Aucun locataire',
+          property: contract.property ? {
+            id: contract.property.id,
+            title: contract.property.title
+          } : 'Aucune propriété'
+        });
+      });
+      
       contracts.value = response.data;
     } catch (err) {
       error.value = 'Erreur lors de la récupération des contrats.';
@@ -21,7 +40,7 @@ export const useContractStore = defineStore('contract', () => {
     loading.value = false;
   };
 
-  const createContract = async (contractData: ContractFormData) => {
+  const createContract = async (contractData: ApiContractData) => {
     loading.value = true;
     error.value = null;
     try {

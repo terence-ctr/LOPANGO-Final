@@ -1,46 +1,48 @@
-const knex = require('knex');
+import knex from 'knex';
+import knexConfig from './knexfile.js';
 
-// Configuration de la base de données
-const db = knex({
-  client: 'mysql2',
-  connection: {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'lopanngo'
-  }
-});
+// Use the development configuration from knexfile
+const db = knex(knexConfig.development);
 
 async function checkTables() {
   try {
-    // Vérifier les tables existantes
-    const tables = await db.raw('SHOW TABLES');
-    console.log('\nTables existantes dans la base de données:');
-    tables[0].forEach(table => {
-      console.log(`- ${Object.values(table)[0]}`);
+    // For SQLite, get tables from sqlite_master
+    console.log('Checking tables...');
+    const tables = await db.raw("SELECT name FROM sqlite_master WHERE type='table';");
+    console.log('\nTables in the database:');
+    tables.forEach(table => {
+      console.log(`- ${table.name}`);
     });
 
-    // Vérifier la structure de la table users
-    console.log('\n\nStructure de la table users:');
-    const columns = await db.raw('DESCRIBE users');
-    console.log('Colonne | Type | Null | Clé | Défaut | Extra');
-    console.log('--------|------|------|-----|--------|-------');
-    columns[0].forEach(column => {
+    // Check for 'addresses' table specifically
+    const hasAddressesTable = tables.some(table => table.name === 'addresses');
+    if (hasAddressesTable) {
+        console.log("\n'addresses' table found!");
+    } else {
+        console.log("\n'addresses' table NOT found! This is likely the problem.");
+    }
+
+
+    // For SQLite, use PRAGMA table_info to describe a table
+    console.log('\n\nStructure of the "users" table:');
+    const columns = await db.raw('PRAGMA table_info(users);');
+    console.log('Name | Type | NotNull | Default | PK');
+    console.log('------|------|---------|---------|----');
+    columns.forEach(column => {
       console.log(
-        `${column.Field} | ${column.Type} | ${column.Null} | ${column.Key} | ${column.Default} | ${column.Extra}`
+        `${column.name} | ${column.type} | ${column.notnull} | ${column.dflt_value} | ${column.pk}`
       );
     });
 
-    // Vérifier les données dans la table users
-    console.log('\n\nDonnées dans la table users:');
-    const users = await db('users').select('*');
+    // Check data in the users table
+    console.log('\n\nData in the "users" table:');
+    const users = await db('users').select('*').limit(5); // Limit to 5 for brevity
     console.log(JSON.stringify(users, null, 2));
 
   } catch (error) {
-    console.error('Erreur lors de la vérification des tables:', error);
+    console.error('Error while checking tables:', error);
   } finally {
-    // Fermer la connexion à la base de données
+    // Close the database connection
     await db.destroy();
   }
 }

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import { authenticateJWT as authenticate } from '../middleware/auth.middleware';
 import * as propertyController from '../controllers/property.controller';
 
@@ -19,6 +19,13 @@ router.get('/', propertyController.getProperties);
 router.use(authenticate);
 
 // Routes pour les propriétaires
+// Récupérer les propriétés de l'utilisateur connecté
+const getMyPropertiesHandler: RequestHandler = (req, res, next) => {
+  return (propertyController.getMyProperties as any)(req, res).catch(next);
+};
+router.get('/my-properties', getMyPropertiesHandler);
+
+// Récupérer une propriété spécifique par son ID
 router.get('/:id(\\d+)', propertyExists, isPropertyOwner, propertyController.getPropertyById);
 router.post('/', validatePropertyData, propertyController.createProperty);
 router.put('/:id(\\d+)', 

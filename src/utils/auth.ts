@@ -235,3 +235,67 @@ export const initAuth = async (): Promise<boolean> => {
   
   return true;
 };
+
+/**
+ * Gestionnaire d'événements tactiles pour éviter les erreurs de cancellation
+ * @param event L'événement tactile
+ * @param callback La fonction à exécuter si l'événement est cancelable
+ */
+export const handleTouchEvent = (event: TouchEvent, callback?: () => void): void => {
+  // Vérifier si l'événement est cancelable avant d'essayer de l'empêcher
+  if (event.cancelable) {
+    event.preventDefault();
+    if (callback) {
+      callback();
+    }
+  } else {
+    // Si l'événement n'est pas cancelable, ne pas essayer de l'empêcher
+    // Cela évite les erreurs "cancelable=false"
+    if (callback) {
+      callback();
+    }
+  }
+};
+
+/**
+ * Configure les gestionnaires d'événements tactiles pour éviter les erreurs
+ */
+export const setupTouchEventHandlers = (): (() => void) => {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  const handleTouchMove = (event: TouchEvent) => {
+    // Ne pas empêcher les événements touchmove pendant le défilement
+    // Cela évite les erreurs "cancelable=false"
+    if (!event.cancelable) {
+      return;
+    }
+  };
+
+  const handleTouchStart = (event: TouchEvent) => {
+    // Gestionnaire pour touchstart si nécessaire
+    if (!event.cancelable) {
+      return;
+    }
+  };
+
+  const handleTouchEnd = (event: TouchEvent) => {
+    // Gestionnaire pour touchend si nécessaire
+    if (!event.cancelable) {
+      return;
+    }
+  };
+
+  // Ajouter les écouteurs avec passive: true pour éviter les erreurs
+  window.addEventListener('touchstart', handleTouchStart as EventListener, { passive: true });
+  window.addEventListener('touchmove', handleTouchMove as EventListener, { passive: true });
+  window.addEventListener('touchend', handleTouchEnd as EventListener, { passive: true });
+
+  // Retourner la fonction de nettoyage
+  return () => {
+    window.removeEventListener('touchstart', handleTouchStart as EventListener);
+    window.removeEventListener('touchmove', handleTouchMove as EventListener);
+    window.removeEventListener('touchend', handleTouchEnd as EventListener);
+  };
+};

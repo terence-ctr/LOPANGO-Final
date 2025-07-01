@@ -19,7 +19,7 @@ export interface User {
   telephone?: string;
   // Fields specific to contract context
   nationality?: string;
-  idType?: 'permis de conduire' | 'passeport' | 'carte_sejour' | 'carte_electeur' | 'autre';
+  idType?: IdType;
   idNumber?: string;
   address?: Address;
   birthDate?: string;
@@ -49,19 +49,23 @@ export interface Property {
   updatedAt: string;
 }
 
+// Types pour les champs du formulaire
+export type IdType = 'permis_de_conduire' | 'passeport' | 'carte_sejour' | 'carte_electeur' | 'autre';
+export type PropertyUsage = 'residentiel' | 'commercial' | 'bureau' | 'autre';
+
 // A single, clean interface for the contract form data
 export interface ContractFormData {
   // Landlord (Bailleur) Info
   landlordId: string;
   landlordNationality: string;
-  landlordIdType: string;
+  landlordIdType: IdType;
   landlordIdNumber: string;
   landlordAddress: Address;
 
   // Tenant (Locataire) Info
   tenantId: string;
   tenantNationality: string;
-  tenantIdType: string;
+  tenantIdType: IdType;
   tenantIdNumber: string;
   tenantAddress: Address;
 
@@ -69,13 +73,14 @@ export interface ContractFormData {
   propertyId: string;
 
   // Contract Details
-  usage: string;
+  usage: PropertyUsage;
   rent: string; // Form values are often strings
   currency: string;
   deposit: string;
   duration: string; // e.g., "1 an", "3 ans"
   startDate: string;
   endDate: string;
+  paymentDay?: number | null;
   status: ContractStatus;
   specialConditions?: string;
 }

@@ -2,7 +2,7 @@ import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from '
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
 import { useRouter } from 'vue-router';
-import apiConfig from '@/config/api.config';
+import { apiConfig } from '@/config/api.config';
 import { getAuthToken, setAuthToken, removeAuthToken } from '@/utils/auth';
 
 // Interface pour les erreurs API

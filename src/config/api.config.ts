@@ -1,10 +1,10 @@
 // Configuration de l'API
-const config = {
+export const apiConfig = {
   // URL de base de l'API - sera remplacée par les variables d'environnement en production
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5173/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
   // URL de base de l'API (dépréciée, utiliser baseURL à la place)
   // @deprecated Utiliser baseURL à la place
-  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:5173/api',
+  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001',
   
   // Timeout des requêtes en millisecondes
   timeout: 10000, // 10 secondes
@@ -22,7 +22,7 @@ const config = {
     properties: {
       base: '/properties',
       search: '/properties/search',
-      myProperties: '/properties/owner/my-properties',
+      myProperties: '/properties/my-properties',
       byOwner: (ownerId: string) => `/properties/owner/${ownerId}`,
       byId: (id: string) => `/properties/${id}`,
       uploadImage: (propertyId: string) => `/properties/${propertyId}/images`,
@@ -64,4 +64,5 @@ const config = {
   },
 };
 
-export default config;
+// Export par défaut pour la rétrocompatibilité
+export default apiConfig;

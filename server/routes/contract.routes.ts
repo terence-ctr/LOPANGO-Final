@@ -6,6 +6,7 @@ const router = Router();
 
 router.use(authenticate);
 
+router.get('/', contractController.getContracts);
 router.post('/', contractController.createContract);
 
 export default router;
