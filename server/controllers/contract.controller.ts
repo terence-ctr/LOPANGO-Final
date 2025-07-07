@@ -69,6 +69,7 @@ interface LocalContractQueryResult {
   property_id: number;
   tenant_id: number;
   landlord_id: number;
+  agent_id: number | null;
   start_date: string;
   end_date: string;
   status: string;
@@ -86,6 +87,9 @@ interface LocalContractQueryResult {
   landlord_first_name: string | null;
   landlord_last_name: string | null;
   landlord_email: string | null;
+  agent_first_name: string | null;
+  agent_last_name: string | null;
+  agent_email: string | null;
   tenant_first_name: string | null;
   tenant_last_name: string | null;
   tenant_email: string | null;
@@ -109,6 +113,12 @@ interface FormattedContract {
       lastName: string;
       email: string;
     };
+    agent?: {
+      id: number;
+      firstName: string;
+      lastName: string;
+      email: string;
+    } | null;
   };
   tenant: {
     id: number;
@@ -116,6 +126,12 @@ interface FormattedContract {
     lastName: string;
     email: string;
   };
+  agent?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
   startDate: string;
   endDate: string;
   status: string;

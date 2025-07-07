@@ -15,6 +15,8 @@ export interface Address {
 export interface Property {
   id?: number;
   owner_id: number;
+  agent_id?: number | null;
+  etage_id?: number | null;
   title: string;
   description?: string;
   type: string;
@@ -396,39 +398,74 @@ export const createProperty = async (req: Request, res: Response) => {
 // Récupérer les propriétés de l'utilisateur connecté
 export const getMyProperties = async (req: Request, res: Response) => {
   try {
+    // Vérifier si l'utilisateur est authentifié
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Non authentifié'
+      });
+    }
+
     // L'ID de l'utilisateur est ajouté par le middleware d'authentification
     const userId = (req as any).user.id;
     
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: 'Utilisateur non authentifié'
+        message: 'ID utilisateur manquant'
       });
     }
     
-    // Récupérer les 5 propriétés les plus récentes de l'utilisateur
-    const properties = await db('properties')
-      .where('owner_id', userId)
-      .orderBy('created_at', 'desc')
-      .limit(5)
-      .select('*');
+    console.log(`[getMyProperties] Récupération des propriétés pour l'utilisateur ${userId}`);
     
-    // Convertir les équipements de JSON en tableau
-    const formattedProperties = properties.map(prop => ({
-      ...prop,
-      equipment: prop.equipment ? JSON.parse(prop.equipment) : []
-    }));
+    try {
+      // Récupérer les 5 propriétés les plus récentes de l'utilisateur
+      const properties = await db('properties')
+        .where('owner_id', userId)
+        .orderBy('created_at', 'desc')
+        .limit(5)
+        .select('*');
+      
+      console.log(`[getMyProperties] ${properties.length} propriétés trouvées`);
+      
+      // Convertir les équipements de JSON en tableau de manière sécurisée
+      const formattedProperties = properties.map(prop => {
+        let equipment = [];
+        try {
+          equipment = prop.equipment && typeof prop.equipment === 'string' 
+            ? JSON.parse(prop.equipment) 
+            : Array.isArray(prop.equipment) 
+              ? prop.equipment 
+              : [];
+        } catch (e) {
+          console.error('Erreur de parsing des équipements:', e);
+          equipment = [];
+        }
+        
+        return {
+          ...prop,
+          equipment
+        };
+      });
+      
+      return res.json({
+        success: true,
+        data: formattedProperties
+      });
+      
+    } catch (dbError) {
+      console.error('Erreur de base de données:', dbError);
+      throw new Error('Erreur lors de la récupération des propriétés');
+    }
     
-    res.json({
-      success: true,
-      data: formattedProperties
-    });
   } catch (error) {
-    console.error('Erreur lors de la récupération de vos propriétés:', error);
+    console.error('Erreur dans getMyProperties:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+    
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la récupération de vos propriétés',
-      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     });
   }
 };
@@ -479,7 +516,7 @@ export const getPropertyById = async (req: Request, res: Response) => {
       street: property.address || '',
       city: property.city || '',
       postal_code: property.postal_code || '',
-      country: property.country || 'France'
+      country: property.country || 'congo'
     };
     
     // Convertir les équipements de JSON en tableau

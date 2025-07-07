@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, CookieOptions } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,15 +18,7 @@ import {
 import { IUser } from '../utils/interfaces/user.interface';
 import { UserType, UserTypeEnum } from '../utils/enums/user.enum';
 
-declare global {
-  namespace Express {
-    interface Request {
-      files?: {
-        [fieldname: string]: Express.Multer.File[];
-      };
-    }
-  }
-}
+// Les types de fichiers sont déjà définis par @types/multer
 
 // Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -39,14 +31,14 @@ const generateTokens = (userId: string, userType: UserType) => {
   
   const accessToken = jwt.sign(
     { id: userId, type: userType },
-    JWT_SECRET,
-    { expiresIn }
+    JWT_SECRET as jwt.Secret,
+    { expiresIn: expiresIn.toString() + 's' } as jwt.SignOptions
   );
 
   const refreshToken = jwt.sign(
     { id: userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
+    JWT_SECRET as jwt.Secret,
+    { expiresIn: REFRESH_TOKEN_EXPIRES_IN } as jwt.SignOptions
   );
 
   return { 
@@ -116,13 +108,16 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
   const trx = await db.transaction();
   
   try {
-    // Récupérer les fichiers téléchargés
-    const files = req.files || {};
+    // Récupérer les fichiers téléchargés avec un type sûr
+    const files = req.files as Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const fileMap = Array.isArray(files) 
+      ? { files } 
+      : files || {};
     
     // Vérifier si des fichiers ont été reçus
     console.log('=== FICHIERS REÇUS ===');
-    console.log('Document recto:', files.documentFront ? 'Oui' : 'Non');
-    console.log('Document verso:', files.documentBack ? 'Oui' : 'Non');
+    console.log('Document recto:', fileMap['documentFront']?.length ? 'Oui' : 'Non');
+    console.log('Document verso:', fileMap['documentBack']?.length ? 'Oui' : 'Non');
     
     // Parser les champs du formulaire
     const formData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -144,8 +139,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       // Gérer les fichiers téléchargés
       identity: {
         ...identityData,
-        frontDocumentUrl: files.documentFront ? files.documentFront[0].filename : '',
-        backDocumentUrl: files.documentBack ? files.documentBack[0].filename : undefined,
+        frontDocumentUrl: (Array.isArray(fileMap['documentFront']) && fileMap['documentFront'][0]?.filename) || '',
+        backDocumentUrl: (Array.isArray(fileMap['documentBack']) && fileMap['documentBack'][0]?.filename) || '',
       },
     };
     
@@ -207,14 +202,15 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       console.log('   Bindings:', query.bindings);
       
       console.log('✅ Vérification d\'email contournée pour le débogage');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Erreur inattendue:', error);
       await trx.rollback();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return res.status(500).json({
         success: false,
         message: 'Erreur inattendue lors du traitement',
         code: 'UNEXPECTED_ERROR',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
       });
     }
     
@@ -258,25 +254,29 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         } else {
           console.log('✅ Aucune identité existante trouvée avec ce numéro');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('❌ Erreur lors de la vérification du numéro d\'identité:', error);
         await trx.rollback();
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return res.status(500).json({
           success: false,
           message: 'Erreur lors de la vérification du numéro d\'identité',
           code: 'IDENTITY_VERIFICATION_ERROR',
-          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
         });
       }
     }
 
-    // Vérifier les fichiers d'identité
-    if (userData.identity?.frontDocumentUrl) {
-      console.log('Vérification du fichier d\'identité recto:', userData.identity.frontDocumentUrl);
+    // Vérifier les fichiers d'identité avec un type sûr
+    const frontDocument = Array.isArray(fileMap['documentFront']) ? fileMap['documentFront'][0] : undefined;
+    const backDocument = Array.isArray(fileMap['documentBack']) ? fileMap['documentBack'][0] : undefined;
+    
+    if (frontDocument) {
+      console.log('Vérification du fichier d\'identité recto:', frontDocument.filename);
       // Vérifier si le fichier existe déjà en base (par son nom de fichier)
       const existingFrontFile = await trx('identities')
-        .where('document_front_url', userData.identity.frontDocumentUrl)
-        .orWhere('document_back_url', userData.identity.frontDocumentUrl)
+        .where('document_front_url', frontDocument.filename)
+        .orWhere('document_back_url', frontDocument.filename)
         .first();
       
       if (existingFrontFile) {
@@ -291,12 +291,12 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       }
     }
     
-    if (userData.identity?.backDocumentUrl) {
-      console.log('Vérification du fichier d\'identité verso:', userData.identity.backDocumentUrl);
+    if (backDocument) {
+      console.log('Vérification du fichier d\'identité verso:', backDocument.filename);
       // Vérifier si le fichier existe déjà en base (par son nom de fichier)
       const existingBackFile = await trx('identities')
-        .where('document_front_url', userData.identity.backDocumentUrl)
-        .orWhere('document_back_url', userData.identity.backDocumentUrl)
+        .where('document_front_url', backDocument.filename)
+        .orWhere('document_back_url', backDocument.filename)
         .first();
       
       if (existingBackFile) {
@@ -1021,7 +1021,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     });
 
     // Configuration des cookies sécurisés
-    const cookieOptions = {
+    const cookieOptions: CookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
@@ -1041,7 +1041,8 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
       user: formatUserResponse(user),
       tokens: {
         accessToken,
-        expiresIn
+        refreshToken: newRefreshToken, // Utiliser le nouveau refreshToken généré
+        expiresIn: parseInt(JWT_EXPIRES_IN) * 60 // en secondes
       }
     };
 
