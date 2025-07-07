@@ -21,12 +21,7 @@
           :payments="recentPayments"
         />
 
-        <!-- Alerts Card -->
-        <AlertsCard 
-          class="max-w-sm mx-auto lg:mx-0"
-          :alerts="alerts"
-          @view-all="navigateToAlerts"
-        />
+        <!-- Space for future components -->
       </div>
     </div>
   </div>
@@ -41,30 +36,14 @@ import DashboardService from '@/services/dashboard.service';
 import PropertiesCard from '@/components/tenant/dashboard/PropertiesCard.vue';
 import CalendarCard from '@/components/tenant/dashboard/CalendarCard.vue';
 import RecentPayments from '@/components/tenant/dashboard/RecentPayments.vue';
-import AlertsCard from '@/components/tenant/dashboard/AlertsCard.vue';
-
 // Utils
 import { convertMockPaymentToPayment } from '@/utils/converters';
 
 // Mocks
 import { 
   fetchMockProperties, 
-  fetchMockRecentPayments, 
-  fetchMockRecentAlerts 
+  fetchMockRecentPayments 
 } from '@/__mocks__/dashboard.mock';
-
-// Types pour les alertes mockées
-type MockAlert = {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  date: string;
-  read: boolean;
-  propertyId?: string;
-  contractId?: string;
-  propertyName?: string;
-};
 
 // Types
 import type { Payment } from '@/types/payment';
@@ -74,50 +53,14 @@ const router = useRouter();
 // Types
 import type { MockProperty, MockPayment } from '@/__mocks__';
 
-type DashboardAlert = {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  timestamp: string;
-  read: boolean;
-  propertyId?: string;
-  contractId?: string;
-  tenant: string;
-  property: string;
-};
-
 // States
 const properties = ref<MockProperty[]>([]);
 const mockPayments = ref<MockPayment[]>([]);
 const recentPayments = computed<Payment[]>(() => 
   mockPayments.value.map(convertMockPaymentToPayment)
 );
-const mockAlerts = ref<MockAlert[]>([]);
-const alerts = computed<DashboardAlert[]>(() => 
-  mockAlerts.value.map(alert => ({
-    id: alert.id,
-    title: alert.title,
-    message: alert.message,
-    type: alert.type,
-    timestamp: alert.date, // Utilisation de la propriété 'date' du mock
-    read: alert.read,
-    tenant: 'Locataire', // Valeur par défaut
-    property: alert.propertyName || 'Propriété inconnue',
-    propertyId: alert.propertyId,
-    contractId: alert.contractId
-  }))
-);
 const loading = ref(false);
 const error = ref('');
-
-const hasUnreadAlerts = computed((): boolean => {
-  return alerts.value.some(alert => !alert.read);
-});
-
-const navigateToAlerts = () => {
-  router.push('/tenant/alerts');
-};
 
 const fetchDashboardData = async () => {
   loading.value = true;
@@ -133,11 +76,6 @@ const fetchDashboardData = async () => {
     console.log('[Dashboard] Récupération des paiements récents...');
     mockPayments.value = await fetchMockRecentPayments();
     console.log('[Dashboard] Paiements récents récupérés:', mockPayments.value);
-    
-    // Récupérer les alertes récentes
-    console.log('[Dashboard] Récupération des alertes récentes...');
-    mockAlerts.value = await fetchMockRecentAlerts();
-    console.log('[Dashboard] Alertes récentes récupérées:', mockAlerts.value);
   } catch (err) {
     console.error('Erreur lors de la récupération des données du tableau de bord:', err);
     error.value = 'Impossible de charger les données du tableau de bord. Veuillez réessayer.';
