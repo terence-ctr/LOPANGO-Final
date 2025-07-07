@@ -19,6 +19,13 @@ export const tenantRoutes = [
         meta: { title: 'Mes contrats' }
       },
       {
+        path: 'contracts/:id',
+        name: 'tenant-contract-detail',
+        component: () => import('@/views/tenant/ContractDetailView.vue'),
+        meta: { title: 'Détail du contrat' },
+        props: true
+      },
+      {
         path: 'properties',
         name: 'tenant-properties',
         component: () => import('@/views/tenant/PropertiesView.vue'),

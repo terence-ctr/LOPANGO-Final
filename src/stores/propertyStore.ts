@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { Property, PropertyTypeMetadata, PropertyStatusMetadata, PropertyEquipmentMetadata, CurrencyMetadata } from '@/types/property';
 import MetadataService from '@/services/metadata.service';
 import PropertyService from '@/services/property.service';
+import ContractService from '@/services/contract.service';
 
 // Clé pour le stockage local
 const PROPERTY_TOKEN_KEY = 'lopango_property_token';
@@ -20,6 +21,7 @@ export const usePropertyStore = defineStore('property', () => {
   const currencies = ref<CurrencyMetadata[]>([]);
   const currentProperty = ref<Property | null>(null);
   const properties = ref<Property[]>([]);
+  const tenantProperties = ref<Property[]>([]);
 
   // Getters
   const getPropertyToken = computed(() => propertyToken.value);
@@ -31,6 +33,7 @@ export const usePropertyStore = defineStore('property', () => {
   const getCurrencies = computed(() => currencies.value);
   const getCurrentProperty = computed(() => currentProperty.value);
   const getProperties = computed(() => properties.value);
+  const getTenantProperties = computed(() => tenantProperties.value);
   const userProperties = computed(() => properties.value); // Alias pour la compatibilité avec le système d'alertes
 
   async function fetchProperties() {
@@ -42,6 +45,21 @@ export const usePropertyStore = defineStore('property', () => {
     } catch (e: any) {
       error.value = e.message || 'Impossible de charger vos propriétés';
       console.error('Erreur lors du chargement des propriétés:', e);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // Récupérer les propriétés liées aux contrats du locataire
+  async function fetchTenantProperties() {
+    loading.value = true;
+    error.value = null;
+    try {
+      // Récupérer les propriétés liées aux contrats du locataire
+      tenantProperties.value = await ContractService.getTenantProperties();
+    } catch (e: any) {
+      error.value = e.message || 'Impossible de charger les propriétés du locataire';
+      console.error('Erreur lors du chargement des propriétés du locataire:', e);
     } finally {
       loading.value = false;
     }
@@ -70,9 +88,20 @@ export const usePropertyStore = defineStore('property', () => {
       propertyStatuses.value = data.statuses || [];
       propertyEquipments.value = data.equipments || [];
       currencies.value = data.currencies || [];
+      console.log('Métadonnées chargées avec succès:', {
+        types: propertyTypes.value.length,
+        statuses: propertyStatuses.value.length,
+        equipments: propertyEquipments.value.length,
+        currencies: currencies.value.length
+      });
     } catch (e) {
-      error.value = 'Failed to fetch property metadata';
-      console.error('Error fetching metadata:', e);
+      error.value = 'Impossible de charger les métadonnées, utilisation des valeurs par défaut';
+      console.warn('Utilisation des valeurs par défaut pour les métadonnées:', e);
+      // Utiliser des valeurs par défaut
+      propertyTypes.value = [];
+      propertyStatuses.value = [];
+      propertyEquipments.value = [];
+      currencies.value = [];
     } finally {
       loading.value = false;
     }
@@ -172,8 +201,6 @@ export const usePropertyStore = defineStore('property', () => {
   }
 
   return {
-    // États
-    propertyToken,
     // Getters
     getPropertyToken,
     isLoading,
@@ -184,14 +211,16 @@ export const usePropertyStore = defineStore('property', () => {
     getCurrencies,
     getCurrentProperty,
     getProperties,
-    userProperties, // Exposer le getter userProperties
+    getTenantProperties,
+    userProperties,
 
     // Actions
-    fetchPropertyMetadata,
+    fetchProperties,
+    fetchTenantProperties,
     fetchPropertyById,
+    fetchPropertyMetadata,
     createProperty,
     updateProperty,
-    fetchProperties,
     deleteProperty,
     setPropertyToken,
     setLoading,

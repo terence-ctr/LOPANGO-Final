@@ -30,23 +30,47 @@ export interface User {
 export interface Property {
   id: string | number;
   title: string;
-  address: Address;
-  type: 'appartement' | 'maison' | 'bureau' | 'local' | 'autre';
+  // Champs d'adresse détaillés
+  address?: string; // Adresse complète formatée
+  street?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  quartier?: string;
+  commune?: string;
+  // Gestion des erreurs d'adresse
+  addressError?: string;
+  
+  // Détails de la propriété
+  type: 'APPARTEMENT' | 'MAISON' | 'BUREAU' | 'LOCAL' | 'AUTRE' | string;
   rent: number;
   charges?: number;
   deposit: number;
-  usage: 'residentiel' | 'commercial' | 'bureau' | 'autre';
+  currency?: string;
+  status?: string;
+  is_active?: boolean;
+  
+  // Caractéristiques
   area: number;
   rooms: number;
   bathrooms?: number;
-  floor?: number;
+  floor?: number | string;
   description?: string;
-  equipment?: string[];
+  equipment?: string[] | string; // Peut être un tableau ou une chaîne JSON
   photos?: string[];
-  ownerId: string | number;
-  availableFrom?: string;
-  createdAt: string;
-  updatedAt: string;
+  
+  // Propriétaire
+  owner_id?: string | number;
+  ownerId?: string | number; // Alias pour la rétrocompatibilité
+  
+  // Dates
+  available_from?: string;
+  created_at?: string;
+  updated_at?: string;
+  published_at?: string;
+  
+  // Autres champs potentiels
+  [key: string]: any; // Pour gérer les champs supplémentaires
 }
 
 // Types pour les champs du formulaire
@@ -90,20 +114,41 @@ export interface Contract {
   landlordId: string | number;
   tenantId: string | number;
   propertyId: string | number;
+  property?: Property; // Ajout de la propriété complète
   startDate: string;
+  start_date?: string; // Alias pour la compatibilité
   endDate: string | null;
+  end_date?: string | null; // Alias pour la compatibilité
   rent: number;
   deposit: number;
+  deposit_status?: string;
   currency: string;
   duration: string;
   status: ContractStatus;
   specialConditions?: string;
   createdAt?: string;
   updatedAt?: string;
+  created_at?: string; // Alias pour la compatibilité
+  updated_at?: string; // Alias pour la compatibilité
+  
+  // Champs pour l'affichage
+  property_title?: string;
+  property_address?: string;
+  property_address_street?: string;
+  property_address_city?: string;
+  property_address_postal_code?: string;
+  property_address_country?: string;
+  tenant_first_name?: string;
+  tenant_last_name?: string;
+  tenant_email?: string;
+  tenant_phone?: string;
+  
   // Expanded objects for easy data access in frontend
   landlord?: User;
   tenant?: User;
-  property?: Property;
   paymentDay?: number | null;
+  
+  // Alias pour la rétrocompatibilité
+  [key: string]: any;
 }
 

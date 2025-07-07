@@ -3,7 +3,7 @@ export type { Property, PropertyAddress, PropertyType, PropertyStatus } from './
 
 export type { Tenant, TenantFormData } from './tenant';
 
-export type { Alert, AlertType, AlertAction, AlertOptions, AlertStore, AlertState, AlertInput } from './alert';
+export type { Contract, ContractFormData, ContractStatus, PropertyUsage, IdType } from './contract';
 
 // Ré-export des types communs
 export * from './common';

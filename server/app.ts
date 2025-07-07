@@ -17,7 +17,6 @@ import propertyRoutes from './routes/property.routes';
 import propertyMetadataRoutes from './routes/propertyMetadata.routes';
 import contractRoutes from './routes/contract.routes';
 import userRoutes from './routes/user.routes';
-import { alertRoutes } from './routes/alert.routes';
 // Les imports et initialisations liés aux paiements ont été supprimés
 
 // Les routes suivantes sont commentées car les fichiers correspondants n'existent pas encore
@@ -303,11 +302,10 @@ class App {
   private initializeRoutes() {
     // Routes API
     this.app.use('/api/auth', authRoutes);
-    this.app.use('/api/properties/metadata', propertyMetadataRoutes);
     this.app.use('/api/properties', propertyRoutes);
+    this.app.use('/api/property-metadata', propertyMetadataRoutes);
     this.app.use('/api/contracts', contractRoutes);
     this.app.use('/api/users', userRoutes);
-    this.app.use('/api/alerts', alertRoutes);
     
     // Route de test
     this.app.get('/api/health', (req: Request, res: Response) => {

@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import ClickOutside from '@/directives/click-outside'
 import { toast } from 'vue3-toastify'
 import 'vue3-toastify/dist/index.css'
+import tooltipDirective from '@/directives/tooltip'
 import '@/plugins/fontawesome' // Import pour ajouter les icônes à la bibliothèque
 import App from './App.vue'
 import router from './router'
@@ -74,6 +75,9 @@ app.component('FontAwesomeIcon', FontAwesomeIcon)
 
 // Enregistrer la directive click-outside globalement
 app.directive('click-outside', ClickOutside);
+
+// Enregistrer la directive de tooltip personnalisée
+app.directive('tooltip', tooltipDirective);
 
 // Configuration de vue3-toastify
 const toastOptions = {

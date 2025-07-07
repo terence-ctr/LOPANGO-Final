@@ -1,595 +1,495 @@
 <template>
-  <main class="flex-1 p-8">
-    <!-- Formulaire d'ajout de propriété -->
-    <div v-if="showAddPropertyForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-4 z-50 overflow-y-auto">
-      <div class="w-full max-w-2xl mt-10 mb-10">
-        <BasePropertyForm
-          :property="selectedProperty"
-          :is-editing="!!selectedProperty"
-          @submit="handlePropertySubmit"
-          @cancel="showAddPropertyForm = false"
+  <div class="container mx-auto px-4 py-8">
+    <!-- En-tête avec titre et bouton d'ajout -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">
+          {{ isTenantView ? 'Mes biens' : 'Tous les biens' }}
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          {{ filteredProperties.length }} biens trouvés
+        </p>
+      </div>
+      <button 
+        v-if="!isTenantView"
+        @click="handleAddProperty"
+        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center w-full sm:w-auto justify-center"
+      >
+        <i class="fas fa-plus mr-2"></i> Ajouter un bien
+      </button>
+    </div>
+    
+    <!-- Filtres et recherche -->
+    <div class="bg-white p-4 rounded-lg shadow mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Barre de recherche -->
+        <div class="relative">
+          <input 
+            v-model="searchQuery"
+            type="text" 
+            placeholder="Rechercher un bien..."
+            class="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            @input="handleSearch"
+          >
+          <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+        </div>
+        
+        <!-- Filtre par statut -->
+        <select 
+          v-model="statusFilter"
+          class="px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">Tous les statuts</option>
+          <option 
+            v-for="status in propertyStatuses" 
+            :key="status.value"
+            :value="status.value"
+          >
+            {{ status.label }}
+          </option>
+        </select>
+        
+        <!-- Filtre par type -->
+        <select 
+          v-model="typeFilter"
+          class="px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">Tous les types</option>
+          <option 
+            v-for="type in propertyTypes" 
+            :key="type.value"
+            :value="type.value"
+          >
+            {{ type.label }}
+          </option>
+        </select>
+        
+        <!-- Bouton de réinitialisation -->
+        <button 
+          @click="resetFilters"
+          class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center"
+        >
+          <i class="fas fa-undo-alt mr-2"></i> Réinitialiser
+        </button>
+      </div>
+    </div>
+    
+    <!-- Chargement -->
+    <div v-if="isLoading" class="flex justify-center items-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+    
+    <!-- Message si pas de résultats -->
+    <div v-else-if="filteredProperties.length === 0" class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="p-8 text-center">
+        <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-blue-100 mb-4">
+          <i class="fas fa-home text-blue-600 text-3xl"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Aucun bien trouvé</h3>
+        <p class="text-gray-500 mb-6">Aucun bien ne correspond à vos critères de recherche.</p>
+        <button 
+          @click="resetFilters"
+          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Réinitialiser les filtres
+        </button>
+      </div>
+    </div>
+    
+    <!-- Liste des propriétés -->
+    <div v-else class="space-y-6">
+      <!-- En-tête de la liste -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="text-sm text-gray-600">
+          Affichage de <span class="font-medium">{{ paginatedProperties.length }}</span> biens sur <span class="font-medium">{{ filteredProperties.length }}</span>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+          <!-- Boutons de vue -->
+          <div class="hidden sm:flex bg-gray-100 p-1 rounded-md">
+            <button 
+              @click="viewMode = 'grid'"
+              class="p-2 rounded-md"
+              :class="{ 'bg-white shadow-sm': viewMode === 'grid' }"
+              title="Vue en grille"
+            >
+              <i class="fas fa-th"></i>
+            </button>
+            <button 
+              @click="viewMode = 'list'"
+              class="p-2 rounded-md"
+              :class="{ 'bg-white shadow-sm': viewMode === 'list' }"
+              title="Vue en liste"
+            >
+              <i class="fas fa-list"></i>
+            </button>
+          </div>
+          
+          <!-- Sélecteur d'éléments par page -->
+          <div class="flex items-center">
+            <label for="itemsPerPage" class="text-sm text-gray-600 mr-2">Afficher :</label>
+            <select 
+              id="itemsPerPage"
+              v-model="itemsPerPage"
+              class="pl-2 pr-8 py-1 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="12">12</option>
+              <option value="24">24</option>
+              <option value="48">48</option>
+              <option value="96">96</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Grille des propriétés -->
+      <div v-if="viewMode === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <PropertyCard
+          v-for="property in paginatedProperties"
+          :key="property.id || property._id"
+          :property="property"
+          :is-favorite="isFavorite(property)"
+          @view-details="viewPropertyDetails"
+          @toggle-favorite="toggleFavorite"
+          @contact-owner="contactOwner"
         />
       </div>
-    </div>
-    <header class="flex justify-between items-center mb-8">
-      <h1 class="text-black font-extrabold text-lg leading-6 select-none">
-        Mes propriétés
-      </h1>
-      <button 
-        v-if="!isTenant"
-        @click="handleAddProperty"
-        class="bg-blue-800 hover:bg-blue-900 text-white text-sm font-semibold rounded px-4 py-2 flex items-center transition-colors duration-200"
-      >
-        <font-awesome-icon icon="plus" class="mr-2 text-xs" />
-        Ajouter un logement
-      </button>
-    </header>
-    
-    <!-- Filters -->
-    <div class="flex gap-3 mb-6 flex-wrap">
-      <button class="flex items-center gap-1 border border-gray-300 rounded-md px-3 py-1 text-xs text-gray-700 hover:bg-gray-100" 
-              type="button" @click="toggleFilters">
-        <i class="fas fa-sliders-h text-xs"></i>
-        Filtrer
-        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"></path>
-        </svg>
-      </button>
       
-      <select v-model="filters.column" 
-              class="border border-gray-300 rounded-md px-3 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
-        <option value="">Colonnes</option>
-        <option v-for="column in availableColumns" :key="column.value" :value="column.value">
-          {{ column.label }}
-        </option>
-      </select>
-      
-      <input v-model="searchQuery"
-             class="border border-gray-300 rounded-md px-3 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-600" 
-             placeholder="Recherche..." 
-             type="search"
-             @input="handleSearch" />
-      
-      <select v-model="filters.status" 
-              class="border border-gray-300 rounded-md px-3 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
-        <option value="">Statut</option>
-        <option value="actif">Actif</option>
-        <option value="inactif">Inactif</option>
-      </select>
-      
-      <select v-model="filters.landlord" 
-              class="border border-gray-300 rounded-md px-3 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
-        <option value="">Bailleur</option>
-        <option v-for="landlord in landlords" :key="landlord.id" :value="landlord.id">
-          {{ landlord.name }}
-        </option>
-      </select>
-    </div>
-    
-    <!-- Table -->
-    <div class="bg-white rounded-xl shadow-md p-6">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-lg font-semibold text-gray-900">Gestion des propriétés</h2>
-        <button 
-          v-if="!isTenant"
-          @click="handleAddProperty"
-          class="bg-blue-800 hover:bg-blue-900 text-white text-sm font-semibold rounded px-4 py-2 flex items-center transition-colors duration-200"
-        >
-          <font-awesome-icon icon="plus" class="mr-2 text-xs" />
-          Ajouter un logement
-        </button>
+      <!-- Liste des propriétés -->
+      <div v-else class="space-y-4">
+        <PropertyListItem
+          v-for="property in paginatedProperties"
+          :key="property.id || property._id"
+          :property="property"
+          :is-favorite="isFavorite(property)"
+          @view-details="viewPropertyDetails"
+          @toggle-favorite="toggleFavorite"
+        />
       </div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full border border-gray-200 rounded-lg text-left text-xs text-gray-600">
-          <thead>
-            <tr class="border-b border-gray-200">
-              <th class="py-2 px-3 font-semibold w-10">#</th>
-              <th class="py-2 px-3 font-semibold">Nom de la propriété</th>
-              <th class="py-2 px-3 font-semibold">Adresse</th>
-              <th class="py-2 px-3 font-semibold">Bailleur</th>
-              <th class="py-2 px-3 font-semibold">Loyer</th>
-              <th class="py-2 px-3 font-semibold">Statut</th>
-              <th class="py-2 px-3 w-16"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(property, index) in filteredProperties" :key="property.id" class="border-b border-gray-200">
-              <td class="py-2 px-3 font-mono text-gray-700">{{ String(index + 1).padStart(2, '0') }}</td>
-              <td class="py-2 px-3">{{ property.name }}</td>
-              <td class="py-2 px-3">{{ property.address }}</td>
-              <td class="py-2 px-3">
-                <a class="text-blue-600 hover:underline" href="#">
-                  {{ property.landlord }}
-                </a>
-              </td>
-              <td class="py-2 px-3">{{ property.rent }} $</td>
-              <td class="py-2 px-3">
-                <span :class="['font-semibold', property.status === 'Actif' ? 'text-green-600' : 'text-red-500']">
-                  {{ property.status }}
-                </span>
-              </td>
-              <td class="py-2 px-3">
-                <div class="relative flex justify-end">
-                  <!-- Bouton de menu pour les écrans larges -->
-                  <button 
-                    @click.stop="openPropertyMenu(property, $event)" 
-                    class="p-2 text-gray-500 hover:text-blue-600 focus:outline-none"
-                    :class="{ 'text-blue-600': propertyMenuOpen === (property.id ? (typeof property.id === 'string' ? parseInt(property.id, 10) : property.id) : null) }"
-                  >
-                    <i class="fas fa-ellipsis-v">...</i>
-                  </button>
-                  
-                  <!-- Menu déroulant pour les écrans larges -->
-                  <div 
-                    v-if="propertyMenuOpen === (property.id ? (typeof property.id === 'string' ? parseInt(property.id, 10) : property.id) : null)" 
-                    class="absolute right-0 z-50 mt-1 w-48 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
-                    style="top: 100%;"
-                    @click.stop
-                  >
-                    <div class="py-1">
-                      <a 
-                        href="#"
-                        @click.prevent="viewProperty(property)" 
-                        class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                      >
-                        <i class="fas fa-eye mr-2 text-gray-500 w-4"></i>
-                        Voir les détails
-                      </a>
-                      <a 
-                        href="#"
-                        @click.prevent="reportProperty(property)" 
-                        class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                        v-if="!isTenant"
-                      >
-                        <i class="fas fa-flag mr-2 text-yellow-500 w-4"></i>
-                        Signaler
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Boutons visibles uniquement sur mobile -->
-                <div class="md:hidden flex space-x-2">
-                  <a 
-                    href="#"
-                    @click.prevent="viewProperty(property)" 
-                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-full"
-                    title="Voir les détails"
-                  >
-                    <i class="fas fa-eye"></i>
-                  </a>
-                  <a 
-                    href="#"
-                    @click.prevent="reportProperty(property)" 
-                    class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-full"
-                    title="Signaler"
-                    v-if="!isTenant"
-                  >
-                    <i class="fas fa-flag"></i>
-                  </a>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="filteredProperties.length === 0">
-              <td colspan="7" class="py-4 text-center text-gray-500">
-                Aucune propriété trouvée
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex flex-col sm:flex-row justify-between items-center mt-8 gap-4">
+        <div class="text-sm text-gray-600">
+          Page {{ currentPage }} sur {{ totalPages }}
+        </div>
+        
+        <div class="flex items-center space-x-1">
+          <button 
+            @click="currentPage = 1"
+            :disabled="currentPage === 1"
+            class="px-3 py-1 rounded-md border"
+            :class="currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
+            title="Première page"
+          >
+            <i class="fas fa-angle-double-left"></i>
+          </button>
+          
+          <button 
+            @click="currentPage--"
+            :disabled="currentPage === 1"
+            class="px-3 py-1 rounded-md border"
+            :class="currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
+            title="Page précédente"
+          >
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          
+          <!-- Boutons de page -->
+          <template v-for="page in visiblePages" :key="page">
+            <button 
+              v-if="page === '...'"
+              class="px-3 py-1 text-gray-500"
+              disabled
+            >
+              {{ page }}
+            </button>
+            <button 
+              v-else
+              @click="currentPage = Number(page)"
+              class="w-10 h-8 rounded-md"
+              :class="currentPage === Number(page) ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'"
+            >
+              {{ page }}
+            </button>
+          </template>
+          
+          <button 
+            @click="currentPage++"
+            :disabled="currentPage === totalPages"
+            class="px-3 py-1 rounded-md border"
+            :class="currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
+            title="Page suivante"
+          >
+            <i class="fas fa-chevron-right"></i>
+          </button>
+          
+          <button 
+            @click="currentPage = totalPages"
+            :disabled="currentPage === totalPages"
+            class="px-3 py-1 rounded-md border"
+            :class="currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
+            title="Dernière page"
+          >
+            <i class="fas fa-angle-double-right"></i>
+          </button>
+        </div>
       </div>
     </div>
     
-    <!-- Pagination -->
-    <div class="mt-4 flex justify-between items-center">
-      <div class="text-sm text-gray-500">
-        Affichage de {{ filteredProperties.length }} sur {{ properties.length }} propriétés
-      </div>
-      <div class="flex gap-2">
-        <button :disabled="currentPage === 1" 
-                @click="currentPage--" 
-                class="px-3 py-1 border rounded-md text-sm"
-                :class="currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'">
-          Précédent
-        </button>
-        <button v-for="page in totalPages" :key="page"
-                @click="currentPage = page"
-                class="w-8 h-8 rounded-md text-sm"
-                :class="currentPage === page ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'">
-          {{ page }}
-        </button>
-        <button :disabled="currentPage >= totalPages" 
-                @click="currentPage++" 
-                class="px-3 py-1 border rounded-md text-sm"
-                :class="currentPage >= totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'">
-          Suivant
-        </button>
-      </div>
-    </div>
-  </main>
+    <!-- Modal d'ajout/édition -->
+    <PropertyFormModal
+      v-if="showAddPropertyForm"
+      :property="selectedProperty"
+      @close="showAddPropertyForm = false"
+      @submit="handlePropertySubmit"
+    />
+    
+    <!-- Modal de détails -->
+    <PropertyDetailsModal
+      v-if="showPropertyDetails && selectedProperty"
+      :property="selectedProperty"
+      :is-favorite="isFavorite(selectedProperty)"
+      @close="showPropertyDetails = false"
+      @toggle-favorite="toggleFavorite"
+      @contact-owner="contactOwner"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/auth';
 import { usePropertyStore } from '@/stores/propertyStore';
-import BasePropertyForm from '@/components/shared/properties/BasePropertyForm.vue';
-import type { Property, PropertyStatus, PropertyType } from '@/types/property';
+import type { Property } from '@/types/property';
 
-// User data
-const userAvatar = ref('https://storage.googleapis.com/a1aa/image/7d7f78f6-345d-43be-edec-e470151ec5de.jpg');
+// Composants
+const PropertyCard = defineAsyncComponent(() => import('@/components/properties/PropertyCard.vue'));
+const PropertyListItem = defineAsyncComponent(() => import('@/components/properties/PropertyListItem.vue'));
+const PropertyFormModal = defineAsyncComponent(() => import('@/components/properties/PropertyFormModal.vue'));
+const PropertyDetailsModal = defineAsyncComponent(() => import('@/components/properties/PropertyDetailsModal.vue'));
+
+// Store et route
 const authStore = useAuthStore();
 const propertyStore = usePropertyStore();
+const route = useRoute();
+const router = useRouter();
+const toast = useToast();
 
-// Charger les propriétés au montage du composant
-onMounted(async () => {
-  try {
-    await propertyStore.fetchProperties();
-  } catch (error) {
-    console.error('Erreur lors du chargement des propriétés:', error);
-  }
-});
-
-// Propriétés réactives
-const loading = computed(() => propertyStore.isLoading);
-const error = computed(() => propertyStore.propertyError);
-
-// Fonction utilitaire pour obtenir l'ID de la propriété
-const getPropertyId = (property: { id?: string | number | null }): number | null => {
-  if (property.id === undefined || property.id === null) return null;
-  return typeof property.id === 'string' ? parseInt(property.id, 10) : property.id;
-};
-
-// Propriété sélectionnée avec le bon type
-const selectedProperty = ref<Property | null>(null);
-
-// Interface pour les propriétés formatées pour l'affichage
-interface FormattedProperty {
-  id?: string | number;
-  name: string;
-  address: string;
-  landlord: string;
-  status: 'Actif' | 'Inactif';
-  title: string;
-  rent: number;
-  // Propriétés supplémentaires nécessaires pour le template
-  description?: string;
-  type: PropertyType;
-  area?: number;
-  rooms?: number;
-  bathrooms?: number;
-  furnished?: boolean;
-  // Index signature pour les propriétés dynamiques
-  [key: string]: unknown;
-}
-
-// Fonction utilitaire pour convertir le statut d'affichage en PropertyStatus
-const mapStatusToPropertyStatus = (status: 'Actif' | 'Inactif'): string => {
-  return status === 'Actif' ? 'DISPONIBLE' : 'INDISPONIBLE';
-};
-
-const properties = computed<FormattedProperty[]>(() => {
-  return propertyStore.getProperties.map(property => {
-    // Gérer l'adresse qui peut être une chaîne ou un objet
-    const address = typeof property.address === 'string' 
-      ? property.address 
-      : `${property.address?.street || ''}, ${property.address?.postal_code || ''} ${property.address?.city || ''}`;
-    
-    // Créer un objet de propriété formaté avec toutes les propriétés nécessaires
-    const formattedProperty: FormattedProperty = {
-      id: property.id,
-      name: property.title || 'Sans nom',
-      address: address,
-      // Utiliser ownerId au lieu de landlord_id qui n'existe pas dans le type Property
-      landlord: (property as any).ownerId ? `Propriétaire ${(property as any).ownerId}` : 'Propriétaire inconnu',
-      status: property.status === 'DISPONIBLE' ? 'Actif' : 'Inactif',
-      title: property.title || 'Sans titre',
-      rent: property.rent || 0,
-      // Propriétés supplémentaires avec des valeurs par défaut
-      description: (property as any).description || '',
-      type: (property as any).type || 'APPARTEMENT',
-      area: (property as any).area || 0,
-      rooms: (property as any).rooms || 0,
-      bathrooms: (property as any).bathrooms || 0,
-      furnished: (property as any).furnished || false
-    };
-    
-    return formattedProperty;
-  });
-});
-
-// Filters and search
-const filters = ref({
-  status: '',
-  landlord: '',
-  column: ''
-});
-
-const searchQuery = ref('');
-const currentPage = ref(1);
-const itemsPerPage = 10;
-
-// Inverser la logique pour afficher le bouton Signaler pour les locataires
-const isTenant = computed(() => authStore.user?.userType === 'tenant');
-
-// Gestion du menu déroulant des propriétés
-const propertyMenuOpen = ref<number | null>(null);
-
+// État local
+const isLoading = ref(false);
 const showAddPropertyForm = ref(false);
-const showFilters = ref(false);
+const showPropertyDetails = ref(false);
+const selectedProperty = ref<Property | null>(null);
+const viewMode = ref<'grid' | 'list'>('grid');
+const searchQuery = ref('');
+const statusFilter = ref('');
+const typeFilter = ref('');
+const currentPage = ref(1);
+const itemsPerPage = ref(12);
 
-
-// Computed properties
-const filteredProperties = computed<FormattedProperty[]>(() => {
-  return properties.value.filter(property => {
-    try {
-      const searchTerm = searchQuery.value?.toLowerCase() || '';
-      const propertyName = property.name?.toLowerCase() || '';
-      const propertyAddress = (typeof property.address === 'string' ? property.address : '').toLowerCase();
-      const propertyLandlord = property.landlord?.toLowerCase() || '';
-      
-      const matchesSearch = !searchTerm || 
-        propertyName.includes(searchTerm) ||
-        propertyAddress.includes(searchTerm) ||
-        propertyLandlord.includes(searchTerm);
-      
-      const matchesStatus = !filters.value.status || 
-        (filters.value.status === 'actif' ? 'Actif' : 'Inactif') === property.status;
-        
-      const matchesLandlord = !filters.value.landlord || 
-        (propertyLandlord && 
-        propertyLandlord.includes(filters.value.landlord.toLowerCase()));
-      
-      return matchesSearch && matchesStatus && matchesLandlord;
-    } catch (error) {
-      console.error('Erreur lors du filtrage des propriétés:', error);
-      return false; // Exclure les propriétés qui provoquent des erreurs
-    }
-  });
-});
-
-const totalPages = computed(() => {
-  return Math.ceil(filteredProperties.value.length / itemsPerPage);
-});
-
-const paginatedProperties = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage;
-  return filteredProperties.value.slice(start, start + itemsPerPage);
-});
-
-// Available columns for filtering
-const availableColumns = [
-  { value: 'name', label: 'Nom' },
-  { value: 'address', label: 'Adresse' },
-  { value: 'landlord', label: 'Bailleur' },
-  { value: 'rent', label: 'Loyer' },
-  { value: 'status', label: 'Statut' }
+// Options pour les filtres
+const propertyStatuses = [
+  { value: '', label: 'Tous les statuts' },
+  { value: 'DISPONIBLE', label: 'Disponible' },
+  { value: 'LOUE', label: 'Loué' },
+  { value: 'EN_MAINTENANCE', label: 'En maintenance' }
 ];
 
-// Propriétaires disponibles
-interface Landlord {
-  id: number | string;
-  name: string;
-}
+const propertyTypes = [
+  { value: '', label: 'Tous les types' },
+  { value: 'APPARTEMENT', label: 'Appartement' },
+  { value: 'MAISON', label: 'Maison' },
+  { value: 'VILLA', label: 'Villa' },
+  { value: 'BUREAU', label: 'Bureau' },
+  { value: 'LOCAL_COMMERCIAL', label: 'Local commercial' }
+];
 
-const landlords = computed<Landlord[]>(() => {
-  // Extraire les propriétaires uniques des propriétés
-  const uniqueLandlords = new Map<string, Landlord>();
-  
-  propertyStore.getProperties.forEach(property => {
-    if (property.ownerId) {
-      const id = property.ownerId.toString();
-      if (!uniqueLandlords.has(id)) {
-        uniqueLandlords.set(id, {
-          id: property.ownerId,
-          name: `Propriétaire ${id}` // À remplacer par le nom réel du propriétaire
-        });
-      }
-    }
-  });
-  
-  // Retourner les propriétaires uniques
-  return Array.from(uniqueLandlords.values());
+// Favoris
+const favoriteProperties = ref<Set<string | number>>(new Set());
+
+// Propriétés calculées
+const isTenantView = computed(() => route.name === 'tenant-properties');
+
+const properties = computed<Property[]>(() => {
+  if (isTenantView.value) {
+    return (propertyStore as any).getTenantProperties || [];
+  } else {
+    return (propertyStore as any).getProperties || [];
+  }
 });
 
-// Methods
-const toggleFilters = () => {
-  // Toggle filter visibility logic here
-  console.log('Toggle filters');
-};
-
-const handleSearch = () => {
-  currentPage.value = 1; // Reset to first page on new search
-};
-
-const viewProperty = async (property: FormattedProperty) => {
-  try {
-    const propertyId = getPropertyId(property);
-    if (propertyId === null) return;
+const filteredProperties = computed<Property[]>(() => {
+  return properties.value.filter(property => {
+    // Filtre par recherche
+    const matchesSearch = !searchQuery.value || 
+      property.title?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      (typeof property.address === 'string' 
+        ? property.address.toLowerCase().includes(searchQuery.value.toLowerCase())
+        : property.address?.street?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+          property.address?.city?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+          property.address?.postal_code?.includes(searchQuery.value)
+      );
     
-    // Charger les détails complets de la propriété
-    await propertyStore.fetchPropertyById(propertyId);
+    // Filtre par statut
+    const matchesStatus = !statusFilter.value || property.status === statusFilter.value;
     
-        // Vérifier que la propriété a bien été chargée
-    const currentProperty = propertyStore.getCurrentProperty;
-    if (currentProperty) {
-      // Créer un objet compatible avec le type Property
-      const propertyData: Property = {
-        ...currentProperty,
-        // Assurer que les champs obligatoires sont présents
-        id: currentProperty.id || '',
-        _id: (currentProperty as any)._id || null,
-        title: currentProperty.title || 'Sans titre',
-        // S'assurer que le type est valide
-        type: (['APPARTEMENT', 'MAISON', 'VILLA', 'CHATEAU', 'PARKING', 'LOCAL_COMMERCIAL', 'BUREAU', 'ENTREPOT', 'TERRAIN', 'AUTRE'].includes((currentProperty as any).type) 
-          ? (currentProperty as any).type 
-          : 'APPARTEMENT') as PropertyType,
-        area: (currentProperty as any).area || 0,
-        rooms: (currentProperty as any).rooms || 0,
-        bathrooms: (currentProperty as any).bathrooms || 0,
-        furnished: (currentProperty as any).furnished || false,
-        rent: (currentProperty as any).rent || 0,
-        status: mapStatusToPropertyStatus((currentProperty as any).status as 'Actif' | 'Inactif') as PropertyStatus,
-        // Gérer l'adresse qui peut être une chaîne ou un objet
-        address: typeof (currentProperty as any).address === 'string' 
-          ? (currentProperty as any).address 
-          : {
-              street: (currentProperty as any).address?.street || '',
-              city: (currentProperty as any).address?.city || '',
-              postal_code: (currentProperty as any).address?.postal_code || '',
-              country: (currentProperty as any).address?.country || 'congo'
-            },
-        // Autres champs obligatoires avec valeurs par défaut
-        description: (currentProperty as any).description || '',
-        slug: (currentProperty as any).slug || '',
-        // Utiliser les noms de propriétés en camelCase selon l'interface Property
-        createdAt: (currentProperty as any).createdAt || (currentProperty as any).created_at || new Date().toISOString(),
-        updatedAt: (currentProperty as any).updatedAt || (currentProperty as any).updated_at || new Date().toISOString(),
-        publishedAt: (currentProperty as any).publishedAt || (currentProperty as any).published_at || new Date().toISOString(),
-        tags: (currentProperty as any).tags || []
-      };
-      
-      selectedProperty.value = propertyData;
+    // Filtre par type
+    const matchesType = !typeFilter.value || property.type === typeFilter.value;
+    
+    return matchesSearch && matchesStatus && matchesType;
+  });
+});
+
+// Pagination
+const totalPages = computed(() => Math.ceil(filteredProperties.value.length / itemsPerPage.value));
+
+const paginatedProperties = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return filteredProperties.value.slice(start, end);
+});
+
+const visiblePages = computed<Array<number | string>>(() => {
+  const pages: (number | string)[] = [];
+  const maxVisible = 5;
+  
+  if (totalPages.value <= maxVisible) {
+    // Moins de pages que le maximum visible, on les affiche toutes
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i);
+    }
+  } else {
+    // Ajouter la première page
+    pages.push(1);
+    
+    // Calculer le début et la fin de la plage de pages à afficher
+    let start = Math.max(2, currentPage.value - 1);
+    let end = Math.min(totalPages.value - 1, currentPage.value + 1);
+    
+    // Ajuster si on est proche du début ou de la fin
+    if (currentPage.value <= 3) {
+      end = 4;
+    } else if (currentPage.value >= totalPages.value - 2) {
+      start = totalPages.value - 3;
     }
     
-    // Ici, vous pouvez rediriger vers une page de détail ou ouvrir une modale
-    console.log('View property:', selectedProperty.value);
-  } catch (error) {
-    console.error('Erreur lors du chargement des détails de la propriété:', error);
-    alert('Impossible de charger les détails de la propriété');
+    // Ajouter les points de suspension avant si nécessaire
+    if (start > 2) {
+      pages.push('...');
+    }
+    
+    // Ajouter les pages intermédiaires
+    for (let i = start; i <= end; i++) {
+      if (i > 1 && i < totalPages.value) {
+        pages.push(i);
+      }
+    }
+    
+    // Ajouter les points de suspension après si nécessaire
+    if (end < totalPages.value - 1) {
+      pages.push('...');
+    }
+    
+    // Ajouter la dernière page
+    pages.push(totalPages.value);
   }
-};
-
-const editProperty = (property: FormattedProperty) => {
-  console.log('Edit property:', property);
-  // Convertir FormattedProperty en Property
-  const propertyData: Property = {
-    ...property,
-    _id: (property as any)._id || null,
-    status: mapStatusToPropertyStatus(property.status as 'Actif' | 'Inactif') as PropertyStatus,
-    type: (['APPARTEMENT', 'MAISON', 'VILLA', 'CHATEAU', 'PARKING', 'LOCAL_COMMERCIAL', 'BUREAU', 'ENTREPOT', 'TERRAIN', 'AUTRE'].includes(property.type || '')
-      ? property.type
-      : 'APPARTEMENT') as PropertyType,
-    // Assurer que les champs obligatoires sont présents
-    address: property.address || '',
-    area: property.area || 0,
-    rooms: property.rooms || 0,
-    bathrooms: property.bathrooms || 0,
-    furnished: property.furnished || false,
-    rent: property.rent || 0,
-    // Autres champs avec valeurs par défaut
-    description: property.description || '',
-    slug: (property as any).slug || '',
-    createdAt: (property as any).createdAt || new Date().toISOString(),
-    updatedAt: (property as any).updatedAt || new Date().toISOString(),
-    publishedAt: (property as any).publishedAt || new Date().toISOString(),
-    tags: (property as any).tags || []
-  };
   
-  selectedProperty.value = propertyData;
-  showAddPropertyForm.value = true;
-};
+  return pages;
+});
 
-const deleteProperty = async (property: FormattedProperty) => {
-  const propertyId = getPropertyId(property);
-  if (propertyId === null) return;
-  
-  if (confirm(`Êtes-vous sûr de vouloir supprimer la propriété ${property.name || 'cette propriété'} ?`)) {
-    try {
-      await propertyStore.deleteProperty(propertyId);
-      // Le store mettra à jour automatiquement la liste des propriétés
-      selectedProperty.value = null;
-    } catch (error) {
-      console.error('Erreur lors de la suppression de la propriété:', error);
-      alert('Une erreur est survenue lors de la suppression de la propriété');
+// Méthodes
+const loadProperties = async () => {
+  try {
+    isLoading.value = true;
+    if (isTenantView.value) {
+      await propertyStore.fetchTenantProperties();
+    } else {
+      await propertyStore.fetchProperties();
     }
+  } catch (error) {
+    console.error('Erreur lors du chargement des propriétés :', error);
+    toast.error('Une erreur est survenue lors du chargement des propriétés');
+  } finally {
+    isLoading.value = false;
   }
 };
 
 const handleAddProperty = () => {
+  selectedProperty.value = null;
   showAddPropertyForm.value = true;
 };
 
 const handlePropertySubmit = async (propertyData: any) => {
   try {
-    if (selectedProperty.value) {
-      // Mise à jour d'une propriété existante
-      let propertyId: number;
-      
-      if (typeof selectedProperty.value.id === 'string') {
-        propertyId = parseInt(selectedProperty.value.id, 10);
-      } else if (typeof selectedProperty.value.id === 'number') {
-        propertyId = selectedProperty.value.id;
-      } else {
-        throw new Error('ID de propriété manquant ou invalide');
-      }
-      
-      if (isNaN(propertyId)) {
-        throw new Error('ID de propriété invalide');
-      }
-      
-      await propertyStore.updateProperty(propertyId, propertyData);
+    if (propertyData.id) {
+      await propertyStore.updateProperty(propertyData.id, propertyData);
+      toast.success('Propriété mise à jour avec succès');
     } else {
-      // Création d'une nouvelle propriété
       await propertyStore.createProperty(propertyData);
+      toast.success('Propriété créée avec succès');
     }
-    
-    // Fermer le formulaire
     showAddPropertyForm.value = false;
-    
-    // Mettre à jour la liste des propriétés
-    await propertyStore.fetchProperties();
-    
-    // Afficher un message de succès
-    alert(selectedProperty.value ? 'Propriété mise à jour avec succès !' : 'Propriété créée avec succès !');
-    
-    // Réinitialiser la propriété sélectionnée
-    selectedProperty.value = null;
+    await loadProperties();
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde de la propriété:', error);
-    alert('Une erreur est survenue lors de la sauvegarde de la propriété');
+    console.error('Erreur lors de la sauvegarde de la propriété :', error);
+    toast.error('Une erreur est survenue lors de la sauvegarde de la propriété');
   }
 };
 
-// Fonction pour signaler une propriété
-const reportProperty = (property: FormattedProperty) => {
-  console.log('Signalement de la propriété:', property);
-  // Ici, vous pouvez ajouter la logique pour signaler la propriété
-  // Par exemple, ouvrir un formulaire de signalement ou envoyer une requête API
-  alert(`Signalement de la propriété: ${property.name || 'cette propriété'}`);
+const viewPropertyDetails = (property: Property) => {
+  selectedProperty.value = property;
+  showPropertyDetails.value = true;
 };
 
-// Fonction pour ouvrir/fermer le menu d'une propriété
-const openPropertyMenu = (property: FormattedProperty, event: MouseEvent) => {
-  event.stopPropagation();
-  const propertyId = getPropertyId(property);
-  if (propertyId === null) return;
+const toggleFavorite = (property: Property) => {
+  const propertyId = (property.id || property._id) as string | number;
+  if (!propertyId) return;
   
-  propertyMenuOpen.value = propertyMenuOpen.value === propertyId ? null : propertyId;
-};
-
-// Gérer le clic en dehors du menu
-const handleClickOutside = (event: MouseEvent) => {
-  const target = event.target as HTMLElement;
-  if (!target.closest('.property-actions')) {
-    propertyMenuOpen.value = null;
+  if (favoriteProperties.value.has(propertyId)) {
+    favoriteProperties.value.delete(propertyId);
+    toast.success('Propriété retirée des favoris');
+  } else {
+    favoriteProperties.value.add(propertyId);
+    toast.success('Propriété ajoutée aux favoris');
   }
 };
 
-// Lifecycle hooks
+const isFavorite = (property: Property) => {
+  const propertyId = (property.id || property._id) as string | number;
+  return propertyId ? favoriteProperties.value.has(propertyId) : false;
+};
+
+const contactOwner = (property: Property) => {
+  // Implémentez la logique pour contacter le propriétaire
+  console.log('Contacter le propriétaire :', property);
+  toast.info('Fonctionnalité de contact à implémenter');
+};
+
+const handleSearch = () => {
+  currentPage.value = 1; // Réinitialiser à la première page lors d'une nouvelle recherche
+};
+
+const resetFilters = () => {
+  searchQuery.value = '';
+  statusFilter.value = '';
+  typeFilter.value = '';
+  currentPage.value = 1;
+};
+
+// Watchers
+watch([currentPage, itemsPerPage], () => {
+  // Faire défiler vers le haut lors du changement de page
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// Chargement initial
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
-  
-  // Fetch properties from API if needed
-  // fetchProperties();
-  
-  return () => {
-    document.removeEventListener('click', handleClickOutside);
-  };
+  loadProperties();
 });
 </script>
 
 <style scoped>
-/* Add any custom styles here */
+/* Styles spécifiques au composant */
 </style>

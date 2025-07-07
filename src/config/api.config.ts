@@ -32,6 +32,17 @@ export const apiConfig = {
       propertyStatuses: '/metadata/property-statuses',
       propertyEquipments: '/metadata/property-equipments'
     },
+    contracts: {
+      base: '/contracts',
+      byId: (id: string | number) => `/contracts/${id}`,
+      byTenant: (tenantId: string | number) => `/contracts?tenantId=${tenantId}`,
+      byProperty: (propertyId: string | number) => `/contracts?propertyId=${propertyId}`,
+      create: '/contracts',
+      update: (id: string | number) => `/contracts/${id}`,
+      delete: (id: string | number) => `/contracts/${id}`,
+      sign: (id: string | number) => `/contracts/${id}/sign`,
+      download: (id: string | number) => `/contracts/${id}/download`
+    },
     // Ajoutez d'autres endpoints au besoin
   },
   

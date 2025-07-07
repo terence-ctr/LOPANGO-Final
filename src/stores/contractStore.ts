@@ -49,14 +49,23 @@ export const useContractStore = defineStore('contract', () => {
         property: contract.property_id ? {
           id: contract.property_id,
           title: contract.property_title || 'Propriété sans nom',
-          address: {
+          address: contract.property_address || {
             street: contract.property_address_street || '',
             city: contract.property_address_city || '',
-            postalCode: contract.property_address_postal_code || '',
+            postal_code: contract.property_address_postal_code || '',
             country: contract.property_address_country || ''
           },
+          street: contract.property_address_street || '',
+          city: contract.property_address_city || '',
+          postal_code: contract.property_address_postal_code || '',
+          country: contract.property_address_country || '',
           rent: contract.rent,
-          deposit: contract.deposit
+          deposit: contract.deposit,
+          area: contract.property_area,
+          rooms: contract.property_rooms,
+          bathrooms: contract.property_bathrooms,
+          floor: contract.property_floor,
+          type: contract.property_type
         } : undefined
       }));
       
@@ -134,11 +143,134 @@ export const useContractStore = defineStore('contract', () => {
     }
   };
 
+  const fetchAllProperties = async () => {
+    loading.value = true;
+    error.value = null;
+    try {
+      console.log('Récupération de toutes les propriétés...');
+      const response = await api.get('/properties');
+      
+      console.log('Réponse complète des propriétés:', response);
+      
+      if (!response.data || !Array.isArray(response.data.data)) {
+        throw new Error('Format de réponse inattendu pour les propriétés');
+      }
+      
+      // Mapper les propriétés au format standardisé
+      const properties = response.data.data.map((prop: any) => {
+        // Extraire les données de base
+        const property: any = {
+          id: prop.id,
+          owner_id: prop.owner_id,
+          title: prop.title || 'Sans titre',
+          description: prop.description || '',
+          type: prop.type || 'APPARTEMENT',
+          area: Number(prop.area) || 0,
+          rooms: Number(prop.rooms) || 0,
+          bathrooms: Number(prop.bathrooms) || 0,
+          floor: prop.floor || '0',
+          furnished: Boolean(prop.furnished),
+          has_elevator: Boolean(prop.has_elevator),
+          has_parking: Boolean(prop.has_parking),
+          has_balcony: Boolean(prop.has_balcony),
+          has_terrace: Boolean(prop.has_terrace),
+          has_garden: Boolean(prop.has_garden),
+          has_pool: Boolean(prop.has_pool),
+          has_air_conditioning: Boolean(prop.has_air_conditioning),
+          has_heating: Boolean(prop.has_heating),
+          year_built: prop.year_built ? Number(prop.year_built) : null,
+          rent: Number(prop.rent) || 0,
+          charges: Number(prop.charges) || 0,
+          deposit: Number(prop.deposit) || 0,
+          currency: prop.currency || 'EUR',
+          status: prop.status || 'DISPONIBLE',
+          is_active: prop.is_active !== undefined ? Boolean(prop.is_active) : true,
+          is_featured: Boolean(prop.is_featured),
+          available_from: prop.available_from,
+          published_at: prop.published_at,
+          created_at: prop.created_at || new Date().toISOString(),
+          updated_at: prop.updated_at || new Date().toISOString(),
+          quartier: prop.quartier || '',
+          commune: prop.commune || '',
+          // Gestion des équipements
+          equipment: Array.isArray(prop.equipment) 
+            ? prop.equipment 
+            : (typeof prop.equipment === 'string' ? JSON.parse(prop.equipment || '[]') : [])
+        };
+
+        // Gestion de l'adresse
+        let fullAddress = prop.address || '';
+        let street = prop.street || '';
+        let city = prop.city || '';
+        let postal_code = prop.postal_code || prop.postalCode || '';
+        let country = prop.country || 'Congo';
+
+        // Si on a une adresse complète mais pas les champs individuels, on essaie de la parser
+        if (fullAddress && !street && !city) {
+          const addressParts = fullAddress.split(',').map((part: string) => part.trim());
+          if (addressParts.length >= 4) {
+            street = addressParts[0] || '';
+            city = addressParts[2] || '';
+            postal_code = addressParts[1] || '';
+            country = addressParts[3] || country;
+          }
+        }
+
+        // Vérifier si l'adresse est complète
+        const isAddressComplete = street && (city || property.commune) && country;
+        const hasOnlyCountry = !fullAddress && !street && !property.quartier && !property.commune && !city && !postal_code && country;
+        const normalizedCountry = country?.toString().toLowerCase().trim();
+        const isOnlyCongo = hasOnlyCountry && normalizedCountry === 'congo';
+
+        // Définir le message d'erreur d'adresse si nécessaire
+        if (isOnlyCongo) {
+          property.addressError = '⚠️ Adresse incomplète - Seul le pays "Congo" est renseigné';
+          console.error('Adresse incomplète: seul le pays "Congo" est renseigné pour la propriété ID:', prop.id);
+        } else if (hasOnlyCountry) {
+          property.addressError = `⚠️ Adresse incomplète - Seul le pays "${country}" est renseigné`;
+          console.error('Adresse incomplète: seul le pays est renseigné pour la propriété ID:', prop.id, 'Pays:', country);
+        } else if (!isAddressComplete) {
+          property.addressError = '⚠️ Adresse incomplète - Veuillez compléter les informations manquantes';
+        }
+
+        // Construire l'adresse complète pour l'affichage
+        property.address = [
+          street,
+          property.quartier,
+          property.commune,
+          city,
+          postal_code,
+          country
+        ].filter(Boolean).join(', ');
+
+        // Ajouter les champs d'adresse individuels
+        property.street = street;
+        property.city = city;
+        property.postal_code = postal_code;
+        property.country = country;
+
+        return property;
+      });
+      
+      console.log('Propriétés chargées avec succès:', properties);
+      return properties;
+      
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || err.message || 'Erreur inconnue';
+      error.value = `Erreur lors de la récupération des propriétés: ${errorMessage}`;
+      console.error('Erreur détaillée:', err);
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+
   return {
     contracts,
     loading,
     error,
     fetchContracts,
     createContract,
+    fetchAllProperties,
   };
 });

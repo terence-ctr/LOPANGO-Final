@@ -15,8 +15,7 @@
         <!-- Bottom left - Recent Payments (spans 2 columns) -->
         <RecentPayments class="lg:col-span-2" />
         
-        <!-- Bottom right - Alerts Card -->
-        <AlertsCard />
+        <!-- Space for future components -->
       </div>
     </div>
   </div>
@@ -34,5 +33,4 @@ body {
 import PropertiesCard from '@/components/landlord/dashboard/PropertiesCard.vue';
 import CalendarCard from '@/components/landlord/dashboard/CalendarCard.vue';
 import RecentPayments from '@/components/landlord/dashboard/RecentPayments.vue';
-import AlertsCard from '@/components/landlord/dashboard/AlertsCard.vue';
 </script>

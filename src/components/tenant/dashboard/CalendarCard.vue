@@ -1,6 +1,6 @@
 <template>
   <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm">
-    <!-- En-tête du calendrier -->
+    <!-- En-tête avec navigation -->
     <div class="flex justify-between items-center mb-4">
       <button 
         @click="previousMonth"
@@ -41,84 +41,70 @@
     <!-- Jours du mois -->
     <div class="grid grid-cols-7 gap-1 text-xs" :class="{ 'opacity-50': isLoading }">
       <div 
-        v-for="(day, index) in calendarDays" 
+        v-for="(day, index) in calendarDays"
         :key="index"
-        class="h-8 p-1 border border-none overflow-hidden relative"
-        :class="{
-          'bg-gray-50': !isCurrentMonth(day.date),
-          'cursor-pointer': isContractStartOrEndDate(day.date),
-          'hover:bg-blue-50': isContractStartOrEndDate(day.date)
-        }"
-        @click="isContractStartOrEndDate(day.date) ? handleDayClick(day.date) : null"
-        @mouseover="handleMouseOver(day, $event)"
+        class="relative p-1 min-h-2"
+        :class="getDayClass(day)"
+        @mouseover="(e) => handleMouseOver(day, e)"
         @mouseleave="handleMouseLeave"
+        @click="handleDayClick(day.date)"
       >
         <!-- Jour du mois -->
         <span 
-          class="relative z-10 flex items-center justify-center w-6 h-6 rounded-full"
+          class="inline-flex items-center justify-center h-5 w-5 rounded-full text-xs relative"
           :class="{
-            'text-gray-400': !isCurrentMonth(day.date),
-            'bg-blue-600 text-white': day.isToday,
-            'text-green-600': isStartOfContract(day.date) && !day.isToday,
-            'text-red-600': isEndOfContract(day.date) && !day.isToday,
-            'font-medium': day.isToday || isStartOfContract(day.date) || isEndOfContract(day.date)
+            'bg-blue-500 text-white': day.isToday,
+            'font-semibold': day.isCurrentMonth,
+            'text-gray-400': !day.isCurrentMonth
           }"
         >
           {{ day.day }}
-          
-          <!-- Indicateurs de contrat -->
-          <div v-if="isContractStartOrEndDate(day.date)" class="absolute top-1 right-1 flex space-x-1">
-            <span 
-              v-if="isStartOfContract(day.date)" 
-              class="w-2 h-2 rounded-full bg-green-500 border border-white"
-              title="Début de contrat"
-            ></span>
-            <span 
-              v-else-if="isEndOfContract(day.date)" 
-              class="w-2 h-2 rounded-full bg-red-500 border border-white"
-              title="Fin de contrat"
-            ></span>
-          </div>
+          <template v-if="hasEvents(day.date) || getEventsForDay(day.date).length > 0">
+            <div 
+              class="absolute -bottom-1 -right-1 w-2 h-2 rounded-full cursor-pointer"
+              :class="getEventDotClass(day.date)"
+              v-tooltip="getTooltipOptions(day)"
+            ></div>
+          </template>
         </span>
       </div>
     </div>
     
-    <!-- Infobulle -->
-    <div 
-      v-if="hoveredDate && getContractsForDate(hoveredDate.date).length > 0"
-      class="fixed z-50 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-left pointer-events-none transition-opacity duration-200"
-      :style="{
-        top: hoveredDate.y + 'px',
-        left: hoveredDate.x + 'px',
-        transform: isClient && hoveredDate.x > (windowSize.width || 0) - 280 ? 'translateX(calc(-100% + 20px))' : 'none',
-      }"
-    >
-      <div v-for="contract in getContractsForDate(hoveredDate.date)" 
-           :key="contract.id" 
-           class="mb-2 last:mb-0 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
-        <div class="font-semibold text-blue-700">
-          {{ contract.property?.title || 'Propriété sans nom' }}
-        </div>
-        <div class="text-xs text-gray-600 mt-1">
-          <i class="fas fa-user-tie mr-1"></i>
-          {{ contract.landlord ? `${contract.landlord.firstName} ${contract.landlord.lastName}` : 'Bailleur non spécifié' }}
-        </div>
-        <div class="text-xs text-gray-500 mt-1">
-          <i class=""></i>
-          {{ formatDate(contract.start_date) }} - 
-          {{ contract.end_date ? formatDate(contract.end_date) : 'Indéfini' }}
-        </div>
+    <!-- Légende 
+    <div class="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
+      <div class="flex items-center">
+        <div class="w-4 h-4 rounded bg-blue-100 border-l-4 border-blue-500 mr-2"></div>
+        <span>Contrat actif</span>
       </div>
-    </div>
+      <div class="flex items-center">
+        <div class="w-4 h-4 rounded bg-green-100 border-l-4 border-green-500 mr-2"></div>
+        <span>Début de contrat</span>
+      </div>
+      <div class="flex items-center">
+        <div class="w-4 h-4 rounded bg-red-100 border-l-4 border-red-500 mr-2"></div>
+        <span>Fin de contrat</span>
+      </div>
+    </div>-->
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import api from '@/services/api';
 
-// Modèle d'adresse standardisé
+// Vérification côté client
+const isClient = typeof window !== 'undefined';
+
+onMounted(() => {
+  if (isClient) {
+    window.addEventListener('resize', updateWindowSize);
+    updateWindowSize();
+    fetchContracts();
+  }
+});
+
+// Types
 interface Address {
   street: string;
   city: string;
@@ -126,57 +112,73 @@ interface Address {
   country: string;
 }
 
-// Interface pour les propriétés
+interface User {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  userType?: string;
+}
+
 interface Property {
   id: number;
   title: string;
-  description: string;
-  address: Address | string;
-  surface: number;
-  rooms: number;
-  bedrooms: number;
-  floor: number;
-  available: boolean;
-  // Autres propriétés optionnelles
-  [key: string]: any;
-}
-
-// Interface pour les utilisateurs (bailleurs, locataires, etc.)
-interface User {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  userType?: string;
-  // Pour les propriétés supplémentaires qui pourraient être présentes
-  [key: string]: any;
+  description?: string;
+  price: number;
+  address: string | Address;
+  landlord_id: number;
+  created_at?: string;
+  updated_at?: string;
+  surface?: number;
+  rooms?: number;
+  bedrooms?: number;
+  floor?: number;
+  available?: boolean;
 }
 
 interface Contract {
   id: number;
   start_date: string;
+  startDate?: string; // Alias pour la compatibilité
   end_date: string | null;
+  endDate?: string | null; // Alias pour la compatibilité
   status: string;
-  property?: Property;
+  property: Property;
   property_id?: number;
-  tenant?: User;
-  tenant_id?: number;
-  landlord?: User;
   landlord_id?: number;
+  tenant_id?: number;
+  tenant?: User;
+  landlord?: User;
+  
+  // Champs pour l'affichage
+  property_title?: string;
+  property_address?: string;
+  property_address_street?: string;
+  property_address_city?: string;
+  property_address_postal_code?: string;
+  property_address_country?: string;
+  tenant_first_name?: string;
+  tenant_last_name?: string;
+  tenant_email?: string;
+  tenant_phone?: string;
+  rent?: number | string;
+  deposit?: number | string;
+  deposit_status?: string;
+  currency?: string;
+  
+  // Pour la rétrocompatibilité
   [key: string]: any;
 }
 
-// Vérification côté client
-const isClient = typeof window !== 'undefined';
-
-// État
-const currentDate = ref(isClient ? new Date() : new Date(2023, 0, 1));
-
-interface HoveredDate {
+interface CalendarEvent {
+  id: number;
+  title: string;
   date: Date;
-  x: number;
-  y: number;
+  propertyTitle: string;
+  type: 'start' | 'end' | 'active' | 'payment';
+  contract: Contract;
+  tooltipText: string;
 }
 
 interface DayInfo {
@@ -186,385 +188,363 @@ interface DayInfo {
   isToday: boolean;
 }
 
-const hoveredDate = ref<HoveredDate | null>(null);
-const tooltipTimeout = ref<number | null>(null);
-const windowSize = ref({ width: 0, height: 0 });
+interface HoveredDate {
+  date: Date;
+  x: number;
+  y: number;
+}
 
-// Données des contrats
-const contracts = ref<Contract[]>([]);
+// Références
+const currentDate = ref(new Date());
+const hoveredDate = ref<HoveredDate | null>(null);
+
+// Vérifie si une date est aujourd'hui
+const isToday = (date: Date): boolean => {
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear();
+};
+
+const windowSize = ref({
+  width: 0,
+  height: 0
+});
+
+// Mise à jour initiale de la taille de la fenêtre
+if (typeof window !== 'undefined') {
+  windowSize.value = {
+    width: window.innerWidth,
+    height: window.innerHeight
+  };
+}
 const isLoading = ref(false);
 const error = ref<string | null>(null);
-
-// Récupération des contrats
-const fetchContracts = async () => {
-  console.log('Début de fetchContracts');
-  const authStore = useAuthStore();
-  
-  try {
-    // Vérifier l'authentification
-    await authStore.checkAuth();
-    const currentUser = authStore.currentUser as unknown as User;
-    const userId = currentUser?.id;
-    
-    if (!userId) {
-      throw new Error('Utilisateur non connecté');
-    }
-    
-    console.log('[CalendarCard] Récupération des contrats pour l\'utilisateur:', userId);
-    
-    isLoading.value = true;
-    error.value = null;
-    
-    // Récupérer tous les contrats
-    const response = await api.get('/contracts');
-    console.log('[CalendarCard] Réponse de l\'API:', response);
-    
-    // Extraire les données de la réponse en fonction du format
-    let allContracts: any[] = [];
-    const responseData = response?.data || {};
-    
-    if (Array.isArray(responseData)) {
-      allContracts = responseData;
-    } else if (responseData && typeof responseData === 'object') {
-      if (Array.isArray(responseData.data)) {
-        allContracts = responseData.data;
-      } else if (responseData.contracts && Array.isArray(responseData.contracts)) {
-        allContracts = responseData.contracts;
-      } else if (Object.keys(responseData).length > 0) {
-        allContracts = [responseData];
-      }
-    }
-    
-    // Filtrer les contrats pour ne garder que ceux du locataire connecté
-    const contractsData = allContracts.filter((contract: any) => {
-      // Vérifier si le contrat appartient au locataire connecté
-      const isTenant = contract.tenant_id === userId || 
-                      (contract.tenant && contract.tenant.id === userId);
-      
-      // Vérifier si le contrat est actif ou à venir
-      const now = new Date();
-      const endDate = contract.end_date ? new Date(contract.end_date) : null;
-      const isActive = !endDate || endDate >= now;
-      
-      return isTenant && isActive;
-    });
-    
-    console.log(`[CalendarCard] ${contractsData.length} contrat(s) trouvé(s) pour l'utilisateur ${userId}`);
-    
-    /**
-     * Récupère les détails d'une propriété via l'API
-     * @param propertyId - ID de la propriété à récupérer
-     * @returns Les détails de la propriété ou null en cas d'erreur
-     */
-    const fetchPropertyDetails = async (propertyId: number) => {
-      if (!propertyId) {
-        console.warn('[CalendarCard] Aucun ID de propriété fourni');
-        return null;
-      }
-      
-      console.log(`[CalendarCard] Tentative de récupération de la propriété ${propertyId}`);
-      
-      try {
-        const response = await api.get(`/properties/${propertyId}`);
-        const propertyData = response.data?.data || response.data;
-        
-        if (!propertyData) {
-          console.warn(`[CalendarCard] Aucune donnée reçue pour la propriété ${propertyId}`);
-          return null;
-        }
-        
-        console.log(`[CalendarCard] Propriété ${propertyId} récupérée avec succès`);
-        return propertyData;
-        
-      } catch (error: any) {
-        // Gestion des erreurs HTTP
-        if (error.response) {
-          switch (error.response.status) {
-            case 401:
-              console.warn(`[CalendarCard] Non autorisé à accéder à la propriété ${propertyId}`);
-              break;
-            case 403:
-              console.warn(`[CalendarCard] Accès refusé à la propriété ${propertyId}`);
-              break;
-            case 404:
-              console.warn(`[CalendarCard] Propriété ${propertyId} non trouvée`);
-              break;
-            default:
-              console.error(
-                `[CalendarCard] Erreur ${error.response.status} lors de la récupération de la propriété ${propertyId}:`,
-                error.response.data
-              );
-          }
-        } else if (error.request) {
-          console.error(`[CalendarCard] Pas de réponse du serveur pour la propriété ${propertyId}`, error.request);
-        } else {
-          console.error(`[CalendarCard] Erreur lors de la configuration de la requête pour la propriété ${propertyId}:`, error.message);
-        }
-        
-        return null;
-      }
-    };
-
-    /**
-     * Améliore les contrats avec les détails des propriétés
-     */
-    const enhanceContractsWithPropertyDetails = async (contracts: any[]): Promise<any[]> => {
-      console.log(`[CalendarCard] Début de l'amélioration de ${contracts.length} contrats`);
-      
-      const enhanced = [];
-      let successCount = 0;
-      
-      for (const contract of contracts) {
-        const contractId = contract.id || 'inconnu';
-        
-        try {
-          // Si on a déjà les infos de la propriété, on les garde
-          if (contract.property) {
-            console.log(`[CalendarCard] [${contractId}] Propriété déjà incluse`);
-            enhanced.push(contract);
-            successCount++;
-            continue;
-          }
-          
-          // Vérification de l'ID de propriété
-          const propertyId = contract.property_id;
-          if (!propertyId) {
-            console.warn(`[CalendarCard] [${contractId}] Aucun ID de propriété trouvé`);
-            enhanced.push(contract);
-            continue;
-          }
-          
-          // Récupération des détails de la propriété
-          console.log(`[CalendarCard] [${contractId}] Récupération des détails de la propriété ${propertyId}`);
-          const propertyDetails = await fetchPropertyDetails(propertyId);
-          
-          if (propertyDetails) {
-            console.log(`[CalendarCard] [${contractId}] Propriété ${propertyId} récupérée avec succès`);
-            enhanced.push({ ...contract, property: propertyDetails });
-            successCount++;
-          } else {
-            console.warn(`[CalendarCard] [${contractId}] Aucun détail disponible pour la propriété ${propertyId}`);
-            enhanced.push(contract);
-          }
-          
-        } catch (error) {
-          console.error(`[CalendarCard] [${contractId}] Erreur lors du traitement:`, error);
-          enhanced.push(contract);
-        }
-      }
-      
-      console.log(`[CalendarCard] Amélioration terminée: ${successCount}/${contracts.length} contrats améliorés avec succès`);
-      return enhanced;
-    };
-    
-    // Amélioration des contrats avec les détails des propriétés
-    const enhancedContracts = await enhanceContractsWithPropertyDetails(contractsData);
-
-    /**
-     * Affiche un récapitulatif des contrats et de leurs propriétés
-     */
-    const logContractsSummary = (contracts: any[]) => {
-      console.log('\n=== RÉCAPITULATIF DES CONTRATS ===');
-      
-      if (contracts.length === 0) {
-        console.log('Aucun contrat à afficher');
-        return;
-      }
-      
-      contracts.forEach(contract => {
-        const contractId = contract.id || 'inconnu';
-        const startDate = contract.start_date ? new Date(contract.start_date).toLocaleDateString() : 'non spécifiée';
-        const endDate = contract.end_date ? new Date(contract.end_date).toLocaleDateString() : 'non spécifiée';
-        
-        console.log(`\n[Contrat ${contractId}]`);
-        console.log(`- Période: Du ${startDate} au ${endDate}`);
-        
-        if (contract.property) {
-          const prop = contract.property;
-          console.log(`- Propriété: #${prop.id} - ${prop.title || 'Sans titre'}`);
-          
-          if (typeof prop.address === 'string') {
-            console.log(`  Adresse: ${prop.address}`);
-          } else if (prop.address) {
-            const addr = prop.address;
-            const fullAddress = [
-              addr.street,
-              addr.postal_code,
-              addr.city,
-              addr.country
-            ].filter(Boolean).join(', ');
-            
-            if (fullAddress) {
-              console.log(`  Adresse: ${fullAddress}`);
-            }
-          }
-          
-        } else if (contract.property_id) {
-          console.log(`- Propriété: #${contract.property_id} (détails non disponibles)`);
-        } else {
-          console.log('- Aucune propriété associée');
-        }
-      });
-      
-      console.log('\n=== FIN DU RÉCAPITULATIF ===\n');
-    };
-    
-    // Affichage du récapitulatif
-    logContractsSummary(enhancedContracts);
-    
-    if (enhancedContracts.length > 0) {
-      // Formater les données pour correspondre à notre interface
-      contracts.value = enhancedContracts.map((contract: any) => {
-        // Créer un objet de base avec les champs obligatoires
-        const formattedContract: any = {
-          id: contract.id,
-          start_date: contract.startDate || contract.start_date || '',
-          end_date: contract.endDate || contract.end_date || null,
-          status: contract.status || 'draft',
-        };
-
-        // Gérer la propriété
-        if (contract.property) {
-          // Si on a un objet property complet
-          formattedContract.property = {
-            id: contract.property.id || contract.property_id || 0,
-            title: contract.property.title || `Propriété #${contract.property.title || contract.property.title || '?'}`,
-            address: typeof contract.property.address === 'string' 
-              ? contract.property.address 
-              : {
-                  street: contract.property.street || contract.property.address?.street || '',
-                  city: contract.property.city || contract.property.address?.city || '',
-                  postal_code: contract.property.postal_code || contract.property.address?.postal_code || '',
-                  country: contract.property.country || contract.property.address?.country || 'congo'
-                }
-          };
-        } else if (contract.property_id) {
-          // Si on a seulement l'ID de la propriété
-          formattedContract.property = {
-            id: contract.property_id,
-            title: `Propriété #${contract.property_id}`,
-            address: {
-              street: '',
-              city: '',
-              postal_code: '',
-              country: 'congo'
-            }
-          };
-        } else {
-          // Aucune information sur la propriété
-          formattedContract.property = {
-            id: 0,
-            title: `Contrat #${contract.id}`,
-            address: {
-              street: '',
-              city: '',
-              postal_code: '',
-              country: 'congo'
-            }
-          };
-        }
-
-        // Gérer le bailleur
-        if (contract.landlord) {
-          formattedContract.landlord = {
-            id: contract.landlord.id || contract.landlord_id || 0,
-            firstName: contract.landlord.firstName || contract.landlord.first_name || '',
-            lastName: contract.landlord.lastName || contract.landlord.last_name || 'Bailleur',
-            email: contract.landlord.email || '',
-            phone: contract.landlord.phone || ''
-          };
-        } else if (contract.landlord_id) {
-          formattedContract.landlord = {
-            id: contract.landlord_id,
-            firstName: '',
-            lastName: 'Bailleur',
-            email: '',
-            phone: ''
-          };
-        }
-
-        // Gérer le locataire
-        if (contract.tenant) {
-          formattedContract.tenant = {
-            id: contract.tenant.id || contract.tenant_id || 0,
-            firstName: contract.tenant.firstName || contract.tenant.first_name || '',
-            lastName: contract.tenant.lastName || contract.tenant.last_name || 'Locataire',
-            email: contract.tenant.email || '',
-            phone: contract.tenant.phone || ''
-          };
-        } else if (contract.tenant_id) {
-          formattedContract.tenant = {
-            id: contract.tenant_id,
-            firstName: '',
-            lastName: 'Locataire',
-            email: '',
-            phone: ''
-          };
-        }
-
-        return formattedContract as Contract;
-      });
-      
-      console.log('[CalendarCard] Contrats formatés:', contracts.value);
-    } else {
-      console.log('[CalendarCard] Aucun contrat trouvé pour l\'utilisateur');
-      contracts.value = [];
-    }
-  } catch (err: any) {
-    console.error('[CalendarCard] Erreur lors du chargement des contrats:', err);
-    
-    // Gestion des erreurs spécifiques
-    if (err.response) {
-      // Erreur de réponse du serveur (4xx, 5xx)
-      const status = err.response.status;
-      if (status === 401) {
-        error.value = 'Session expirée. Veuillez vous reconnecter.';
-        // Rediriger vers la page de connexion si nécessaire
-        // router.push('/login');
-      } else if (status === 403) {
-        error.value = 'Vous n\'êtes pas autorisé à accéder à cette ressource.';
-      } else if (status === 404) {
-        error.value = 'Aucun contrat trouvé.';
-        contracts.value = [];
-      } else {
-        error.value = `Erreur serveur (${status}). Veuillez réessayer plus tard.`;
-      }
-    } else if (err.request) {
-      // La requête a été faite mais aucune réponse n'a été reçue
-      error.value = 'Impossible de joindre le serveur. Vérifiez votre connexion Internet.';
-    } else if (err.message === 'Utilisateur non connecté') {
-      error.value = 'Veuillez vous connecter pour voir vos contrats';
-    } else {
-      // Erreur inattendue
-      error.value = 'Une erreur inattendue est survenue. Veuillez réessayer plus tard.';
-    }
-    
-    // En cas d'erreur, vider la liste des contrats
-    contracts.value = [];
-  } finally {
-    isLoading.value = false;
-  }
-};
+const contracts = ref<Contract[]>([]);
+const authStore = useAuthStore();
 
 // Jours de la semaine
 const days = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
 
-// Mois et année actuels
+// Mise à jour de la taille de la fenêtre
+const updateWindowSize = () => {
+  if (isClient) {
+    windowSize.value = {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  }
+};
+
+// Gestionnaire de survol de la souris
+const handleMouseOver = (day: DayInfo, event: MouseEvent) => {
+  if (isContractStartOrEndDate(day.date)) {
+    if (!isClient) return;
+    
+    const tooltipWidth = 256; // Largeur de l'infobulle
+    const x = event.clientX;
+    const y = event.clientY - 50;
+    
+    // Ajuster la position si l'infobulle dépasse de la fenêtre
+    const adjustedX = x + tooltipWidth > windowSize.value.width 
+      ? windowSize.value.width - tooltipWidth - 10 
+      : x;
+    
+    hoveredDate.value = {
+      date: day.date,
+      x: adjustedX,
+      y: y
+    };
+  }
+};
+
+// Gestionnaire de sortie de la souris
+const handleMouseLeave = () => {
+  hoveredDate.value = null;
+};
+
+// Gestion du clic sur un jour
+const handleDayClick = (date: Date) => {
+  if (isContractStartOrEndDate(date)) {
+    // Logique de gestion du clic sur un jour avec contrat
+    console.log('Jour cliqué:', date);
+  }
+};
+
+// Formate une date au format JJ/MM/AAAA
+const formatDate = (dateString: string | Date | null): string => {
+  if (!dateString) return '';
+  
+  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  return date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+};
+
+// Détermine la position optimale pour l'infobulle en fonction de la position dans le mois
+const getOptimalPlacement = (day: DayInfo) => {
+  const dayOfWeek = day.date.getDay();
+  const isLastWeek = day.date.getDate() > 21;
+  
+  if (dayOfWeek > 3 && !isLastWeek) return 'left';
+  if (dayOfWeek < 3 || isLastWeek) return 'right';
+  return 'bottom';
+};
+
+// Options de l'infobulle avec positionnement dynamique
+const getTooltipOptions = (day: DayInfo) => {
+  const placement = getOptimalPlacement(day);
+  const tooltip = getEventTooltip(day.date);
+  
+  if (!tooltip) return null;
+  
+  // S'assurer que les infobulles sont recréées lors du changement de mois
+  const monthKey = currentDate.value.getMonth() + currentDate.value.getFullYear() * 12;
+  
+  return {
+    ...tooltip,
+    // Ajouter une clé unique pour forcer la mise à jour
+    key: `tooltip-${day.date.getDate()}-${day.date.getMonth()}-${monthKey}`,
+    placement,
+    offset: placement === 'bottom' ? [0, 10] : [10, 0],
+    theme: 'bg-white',
+    trigger: 'click hover',
+    hideOnTargetClick: false,
+    arrow: true,
+    arrowType: 'round',
+    distance: 8
+  };
+};
+
+// Vérifie si une date est dans le mois en cours
+const isCurrentMonth = (date: Date): boolean => {
+  return date.getMonth() === currentDate.value.getMonth() && 
+         date.getFullYear() === currentDate.value.getFullYear();
+};
+
+// Vérifie si deux dates correspondent au même jour
+const isSameDay = (date1: Date, date2: Date): boolean => {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+};
+
+// Vérifie si une date est le début d'un contrat
+const isStartOfContract = (date: Date): boolean => {
+  if (!contracts.value || contracts.value.length === 0) return false;
+  
+  const dateStr = date.toISOString().split('T')[0];
+  
+  return contracts.value.some(contract => {
+    if (!contract.start_date) return false;
+    const startDate = new Date(contract.start_date).toISOString().split('T')[0];
+    return dateStr === startDate;
+  });
+};
+
+// Vérifie si une date est la fin d'un contrat
+const isEndOfContract = (date: Date): boolean => {
+  if (!contracts.value || contracts.value.length === 0) return false;
+  
+  const dateStr = date.toISOString().split('T')[0];
+  
+  return contracts.value.some(contract => {
+    if (!contract.end_date) return false;
+    const endDate = new Date(contract.end_date).toISOString().split('T')[0];
+    return dateStr === endDate;
+  });
+};
+
+// Récupère les contrats pour une date donnée
+const getContractsForDate = (date: Date): Contract[] => {
+  if (!contracts.value || contracts.value.length === 0) return [];
+  
+  return contracts.value.filter((contract): contract is Contract => {
+    if (!contract) return false;
+    
+    const startDate = new Date(contract.start_date);
+    const endDate = contract.end_date ? new Date(contract.end_date) : null;
+    
+    return date >= startDate && (!endDate || date <= endDate);
+  });
+};
+
+// Formatte une adresse
+const formatAddress = (address: string | Address | undefined | null): string => {
+  if (!address) return 'Adresse non disponible';
+  
+  if (typeof address === 'string') {
+    return address || 'Adresse non disponible';
+  }
+  
+  const parts = [
+    address.street,
+    address.postal_code,
+    address.city,
+    address.country
+  ];
+  
+  return parts.filter(Boolean).join(', ');
+};
+
+// Données calculées
 const currentMonth = computed(() => {
-  return currentDate.value.toLocaleDateString('fr-FR', { month: 'long' });
+  return currentDate.value.toLocaleDateString('fr-FR', { 
+    month: 'long',
+    year: 'numeric'
+  }).split(' ')[0];
 });
 
 const currentYear = computed(() => {
   return currentDate.value.getFullYear();
 });
 
-// Génération des jours du mois
+// Génère les jours du mois courant avec les informations nécessaires
+const daysInMonth = computed<DayInfo[]>(() => {
+  if (!isClient) return [];
+  
+  const year = currentDate.value.getFullYear();
+  const month = currentDate.value.getMonth();
+  
+  // Premier jour du mois
+  const firstDay = new Date(year, month, 1);
+  // Dernier jour du mois
+  const lastDay = new Date(year, month + 1, 0);
+  
+  // Jours du mois précédent à afficher
+  const prevMonthDays = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+  
+  // Jours du mois prochain à afficher
+  const nextMonthDays = 6 - lastDay.getDay();
+  
+  const days: DayInfo[] = [];
+  
+  // Ajouter les jours du mois précédent
+  if (prevMonthDays > 0) {
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    
+    for (let i = prevMonthDays - 1; i >= 0; i--) {
+      const day = prevMonthLastDay - i;
+      const date = new Date(prevYear, prevMonth, day);
+      days.push({
+        day,
+        date,
+        isCurrentMonth: false,
+        isToday: isToday(date)
+      });
+    }
+  }
+  
+  // Ajouter les jours du mois courant
+  const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+  
+  for (let day = 1; day <= daysInCurrentMonth; day++) {
+    const date = new Date(year, month, day);
+    days.push({
+      day,
+      date,
+      isCurrentMonth: true,
+      isToday: isToday(date)
+    });
+  }
+  
+  // Ajouter les jours du mois prochain
+  if (nextMonthDays > 0) {
+    const nextMonth = month === 11 ? 0 : month + 1;
+    const nextYear = month === 11 ? year + 1 : year;
+    
+    for (let day = 1; day <= nextMonthDays; day++) {
+      const date = new Date(nextYear, nextMonth, day);
+      days.push({
+        day,
+        date,
+        isCurrentMonth: false,
+        isToday: isToday(date)
+      });
+    }
+  }
+  
+  return days;
+});
+
+// Vérifie si une date est le début ou la fin d'un contrat
+const isContractStartOrEndDate = (date: Date): boolean => {
+  return isStartOfContract(date) || isEndOfContract(date);
+};
+
+// Vérifie si une date est dans la période d'un contrat
+const isInContractPeriod = (date: Date, contract: Contract | null): boolean => {
+  if (!contract) return false;
+  
+  const startDate = new Date(contract.start_date);
+  const endDate = contract.end_date ? new Date(contract.end_date) : null;
+  
+  return date >= startDate && (!endDate || date <= endDate);
+};
+
+// Vérifie si une date est un jour de paiement (5 de chaque mois)
+const isPaymentDay = (date: Date): boolean => {
+  return date.getDate() === 5;
+};
+
+// Vérifie si un jour a des événements
+const hasEvents = (date: Date): boolean => {
+  if (!contracts.value || contracts.value.length === 0) return false;
+  return isContractStartOrEndDate(date) || 
+         contracts.value.some(contract => isInContractPeriod(date, contract)) || 
+         isPaymentDay(date);
+};
+
+// Récupère la classe CSS pour un jour donné
+const getDayClass = (day: DayInfo): string => {
+  const classes = [];
+  
+  if (!day.isCurrentMonth) {
+    classes.push('text-gray-400');
+  }
+  
+  if (day.isToday) {
+    classes.push('font-bold bg-blue-50 rounded-full w-8 h-8 flex items-center justify-center');
+  }
+  
+  if (isContractStartOrEndDate(day.date)) {
+    classes.push('relative');
+  }
+  
+  return classes.join(' ');
+};
+
+// Récupère les indicateurs pour un jour donné
+const getDayIndicators = (date: Date): string[] => {
+  const indicators: string[] = [];
+  
+  if (!contracts.value || contracts.value.length === 0) return indicators;
+  
+  const events = getEventsForDay(date);
+  
+  // Ne garder que l'indicateur de début de contrat (vert)
+  events.forEach(event => {
+    if (event?.type === 'start') {
+      indicators.push('bg-green-500');
+    }
+  });
+  
+  return indicators;
+};
+
+// Générer les jours du calendrier
 const calendarDays = computed(() => {
+  if (!currentDate.value) return [];
+  
   const year = currentDate.value.getFullYear();
   const month = currentDate.value.getMonth();
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // 0 = lundi, 6 = dimanche
+  const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
   const daysInMonth = lastDay.getDate();
   
   const days: DayInfo[] = [];
@@ -592,241 +572,488 @@ const calendarDays = computed(() => {
   }
   
   // Ajouter les jours du mois suivant pour compléter la grille
-  const remainingDays = 42 - days.length; // 6 lignes de 7 jours
-  for (let i = 1; i <= remainingDays; i++) {
-    const date = new Date(year, month + 1, i);
-    days.push({
-      day: i,
-      date,
-      isCurrentMonth: false,
-      isToday: isToday(date)
-    });
+  const remainingDays = 42 - days.length;
+  if (remainingDays > 0) {
+    for (let i = 1; i <= remainingDays; i++) {
+      const date = new Date(year, month + 1, i);
+      days.push({
+        day: i,
+        date,
+        isCurrentMonth: false,
+        isToday: isToday(date)
+      });
+    }
   }
   
   return days;
 });
 
-// Vérifier si une date est dans le mois en cours
-const isCurrentMonth = (date: Date): boolean => {
-  return date.getMonth() === currentDate.value.getMonth() && 
-         date.getFullYear() === currentDate.value.getFullYear();
+// Récupère le contenu de l'infobulle pour un jour donné
+const getDayTooltip = (date: Date) => {
+  const events = getEventsForDay(date);
+  if (events.length === 0) return null;
+  
+  // Vérifier si c'est un jour de paiement (5 de chaque mois)
+  const isPaymentDate = date.getDate() === 5 && events.some(e => e.type === 'payment');
+  
+  // Si c'est un jour de paiement, ajouter un événement de paiement
+  if (isPaymentDate) {
+    const activeContract = events.find(e => e.type === 'active')?.contract;
+    if (activeContract) {
+      events.push({
+        id: activeContract.id * 10 + 4,
+        title: 'Paiement du loyer',
+        date: date,
+        propertyTitle: activeContract.property.title,
+        type: 'payment',
+        contract: activeContract,
+        tooltipText: `
+          <div class="text-sm">
+            <div class="font-bold">Paiement du loyer</div>
+            <div class="text-gray-600">${activeContract.property.title}</div>
+            <div>${formatAddress(activeContract.property.address)}</div>
+            ${activeContract.landlord ? `<div class="mt-2"><span class="font-medium">Locataire:</span> ${activeContract.landlord.first_name} ${activeContract.landlord.last_name}</div>` : ''}
+            <div class="mt-1"><span class="font-medium">Montant:</span> ${activeContract.property.price.toFixed(2)} €</div>
+            <div><span class="font-medium">Date d'échéance:</span> Le 5 de chaque mois</div>
+          </div>
+        `
+      });
+    }
+  }
+  
+  const tooltipContent = events.map(event => event.tooltipText).join('<div class="my-2 border-t border-gray-200 "></div>');
+  
+  return {
+    content: `
+      <div class="text-sm max-w-xs">
+        <div class="font-bold text-lg mb-2">${date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+        ${tooltipContent}
+      </div>
+    `,
+    html: true,
+    theme: 'tooltip-theme',
+    placement: 'right',
+    offset: [0, 10],
+    trigger: 'hover',
+    hideOnTargetClick: false
+  };
 };
 
-// Vérifie si une date est aujourd'hui
-const isToday = (date: Date): boolean => {
-  const today = new Date();
-  return date.getDate() === today.getDate() &&
-         date.getMonth() === today.getMonth() &&
-         date.getFullYear() === today.getFullYear();
-};
-
-// Navigation entre les mois
 const previousMonth = () => {
-  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() - 1, 1);
+  currentDate.value = new Date(
+    currentDate.value.getFullYear(),
+    currentDate.value.getMonth() - 1,
+    1
+  );
+  // Forcer la mise à jour des infobulles
+  setTimeout(() => {
+    // Cette ligne force le composant à se mettre à jour
+    currentDate.value = new Date(currentDate.value);
+  }, 0);
 };
 
 const nextMonth = () => {
-  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() + 1, 1);
+  currentDate.value = new Date(
+    currentDate.value.getFullYear(),
+    currentDate.value.getMonth() + 1,
+    1
+  );
+  // Forcer la mise à jour des infobulles
+  setTimeout(() => {
+    // Cette ligne force le composant à se mettre à jour
+    currentDate.value = new Date(currentDate.value);
+  }, 0);
 };
 
-// Fonction utilitaire pour comparer les dates
-const isSameDay = (date1: Date, date2: Date): boolean => {
-  return date1.getFullYear() === date2.getFullYear() &&
-         date1.getMonth() === date2.getMonth() &&
-         date1.getDate() === date2.getDate();
-};
-
-// Fonction utilitaire pour formater une date au format JJ/MM/AAAA
-function formatDate(dateString: string | Date): string {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
+const getEventsForDay = (date: Date): CalendarEvent[] => {
+  if (!contracts.value || !Array.isArray(contracts.value)) return [];
+  
+  const events: CalendarEvent[] = [];
+  const dateStr = date.toISOString().split('T')[0];
+  
+  contracts.value.forEach(contract => {
+    if (!contract || !contract.start_date) return;
+    
+    try {
+      const startDate = new Date(contract.start_date).toISOString().split('T')[0];
+      const endDate = contract.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : null;
+      
+      // Vérifier si c'est le début d'un contrat
+      if (dateStr === startDate) {
+        const propertyTitle = contract.property?.title || contract.property_title || 'Propriété inconnue';
+        const propertyAddress = contract.property?.address || contract.property_address || 'Adresse non disponible';
+        const landlordName = contract.landlord_display || 
+                           (contract.landlord ? 
+                             `${contract.landlord.first_name || ''} ${contract.landlord.last_name || ''}`.trim() : 
+                             'Propriétaire inconnu');
+        
+        const event: CalendarEvent = {
+          id: contract.id * 10 + 1, // ID unique pour l'événement de début
+          title: 'Début de location',
+          date: new Date(contract.start_date),
+          propertyTitle: propertyTitle,
+          type: 'start',
+          contract: contract,
+          tooltipText: `
+            <div class="text-sm bg-white p-2 rounded">
+              <div class="font-bold text-gray-900">${propertyTitle}</div>
+              <div class="text-gray-600 mb-1">Début de location</div>
+              <div class="text-gray-700">${propertyAddress}</div>
+              <div class="mt-2">
+                <span class="font-medium text-gray-800">Propriétaire:</span> 
+                <span class="text-gray-700">${landlordName}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-1 mt-1">
+                <div><span class="font-medium text-gray-800">Du:</span> ${formatDate(contract.start_date)}</div>
+                ${endDate ? `<div><span class="font-medium text-gray-800">Au:</span> ${formatDate(contract.end_date)}</div>` : ''}
+                <div><span class="font-medium text-gray-800">Loyer:</span> ${contract.rent || 'Non spécifié'}</div>
+                ${contract.deposit ? 
+                  `<div class="col-span-2">
+                    <span class="font-medium text-gray-800">Dépôt:</span> 
+                    <span class="text-gray-700">${contract.deposit} ${contract.currency ? `(${contract.currency})` : ''} 
+                    ${contract.deposit_status ? `- ${contract.deposit_status}` : ''}</span>
+                  </div>` 
+                  : ''}
+              </div>
+            </div>
+          `,
+        };
+        events.push(event);
+      }
+      
+      // Vérifier si c'est la fin d'un contrat
+      if (endDate && dateStr === endDate && contract.end_date) {
+        const propertyTitle = contract.property?.title || contract.property_title || 'Propriété inconnue';
+        const propertyAddress = contract.property?.address || contract.property_address || 'Adresse non disponible';
+        const landlordDisplay = contract.landlord_display || 
+                             (contract.landlord ? 
+                               `${contract.landlord.first_name || ''} ${contract.landlord.last_name || ''}`.trim() : 
+                               'Propriétaire inconnu');
+        
+        const endEvent: CalendarEvent = {
+          id: contract.id * 10 + 2, // ID unique pour l'événement de fin
+          title: 'Fin de location',
+          date: new Date(contract.end_date),
+          propertyTitle: propertyTitle,
+          type: 'end',
+          contract: contract,
+          tooltipText: `
+            <div class="text-sm bg-white p-2 rounded">
+              <div class="font-bold text-gray-900">${propertyTitle}</div>
+              <div class="text-gray-600 mb-1">Fin de location</div>
+              <div class="text-gray-700">${propertyAddress}</div>
+              <div class="mt-2">
+                <span class="font-medium text-gray-800">Propriétaire:</span> 
+                <span class="text-gray-700">${landlordDisplay}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-1 mt-1">
+                <div><span class="font-medium text-gray-800">Date de fin:</span> ${formatDate(contract.end_date)}</div>
+                <div><span class="font-medium text-gray-800">Loyer:</span> ${contract.rent || 'Non spécifié'}</div>
+                ${contract.deposit ? 
+                  `<div class="col-span-2">
+                    <span class="font-medium text-gray-800">Dépôt:</span> 
+                    <span class="text-gray-700">${contract.deposit} ${contract.currency ? `(${contract.currency})` : ''} 
+                    ${contract.deposit_status ? `- ${contract.deposit_status}` : ''}</span>
+                  </div>` 
+                  : ''}
+              </div>
+            </div>
+          `,
+        };
+        events.push(endEvent);
+      }
+      
+      // Vérifier si c'est un jour de paiement (5 du mois)
+      if (isPaymentDay(date) && contract.rent) {
+        const propertyTitle = contract.property?.title || contract.property_title || 'Propriété inconnue';
+        const paymentEvent: CalendarEvent = {
+          id: contract.id * 100 + date.getDate(), // ID unique pour l'événement de paiement
+          title: 'Paiement du loyer',
+          date: date,
+          propertyTitle: propertyTitle,
+          type: 'payment',
+          contract: contract,
+          tooltipText: `
+            <div class="text-sm bg-white p-2 rounded">
+              <div class="font-bold text-gray-900">${propertyTitle}</div>
+              <div class="text-gray-600 mb-1">Échéance du loyer</div>
+              <div class="grid grid-cols-2 gap-1">
+                <div><span class="font-medium text-gray-800">Montant:</span> ${contract.rent}</div>
+                <div><span class="font-medium text-gray-800">Date:</span> ${formatDate(date)}</div>
+                ${contract.currency ? `<div class="col-span-2"><span class="font-medium text-gray-800">Devise:</span> ${contract.currency}</div>` : ''}
+              </div>
+            </div>
+          `,
+        };
+        events.push(paymentEvent);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération des événements pour le jour:', error);
+    }
   });
+  
+  return events;
+};
+
+const getEventDotClass = (date: Date): string => {
+  const events = getEventsForDay(date);
+  if (events.length === 0) return '';
+  
+  // Priorité: start > end > payment > active
+  if (events.some(e => e.type === 'start')) return 'bg-green-500';
+  if (events.some(e => e.type === 'end')) return 'bg-red-500';
+  if (events.some(e => e.type === 'payment')) return 'bg-blue-500';
+  return 'bg-gray-400';
+};
+
+interface TooltipOptions {
+  content: string;
+  html: boolean;
+  theme: string;
+  arrow: boolean;
+  offset: [number, number];
 }
 
-/**
- * Formate une adresse selon le modèle standardisé
- * @param address - L'adresse à formater (peut être une chaîne ou un objet Address)
- * @returns L'adresse formatée sous forme de chaîne lisible
- */
-function formatAddress(address: Address | string | null | undefined): string {
-  if (!address) return 'Adresse non disponible';
+const getEventTooltip = (date: Date): TooltipOptions | null => {
+  const events = getEventsForDay(date);
+  if (!events || events.length === 0) return null;
   
-  // Si c'est déjà une chaîne, on la retourne telle quelle
-  if (typeof address === 'string') {
-    return address;
-  }
-  
-  // Construction des parties de l'adresse
-  const parts = [];
-  
-  if (address.street) parts.push(address.street);
-  
-  const cityPart = [];
-  if (address.postal_code) cityPart.push(address.postal_code);
-  if (address.city) cityPart.push(address.city);
-  
-  if (cityPart.length > 0) {
-    parts.push(cityPart.join(' '));
-  }
-  
-  if (address.country) parts.push(address.country);
-  
-  // Nettoyage des espaces superflus
-  return parts.filter(Boolean).join(', ');
-}
-
-// Vérifier si une date est le début d'un contrat
-const isStartOfContract = (date: Date): boolean => {
-  if (!contracts.value) return false;
-  return contracts.value.some(contract => 
-    isSameDay(new Date(contract.start_date), date)
-  );
-};
-
-// Vérifier si une date est la fin d'un contrat
-const isEndOfContract = (date: Date): boolean => {
-  if (!contracts.value) return false;
-  return contracts.value.some(contract => 
-    contract.end_date && isSameDay(new Date(contract.end_date), date)
-  );
-};
-
-const isContractDate = (date: Date): boolean => {
-  return isStartOfContract(date) || isEndOfContract(date);
-};
-
-// Alias pour la compatibilité
-const isContractStartOrEndDate = isContractDate;
-
-const getContractsForDate = (date: Date): Contract[] => {
-  if (!date || !contracts.value) return [];
-  
-  return contracts.value.filter(contract => {
-    if (!contract) return false;
-    const startDate = new Date(contract.start_date);
-    const endDate = contract.end_date ? new Date(contract.end_date) : null;
-    
-    // Ne retourner que si c'est le début ou la fin d'un contrat
-    return isSameDay(startDate, date) || (endDate && isSameDay(endDate, date));
-  });
-};
-
-// Gestion du clic sur un jour
-const handleDayClick = (date: Date) => {
-  if (isContractStartOrEndDate(date)) {
-    // Logique de gestion du clic sur un jour avec contrat
-    console.log('Jour cliqué:', date);
-  }
-};
-
-// Mise à jour de la taille de la fenêtre
-const updateWindowSize = () => {
-  if (isClient && typeof window !== 'undefined') {
-    windowSize.value = {
-      width: window.innerWidth,
-      height: window.innerHeight
+  try {
+    // Formater la date en français
+    const options: Intl.DateTimeFormatOptions = { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long',
+      year: 'numeric'
     };
-  }
-};
-
-// Gestionnaire de survol de la souris
-const handleMouseOver = (day: DayInfo, event: MouseEvent) => {
-  if (isContractStartOrEndDate(day.date)) {
-    if (!isClient) return;
+    const formattedDate = date.toLocaleDateString('fr-FR', options);
     
-    const tooltipWidth = 256; // Largeur de l'infobulle
-    const windowWidth = window.innerWidth;
-    const x = event.clientX;
-    const y = event.clientY - 50;
+    // Créer le contenu de l'infobulle avec la date en entête
+    const content = `
+      <div class="max-w-xs bg-white p-2 rounded">
+        <div class="font-semibold text-sm text-gray-800 mb-2">${formattedDate}</div>
+        <div class="space-y-2 text-xs">
+          ${events.map(event => {
+            const propertyAddress = event.contract?.property_address || 
+                                 event.contract?.property?.address || 
+                                 'Adresse non disponible';
+            return `
+              <div class="border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                <div class="font-medium text-gray-900 flex items-center gap-1">
+                  <span class="inline-block w-2 h-2 rounded-full ${
+                    event.type === 'start' ? 'bg-green-500' : 
+                    event.type === 'end' ? 'bg-red-500' : 'bg-blue-500'
+                  }"></span>
+                  ${event.title}
+                </div>
+                <div class="text-gray-700 ml-3">${event.propertyTitle}</div>
+                <div class="text-gray-500 text-xs truncate ml-3">${propertyAddress}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
     
-    // Ajuster la position si l'infobulle dépasse de la fenêtre
-    const adjustedX = x + tooltipWidth > windowWidth 
-      ? windowWidth - tooltipWidth - 10 
-      : x;
-    
-    const hoverData: HoveredDate = {
-      date: day.date,
-      x: adjustedX,
-      y: y
+    return {
+      content: content,
+      html: true,
+      theme: 'tooltip-theme',
+      arrow: true,
+      offset: [0, 10]
     };
-    
-    hoveredDate.value = hoverData;
+  } catch (error) {
+    console.error('Erreur lors de la génération de l\'infobulle:', error);
+    return null;
   }
 };
 
-// Gestionnaire de sortie de la souris
-const handleMouseLeave = () => {
-  hoveredDate.value = null;
-};
-
-
-
-// Gestion du redimensionnement de la fenêtre
-onMounted(() => {
-  if (isClient) {
-    updateWindowSize();
-    window.addEventListener('resize', updateWindowSize);
+const getEventClass = (event: CalendarEvent): string => {
+  const baseClasses = 'text-xs p-1 rounded truncate';
+  
+  if (!event) return baseClasses;
+  
+  if (event.type === 'start') {
+    return `${baseClasses} bg-green-100 text-green-800 border-l-4 border-green-500`;
+  } else if (event.type === 'end') {
+    return `${baseClasses} bg-red-100 text-red-800 border-l-4 border-red-500`;
+  } else if (event.type === 'payment') {
+    return `${baseClasses} bg-blue-100 text-blue-800 border-l-4 border-blue-500`;
   }
   
-  return () => {
-    if (isClient) {
-      window.removeEventListener('resize', updateWindowSize);
-    }
-    if (tooltipTimeout.value) {
-      clearTimeout(tooltipTimeout.value);
-    }
-  };
-});
+  return `${baseClasses} bg-gray-100 text-gray-800`;
+};
 
-// Chargement initial des contrats
-onMounted(() => {
-  fetchContracts();
-});
+// Récupération des contrats
+const fetchContracts = async () => {
+  isLoading.value = true;
+  error.value = '';
+  
+  try {
+    // Récupérer l'utilisateur connecté
+    const currentUser = authStore.currentUser;
+    console.log('Utilisateur connecté:', currentUser);
+    
+    // Récupérer l'ID en vérifiant à la fois 'id' et '_id'
+    const userId = (currentUser as any)?.id || (currentUser as any)?._id;
+    
+    if (!currentUser || !userId) {
+      const errorMsg = 'Utilisateur non connecté ou ID manquant';
+      console.error('Erreur:', errorMsg, { user: currentUser });
+      error.value = errorMsg;
+      return;
+    }
+    console.log('ID de l\'utilisateur connecté:', userId);
+    
+    console.log('Récupération des contrats pour le propriétaire:', userId);
+    
+    // Récupérer le token d'authentification
+    const token = authStore.getAuthToken();
+    if (!token) {
+      throw new Error('Aucun token d\'authentification trouvé');
+    }
+    
+    // Récupérer les contrats depuis l'API avec les relations et l'authentification
+    const response = await api.get('/contracts', {
+      params: {
+        include: 'property,tenant,landlord',  // Inclure les relations
+        'filter[landlord_id]': userId,
+        'with[]': ['property', 'tenant', 'landlord']  // S'assurer que toutes les relations sont chargées
+      },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    
+    console.log('Réponse de l\'API complète:', response);
+    
+    // Vérifier si la réponse contient des données
+    if (!response.data) {
+      console.error('Aucune donnée dans la réponse:', response);
+      throw new Error('Aucune donnée reçue de l\'API');
+    }
+    
+    // Vérifier si les données sont dans response.data.data (format JSON:API) ou directement dans response.data
+    let responseData: any[] = [];
+    
+    if (Array.isArray(response.data)) {
+      responseData = response.data;
+    } else if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+      responseData = Array.isArray(response.data.data) ? response.data.data : [];
+    } else if (response.data && typeof response.data === 'object') {
+      // Si la réponse est un objet unique, le mettre dans un tableau
+      responseData = [response.data];
+    }
+    
+    console.log('Données des contrats:', responseData);
+    
+    // Mapper les contrats pour s'assurer qu'ils ont le bon format
+    const formattedContracts = responseData.map((contract: any) => {
+      // Créer un nouvel objet avec toutes les propriétés nécessaires
+      const formattedContract: Contract = {
+        ...contract,
+        // Assurer la compatibilité avec les champs en camelCase et snake_case
+        start_date: contract.start_date || contract.startDate,
+        startDate: contract.startDate || contract.start_date,
+        end_date: contract.end_date || contract.endDate || null,
+        endDate: contract.endDate || contract.end_date || null,
+        property_id: contract.property_id || contract.propertyId,
+        landlord_id: contract.landlord_id || contract.landlordId,
+        tenant_id: contract.tenant_id || contract.tenantId,
+        
+        // Propriétés pour l'affichage
+        property_title: contract.property?.title || `${contract.property_title || '?'}`,
+        property_address: contract.property_address || 
+                         (contract.property?.address?.street ? 
+                           `${contract.property.address.street}, ${contract.property.address.postal_code} ${contract.property.address.city}` : 
+                           (contract.property_address_country || 'Adresse non disponible')),
+        
+        // Informations sur le locataire
+        landlord_first_name: contract.landlord?.first_name || contract.landlord?.firstName || '',
+        landlord_last_name: contract.landlord?.last_name || contract.landlord?.lastName || '',
+        tenant_email: contract.tenant?.email || '',
+        tenant_phone: contract.tenant?.phone || '',
+        
+        // Informations financières
+        rent: contract.rent ? `${contract.rent} ${contract.currency || 'USD'}` : 'Non spécifié',
+        deposit: contract.deposit ? `${contract.deposit} ${contract.currency || 'USD'}` : '',
+        deposit_status: contract.deposit_status || 'non spécifié',
+        currency: contract.currency || 'USD',
+        
+        // Conserver la référence à l'objet property complet
+        property: contract.property || {},
+        
+        // Conserver la référence à l'objet tenant complet
+        landlord: contract.landlord || {},
+        
+        // Conserver la référence à l'objet tenant complet
+        tenant: contract.tenant || {}
+      };
+      
+      // Créer une chaîne d'affichage pour le propriétaire
+      formattedContract.landlord_display = 
+        (formattedContract.landlord_first_name || formattedContract.landlord_last_name) ?
+        `${formattedContract.landlord_first_name || ''} ${formattedContract.landlord_last_name || ''}`.trim() :
+        (contract.landlord_first_name || `Propriétaire #${formattedContract.landlord_id || '?'}`);
+        
+        
+      
+      console.log('Contrat formaté:', formattedContract);
+      return formattedContract;
+    });
+    
+    contracts.value = formattedContracts;
+    
+    // Afficher les contrats dans la console pour le débogage
+    console.log('[PROPRIETAIRE] Contrats récupérés:', {
+      count: contracts.value.length,
+      contrats: contracts.value.map(c => ({
+        id: c.id,
+        start_date: c.start_date,
+        end_date: c.end_date,
+        status: c.status,
+        property: c.property ? c.property.title : 'Inconnu',
+        landlord: c.landlord ? `${c.landlord.first_name} ${c.landlord.last_name}` : 'Inconnu',
+      }))
+    });
+    
+  } catch (caughtError: unknown) {
+    const errorMessage = caughtError instanceof Error ? caughtError.message : 'Une erreur inconnue est survenue';
+    console.error('Erreur lors de la récupération des contrats:', caughtError);
+    error.value = 'Erreur lors du chargement des contrats';
+    
+    // Vérifier si c'est une erreur avec une réponse
+    if (caughtError && 
+        typeof caughtError === 'object' && 
+        'response' in caughtError && 
+        caughtError.response && 
+        typeof caughtError.response === 'object') {
+      
+      const response = caughtError.response as {
+        status?: number;
+        data?: unknown;
+      };
+      
+      const errorDetails: Record<string, unknown> = {
+        status: response.status,
+        data: response.data
+      };
+      
+      if ('config' in caughtError) {
+        errorDetails.config = (caughtError as { config?: unknown }).config;
+      }
+      
+      console.error('Détails de l\'erreur:', errorDetails);
+    } else {
+      console.error('Erreur:', errorMessage);
+    }
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// La logique de onMounted a été déplacée plus haut
 </script>
-
-<style scoped>
-/* Styles pour l'infobulle */
-[class*="bg-blue"] {
-  --tw-bg-opacity: 1;
-}
-
-[class*="text-blue"] {
-  --tw-text-opacity: 1;
-}
-
-/* Animation pour l'infobulle */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Animation pour l'infobulle */
-.fixed[style*="block"] {
-  animation: fadeIn 0.15s ease-out forwards;
-  opacity: 0;
-}
-
-/* Style pour les jours de fin de semaine */
-.grid-cols-7 > div:nth-child(7n),
-.grid-cols-7 > div:nth-child(7n+1) {
-  color: #ef4444; /* Rouge pour les week-ends */
-}
-
-/* Style pour les jours du mois précédent/suivant */
-.text-gray-300 {
-  opacity: 0.5;
-}
-
-/* Style pour les indicateurs de contrat */
-.bg-green-50 {
-  background-color: #f0fdf4;
-}
-
-.bg-red-50 {
-  background-color: #fef2f2;
-}
-</style>

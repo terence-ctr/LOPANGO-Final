@@ -348,8 +348,8 @@ export default {
       }).format(amount);
     };
     
-    // Formater une adresse à partir d'un objet d'adresse
-    const formatAddress = (address: {
+    // Formater une adresse à partir d'une chaîne ou d'un objet d'adresse
+    const formatAddress = (address: string | {
       street?: string;
       city?: string;
       postalCode?: string;
@@ -361,7 +361,10 @@ export default {
     } | undefined) => {
       if (!address) return 'Adresse non disponible';
       
-      // Gérer à la fois les formats d'adresse standard et les propriétés avec préfixe
+      // Si l'adresse est une chaîne, on la retourne telle quelle
+      if (typeof address === 'string') return address;
+      
+      // Sinon, on gère l'objet d'adresse
       const street = address.street || address.property_address_street || '';
       const city = address.city || address.property_address_city || '';
       const postalCode = address.postalCode || address.property_address_postal_code || '';
@@ -402,7 +405,7 @@ export default {
       if (contractId === undefined) return;
       const id = typeof contractId === 'number' ? contractId : Number(contractId);
       if (!isNaN(id)) {
-        router.push({ name: 'tenant-contract-details', params: { id: String(id) } });
+        router.push({ name: 'tenant-contract-detail', params: { id: String(id) } });
       }
     };
     

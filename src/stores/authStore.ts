@@ -6,6 +6,7 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;  // Ajout du numéro de téléphone optionnel
   avatar?: string;
   userType?: 'landlord' | 'tenant' | 'agent' | 'admin';
 }
