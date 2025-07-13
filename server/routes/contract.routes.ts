@@ -17,6 +17,11 @@ router.get('/tenant/me', (req, res, next) => {
   contractController.getTenantContracts(req, res).catch(next);
 });
 
+// Récupérer les contrats du propriétaire connecté
+router.get('/landlord/me', (req, res, next) => {
+  contractController.getTenantContracts(req, res).catch(next);
+});
+
 // Récupérer les contrats d'un locataire spécifique (pour les administrateurs)
 router.get('/tenants/:tenantId/contracts', (req, res, next) => {
   contractController.getTenantContracts(req, res).catch(next);
@@ -25,6 +30,11 @@ router.get('/tenants/:tenantId/contracts', (req, res, next) => {
 // Créer un nouveau contrat
 router.post('/', (req, res, next) => {
   contractController.createContract(req, res).catch(next);
+});
+
+// Récupérer la liste des agents immobiliers
+router.get('/agents', (req, res, next) => {
+  contractController.getAgents(req, res).catch(next);
 });
 
 // Gestion des erreurs globales

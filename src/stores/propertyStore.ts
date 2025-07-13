@@ -36,14 +36,19 @@ export const usePropertyStore = defineStore('property', () => {
   const getTenantProperties = computed(() => tenantProperties.value);
   const userProperties = computed(() => properties.value); // Alias pour la compatibilité avec le système d'alertes
 
-  async function fetchProperties() {
+  async function fetchProperties(onlyAvailable = false) {
     loading.value = true;
     error.value = null;
     try {
-      // Utiliser getMyProperties pour ne récupérer que les propriétés de l'utilisateur connecté
-      properties.value = await PropertyService.getMyProperties();
+      if (onlyAvailable) {
+        // Utiliser getAvailableProperties pour ne récupérer que les propriétés disponibles
+        properties.value = await PropertyService.getAvailableProperties();
+      } else {
+        // Utiliser getMyProperties pour ne récupérer que les propriétés de l'utilisateur connecté
+        properties.value = await PropertyService.getMyProperties();
+      }
     } catch (e: any) {
-      error.value = e.message || 'Impossible de charger vos propriétés';
+      error.value = e.message || 'Impossible de charger les propriétés';
       console.error('Erreur lors du chargement des propriétés:', e);
     } finally {
       loading.value = false;
@@ -194,6 +199,44 @@ export const usePropertyStore = defineStore('property', () => {
     localStorage.removeItem(PROPERTY_TOKEN_KEY);
   };
 
+  // Mettre à jour le locataire d'une propriété
+  async function updatePropertyTenant(propertyId: number, tenantId: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      // Trouver la propriété à mettre à jour
+      const property = properties.value.find(p => p.id === propertyId);
+      if (!property) {
+        throw new Error('Propriété non trouvée');
+      }
+      
+      // Mettre à jour la propriété avec le nouvel ID de locataire
+      const updatedProperty = await PropertyService.update(propertyId, {
+        ...property,
+        tenantId: tenantId
+      });
+      
+      // Mettre à jour la liste des propriétés
+      const index = properties.value.findIndex(p => p.id === propertyId);
+      if (index !== -1) {
+        properties.value[index] = updatedProperty;
+      }
+      
+      // Mettre à jour la propriété courante si nécessaire
+      if (currentProperty.value?.id === propertyId) {
+        currentProperty.value = updatedProperty;
+      }
+      
+      return updatedProperty;
+    } catch (e: any) {
+      error.value = e.message || 'Erreur lors de la mise à jour du locataire de la propriété';
+      console.error('Erreur:', e);
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // Initialisation
   if (typeof window !== 'undefined') {
     loadStoredToken();
@@ -201,16 +244,28 @@ export const usePropertyStore = defineStore('property', () => {
   }
 
   return {
+    // États
+    propertyToken,
+    loading,
+    error,
+    properties,
+    currentProperty,
+    propertyTypes,
+    propertyStatuses,
+    propertyEquipments,
+    currencies,
+    tenantProperties,
+
     // Getters
     getPropertyToken,
     isLoading,
     propertyError,
+    getProperties,
+    getCurrentProperty,
     getPropertyTypes,
     getPropertyStatuses,
     getPropertyEquipments,
     getCurrencies,
-    getCurrentProperty,
-    getProperties,
     getTenantProperties,
     userProperties,
 
@@ -221,6 +276,7 @@ export const usePropertyStore = defineStore('property', () => {
     fetchPropertyMetadata,
     createProperty,
     updateProperty,
+    updatePropertyTenant,
     deleteProperty,
     setPropertyToken,
     setLoading,

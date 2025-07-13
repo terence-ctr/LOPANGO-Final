@@ -2,13 +2,25 @@ import { RequestHandler } from 'express';
 import { db } from '../database';
 
 export const getUsers: RequestHandler = async (req, res, next) => {
+  // Ne pas retourner la réponse directement, utiliser res.json()
+  // et appeler next() si nécessaire
   try {
+    console.log('=== DÉBUT getUsers ===');
+    console.log('Headers de la requête:', req.headers);
+    console.log('Paramètres de la requête:', req.query);
+    
     const { user_type } = req.query;
 
     if (!user_type) {
-      res.status(400).json({ message: 'Le paramètre de user_type est requis.' });
+      console.error('Erreur: Le paramètre user_type est manquant');
+      res.status(400).json({ 
+        success: false,
+        message: 'Le paramètre de user_type est requis.' 
+      });
       return;
     }
+
+    console.log(`Récupération des utilisateurs de type: ${user_type}`);
 
     const usersFromDb = await db('users')
       .where({ 'users.user_type': user_type })
@@ -33,17 +45,24 @@ export const getUsers: RequestHandler = async (req, res, next) => {
         'identities.nationality'
       );
 
-    const users = usersFromDb.map(user => ({
-      id: user.id,
-      email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      user_type: user.user_type,
-      is_active: user.is_active,
-      email_verified: !!user.email_verified,
-      address_id: user.address_id,
-      identity_id: user.identity_id,
-      nationality: user.nationality || 'Congolaise',
+    usersFromDb.forEach((user, index) => {
+      
+      // Informations d'identité
+      
+      // Autres informations
+        });
+    
+    console.log('\n=== FIN DES INFORMATIONS DÉTAILLÉES ===\n');
+
+    const users = usersFromDb.map(user => {
+      const userData = {
+        _id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        userType: user.user_type,
+        isActive: user.is_active,
+        email_verified: !!user.email_verified,
       address: {
         street: user.street || '',
         city: user.city || '',
@@ -51,20 +70,32 @@ export const getUsers: RequestHandler = async (req, res, next) => {
         country: user.country || ''
       },
       identity: {
-        national_id: user.national_id || '',
-        document_type: (() => {
-          console.log(`Type de document brut pour l'utilisateur ${user.id}:`, JSON.stringify(user.document_type));
-          const formatted = user.document_type ? user.document_type.charAt(0).toUpperCase() + user.document_type.slice(1) : '';
-          console.log(`Type de document formaté pour l'utilisateur ${user.id}:`, formatted);
-          return formatted;
-        })()
-      }
-    }));
+        nationalId: user.national_id || '',
+        documentType: user.document_type || 'carte_electeur',
+        nationality: user.nationality || 'Congolaise'
+      },
+        // Champs pour la rétrocompatibilité
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        user_type: user.user_type,
+        is_active: user.is_active
+      };
+      
+      console.log('Données utilisateur formatées:', JSON.stringify(userData, null, 2));
+      return userData;
+    });
+    
+    console.log('Liste des utilisateurs formatée:', JSON.stringify(users, null, 2));
 
     const userIds = users.map(u => u.id);
     console.log(`Utilisateurs récupérés pour le user_type '${user_type}': ${userIds.length} trouvé(s). IDs: [${userIds.join(', ')}]`);
 
-    res.status(200).json(users);
+    res.status(200).json({
+      success: true,
+      data: users,
+      message: 'Agents récupérés avec succès'
+    });
   } catch (error) {
     console.error('Erreur lors de la récupération des utilisateurs:', error);
     next(error);

@@ -320,6 +320,29 @@ class PropertyService {
       throw error;
     }
   }
+
+  // Récupérer les propriétés disponibles (sans contrat actif)
+  static async getAvailableProperties() {
+    try {
+      const response = await api.get('/properties/available');
+      
+      // Si la réponse contient directement les données
+      if (response.data && response.data.data) {
+        return response.data.data;
+      }
+      
+      // Si la réponse contient directement le tableau de propriétés
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      
+      // Si nous n'avons toujours pas de données, lancer une erreur
+      throw new Error('Format de réponse inattendu lors de la récupération des propriétés disponibles');
+    } catch (error) {
+      console.error('Erreur lors de la récupération des propriétés disponibles:', error);
+      throw error;
+    }
+  }
 }
 
 export default PropertyService;

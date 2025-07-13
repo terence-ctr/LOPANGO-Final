@@ -2,14 +2,18 @@ import DashboardLayout from '@/layouts/DashboardLayout.vue';
 import PropertiesView from '@/views/landlord/PropertiesView.vue';
 import PropertyDetailsView from '@/views/landlord/PropertyDetailsView.vue';
 import ContractsView from '@/views/landlord/ContractsView.vue';
-import ContractCreateView from '@/views/landlord/ContractCreateView.vue';
-
 export const landlordRoutes = [
   {
     path: '/landlord',
     component: DashboardLayout,
     meta: { requiresAuth: true, userType: 'landlord' },
     children: [
+      {
+        path: 'contracts/add',
+        name: 'landlord-contract-add',
+        component: () => import('@/views/landlord/ContractCreateView.vue'),
+        meta: { title: 'Ajouter un contrat' }
+      },
       {
         path: 'dashboard',
         name: 'landlord-dashboard',
@@ -54,12 +58,7 @@ export const landlordRoutes = [
         component: ContractsView,
         meta: { title: 'Gestion des contrats' }
       },
-      {
-        path: 'contracts/create',
-        name: 'landlord-contract-create',
-        component: ContractCreateView,
-        meta: { title: 'Créer un contrat', requiresAuth: true }
-      },
+
       {
         path: 'payments',
         name: 'landlord-payments',

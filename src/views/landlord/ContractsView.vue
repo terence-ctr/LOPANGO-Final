@@ -1,536 +1,844 @@
 <template>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-   
-    
-    <!-- Filtres et recherche -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 mb-6 space-y-4 sm:space-y-0">
-      <div class="flex items-center space-x-2 border border-gray-300 rounded-md px-3 py-1 text-sm text-gray-600 w-full sm:w-auto">
-        <i class="fas fa-filter"></i>
-        <select v-model="filters.status" class="appearance-none bg-transparent focus:outline-none cursor-pointer">
-          <option value="">Tous les statuts</option>
-          <option value="draft">Brouillon</option>
-          <option value="pending">En attente</option>
-          <option value="active">Actif</option>
-          <option value="ended">Terminé</option>
-          <option value="cancelled">Annulé</option>
-        </select>
-        <i class="fas fa-chevron-down text-xs"></i>
-      </div>
-      
-      <div class="flex items-center space-x-2 border border-gray-300 rounded-md px-3 py-1 text-sm text-gray-600 w-full sm:w-auto">
-        <select class="appearance-none bg-transparent focus:outline-none cursor-pointer">
-          <option>Colonnes</option>
-        </select>
-        <i class="fas fa-chevron-down text-xs"></i>
-      </div>
-      
-      <input 
-        v-model="searchQuery"
-        type="search" 
-        placeholder="Recherche..." 
-        class="border border-gray-300 rounded-md px-3 py-1 text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-      >
-      
-      <router-link 
-        :to="{ name: 'landlord-contract-create' }" 
-        class="ml-auto sm:ml-0 bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold rounded-md px-4 py-2"
-      >
-        Ajouter
+    <!-- En-tête -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">Gestion des contrats</h1>
+      <router-link to="/landlord/contracts/add" class="ml-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+        Ajouter un contrat
       </router-link>
     </div>
-    
-    <!-- Tableau des contrats -->
-    <div class="overflow-x-auto border border-gray-200 rounded-md">
-      <table class="min-w-full divide-y divide-gray-200 text-sm">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-3 py-3 text-left font-semibold text-gray-700 w-10" scope="col">#</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Propriété
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Conditions Spéciales
-            </th>
-            <th class="px-3 py-3 text-left font-semibold text-gray-700 min-w-[140px]" scope="col">
-              Locataire
-            </th>
-            <th class="px-3 py-3 text-left font-semibold text-gray-700 min-w-[140px]" scope="col">
-              Dates du contrat
-            </th>
-            <th class="px-3 py-3 text-left font-semibold text-gray-700 min-w-[100px]" scope="col">
-              Statut
-            </th>
-            <th class="w-10" scope="col"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <!-- État de chargement -->
-          <tr v-if="loading">
-            <td colspan="7" class="px-3 py-4 text-center text-gray-500">Chargement des contrats...</td>
-          </tr>
-          
-          <!-- Message d'erreur -->
-          <tr v-else-if="error">
-            <td colspan="7" class="px-3 py-4 text-center text-red-500">{{ error }}</td>
-          </tr>
-          
-          <!-- Aucun résultat -->
-          <tr v-else-if="filteredContracts.length === 0">
-            <td colspan="7" class="px-3 py-4 text-center text-gray-500">
-              Aucun contrat trouvé
-            </td>
-          </tr>
-          
-          <!-- Liste des contrats -->
-          <tr v-for="(contract, index) in paginatedContracts" :key="contract.id" class="hover:bg-gray-50">
-            <td class="px-3 py-2 text-gray-700 font-medium">
-              {{ (currentPage - 1) * itemsPerPage + index + 1 }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div v-if="contract.property" class="text-sm font-medium text-gray-900">
-                {{ contract.property.title || 'Sans titre' }}
-                <div v-if="contract.propertyId" class="text-xs text-gray-500">
-                  ID: {{ contract.propertyId }}
-                </div>
-              </div>
-              <div v-else class="text-sm text-gray-500">
-                <span v-if="contract.propertyId">
-                  Propriété #{{ contract.propertyId }} (détails manquants)
-                </span>
-                <span v-else>
-                  Aucune propriété associée
-                </span>
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-sm text-gray-700 max-w-xs truncate" :title="contract.specialConditions">
-                {{ contract.specialConditions || 'Aucune condition spéciale' }}
-              </div>
-             
-            </td>
-            <td class="px-3 py-2">
-              <div v-if="contract.tenant" class="flex flex-col">
-               <span class="text-blue-600">
-                  {{ contract.tenant.firstName }} {{ contract.tenant.lastName }}
-                </span>
-                <!-- Alternative: Utiliser une route existante si disponible -->
-                <!--
-                <router-link 
-                  :to="{ name: 'tenant-details', params: { id: contract.tenant.id } }"
-                  class="text-blue-600 hover:underline"
-                >
-                  {{ contract.tenant.firstName }} {{ contract.tenant.lastName }}
-                </router-link>
-                -->
-              </div>
-              <span v-else class="text-gray-400">Aucun locataire</span>
-            </td>
-            <td class="px-3 py-2 text-gray-500">
-              {{ formatDate(contract.startDate) }} - {{ contract.endDate ? formatDate(contract.endDate) : 'Indéterminée' }}
-            </td>
-            <td class="px-3 py-2">
-              <span :class="`font-semibold ${getStatusColor(contract.status)}`">
-                {{ getStatusLabel(contract.status) }}
-              </span>
-            </td>
-            <td class="px-3 py-2 relative text-center">
-              <button
-                aria-expanded="false"
-                aria-haspopup="true"
-                aria-label="Actions"
-                class="text-gray-400 hover:text-gray-600 focus:outline-none"
-                @click.stop="toggleMenu(contract.id)"
-              >
-                <i class="fas fa-ellipsis-h"></i>
-              </button>
-              <div
-                v-if="openMenuId === contract.id"
-                class="absolute right-0 top-8 w-36 bg-white border border-gray-200 rounded-md shadow-lg text-xs z-10"
-                role="menu"
-              >
-                <button
-                  class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
-                  role="menuitem"
-                  @click="viewContractDetails(contract)"
-                >
-                  <i class="fas fa-eye"></i> Voir détails
-                </button>
-                <button
-                  class="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-100 text-gray-700"
-                  role="menuitem"
-                  @click="editContract(contract)"
-                >
-                  <i class="fas fa-pen"></i> Modifier
-                </button>
-                <button
-                  class="flex items-center gap-2 w-full px-3 py-2 hover:bg-red-50 text-red-500"
-                  role="menuitem"
-                  @click="openTerminationModal(contract)"
-                >
-                  <i class="fas fa-file-contract"></i> Rompre
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    
-    <!-- Pagination -->
-    <footer v-if="!loading && !error && contracts.length > 0" class="flex items-center justify-between text-xs text-gray-500 mt-4">
-      <div>
-        {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredContracts.length) }} sur {{ filteredContracts.length }} éléments
+
+    <!-- Filtres et recherche -->
+    <div class="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-6">
+      <div class="relative flex-1">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <i class="fas fa-search text-gray-400"></i>
+        </div>
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          placeholder="Rechercher un contrat..."
+        />
       </div>
-      <nav class="flex items-center space-x-2">
-        <button 
-          @click="currentPage--" 
+
+      <select
+        v-model="statusFilter"
+        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+      >
+        <option value="">Tous les statuts</option>
+        <option value="active">Actif</option>
+        <option value="pending">En attente</option>
+        <option value="terminated">Résilié</option>
+        <option value="expired">Expiré</option>
+      </select>
+    </div>
+
+    <!-- Tableau des contrats -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Locataire
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Agent
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Propriété
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Période
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Loyer
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Statut
+              </th>
+              <th scope="col" class="relative px-6 py-3">
+                <span class="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <!-- État de chargement -->
+            <tr v-if="loading">
+              <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
+                Chargement des contrats...
+              </td>
+            </tr>
+
+            <!-- Message si aucun contrat trouvé -->
+            <tr v-else-if="!loading && filteredContracts.length === 0">
+              <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
+                Aucun contrat trouvé
+              </td>
+            </tr>
+
+            <!-- Liste des contrats -->
+            <tr v-for="contract in filteredContracts" :key="contract._id" class="hover:bg-gray-50">
+              <!-- Colonne Locataire -->
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                  <div>
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ formatTenantName(contract.tenantId) }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <!-- Colonne Agent -->
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-500">
+                  <template v-if="agentNames[contract._id]">
+                    {{ agentNames[contract._id] }}
+                  </template>
+                  <template v-else-if="contract.agent">
+                    {{ contract.agent.firstName || '' }} {{ contract.agent.lastName || '' }}
+                    <div v-if="!contract.agent.firstName && !contract.agent.lastName" class="text-xs text-red-500">
+                      (Agent sans nom)
+                    </div>
+                  </template>
+                  <template v-else>
+                    Aucun agent
+                    <div class="text-xs text-gray-400">
+                      ID: {{ contract.agent_id || contract.agentId || 'Aucun ID' }}
+                    </div>
+                  </template>
+                </div>
+              </td>
+
+              <!-- Colonne Propriété -->
+              <td class="px-6 py-4">
+                <div class="text-sm font-medium text-gray-900">
+                  {{ contract.property?.title || 'Propriété non spécifiée' }}
+                </div>
+                <div v-if="contract.property?.address" class="text-sm text-gray-500">
+                  {{ formatAddress(contract.property.address) }}
+                </div>
+              </td>
+
+              <!-- Colonne Période -->
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">
+                  Du {{ formatDate(contract.startDate) }}
+                </div>
+                <div class="text-sm text-gray-500">
+                  au {{ formatDate(contract.endDate) || 'Indéfinie' }}
+                </div>
+              </td>
+
+              <!-- Colonne Loyer -->
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900 font-medium">
+                  {{ formatCurrency(contract.rent) }}
+                </div>
+                <div class="text-sm text-gray-500">
+                  {{ contract.paymentFrequency || 'Non spécifié' }}
+                </div>
+              </td>
+
+              <!-- Colonne Statut -->
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span 
+                  :class="getStatusBadgeClass(contract.status)" 
+                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                >
+                  {{ getStatusLabel(contract.status) }}
+                </span>
+              </td>
+
+              <!-- Colonne Actions -->
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <div class="relative">
+                  <button 
+                    @click="contract._id ? toggleActions(contract._id) : null"
+                    class="text-gray-400 hover:text-gray-600 focus:outline-none"
+                  >
+                    <i class="fas fa-ellipsis-h"></i>
+                  </button>
+                  
+                  <!-- Menu déroulant des actions -->
+                  <div 
+                    v-if="openActionsId === contract._id"
+                    class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10"
+                    role="menu"
+                    tabindex="-1"
+                    @click.stop
+                  >
+                    <div class="py-1" role="none">
+                      <button
+                        @click="viewContract(contract)"
+                        class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                        role="menuitem"
+                      >
+                        <i class="far fa-eye mr-2"></i>Voir les détails
+                      </button>
+                      <button
+                        @click="editContract(contract)"
+                        class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                        role="menuitem"
+                      >
+                        <i class="far fa-edit mr-2"></i>Modifier
+                      </button>
+                      <button
+                        v-if="contract.status === 'active'"
+                        @click.stop="openTerminationModal(contract, $event)"
+                        class="text-red-600 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                        role="menuitem"
+                      >
+                        <i class="fas fa-times-circle mr-2"></i>Résilier
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mt-4 flex items-center justify-between">
+      <div class="text-sm text-gray-700">
+        Affichage de <span class="font-medium">{{ (currentPage - 1) * itemsPerPage + 1 }}</span> à 
+        <span class="font-medium">
+          {{ Math.min(currentPage * itemsPerPage, filteredContracts.length) }}
+        </span> sur <span class="font-medium">{{ filteredContracts.length }}</span> résultats
+      </div>
+      
+      <div class="flex space-x-2">
+        <button
+          @click="prevPage"
           :disabled="currentPage === 1"
-          :class="{'opacity-50 cursor-not-allowed': currentPage === 1}"
-          class="p-1 hover:text-gray-900"
-          aria-label="Page précédente"
+          :class="{
+            'opacity-50 cursor-not-allowed': currentPage === 1,
+            'hover:bg-gray-100': currentPage > 1
+          }"
+          class="px-3 py-1 border border-gray-300 rounded text-sm font-medium"
         >
-          <i class="fas fa-chevron-left"></i>
+          Précédent
         </button>
-        
-        <template v-for="page in totalPages" :key="page">
-          <template v-if="page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2">
-            <button 
-              @click="currentPage = page"
-              :class="{'bg-gray-200 text-gray-900 font-semibold': currentPage === page}"
-              class="px-2 py-1 rounded hover:bg-gray-100"
-            >
-              {{ page }}
-            </button>
-          </template>
-          <span 
-            v-else-if="Math.abs(page - currentPage) === 3" 
-            class="px-2 py-1"
-          >
-            ...
-          </span>
-        </template>
-        <button 
-          @click="currentPage++" 
-          :disabled="currentPage === totalPages"
-          :class="{'opacity-50 cursor-not-allowed': currentPage === totalPages}"
-          class="p-1 hover:text-gray-900"
-          aria-label="Page suivante"
+        <button
+          @click="nextPage"
+          :disabled="currentPage * itemsPerPage >= filteredContracts.length"
+          :class="{
+            'opacity-50 cursor-not-allowed': currentPage * itemsPerPage >= filteredContracts.length,
+            'hover:bg-gray-100': currentPage * itemsPerPage < filteredContracts.length
+          }"
+          class="px-3 py-1 border border-gray-300 rounded text-sm font-medium"
         >
-          <i class="fas fa-chevron-right"></i>
+          Suivant
         </button>
-      </nav>
-    </footer>
+      </div>
+    </div>
+
+    <!-- Modal de résiliation -->
+    <teleport to="body">
+      <div v-if="showTerminationModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[1000]" @click.self="closeTerminationModal">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+          <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-medium text-gray-900">Résilier le contrat</h3>
+              <button @click="closeTerminationModal" class="text-gray-400 hover:text-gray-500">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div class="mb-6">
+              <p class="text-sm text-gray-600 mb-4">
+                Êtes-vous sûr de vouloir résilier ce contrat ? Cette action est irréversible.
+              </p>
+              
+              <div class="mb-4">
+                <label for="terminationDate" class="block text-sm font-medium text-gray-700 mb-1">
+                  Date de résiliation
+                </label>
+                <input
+                  type="date"
+                  id="terminationDate"
+                  v-model="terminationDate"
+                  :min="formatDateForInput(new Date())"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+              
+              <div class="mb-4">
+                <label for="terminationReason" class="block text-sm font-medium text-gray-700 mb-1">
+                  Raison de la résiliation (optionnel)
+                </label>
+                <textarea
+                  id="terminationReason"
+                  v-model="terminationReason"
+                  rows="3"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Décrivez la raison de la résiliation..."
+                ></textarea>
+              </div>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+              <button
+                @click="closeTerminationModal"
+                type="button"
+                class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Annuler
+              </button>
+              <button
+                @click="confirmTermination"
+                type="button"
+                class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Confirmer la résiliation
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
-<script lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useContractStore } from '@/stores/contractStore';
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, watch, watchEffect, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { useContractStore } from '@/stores/contractStore';
+import { useAuthStore } from '@/stores/authStore';
+import { useTenantStore } from '@/stores/tenantStore';
+import { useAgentStore } from '@/stores/agentStore';
+import type { ContractStatus as ContractStatusType } from '@/types/contract';
 
-// Fonction simple pour formater une date au format JJ/MM/AAAA
-const formatDate = (dateString: string | null | undefined): string => {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR'); // Format français
-  } catch (e) {
-    console.error('Erreur de formatage de date:', e);
-    return '';
-  }
-};
+// Types
+type ContractStatus = ContractStatusType | string; // Permettre les chaînes personnalisées
 
-export default {
-  name: 'ContractsView',
+interface PropertyAddress {
+  street: string;
+  city: string;
+  postal_code: string;
+  country: string;
+  full_address?: string;
+}
+
+interface PropertyType {
+  _id?: string;
+  id?: string | number;
+  name?: string;
+  title: string;
+  description?: string;
+  [key: string]: any;
+}
+
+interface Property {
+  id: string | number;
+  title: string;
+  description?: string;
+  address: string | PropertyAddress;
+  agent_id?: string | number;
+  status?: string;
+  type: string | PropertyType;  // Peut être une chaîne ou un objet
+  furnished?: boolean; // Rendre ce champ optionnel
+  [key: string]: any; // Pour les propriétés supplémentaires
+}
+
+interface BaseContract {
+  // Identifiants
+  _id: string;
+  id: string | number;
   
-  setup() {
-    // Stores et routeur
-    const contractStore = useContractStore();
-    const router = useRouter();
+  // Références
+  tenantId: string | number;
+  tenant_id?: string | number;
+  tenant?: {
+    id: string | number;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    [key: string]: any;
+  };
+  landlordId: string | number;
+  landlord_id?: string | number;
+  propertyId: string | number;
+  property_id?: string | number;
+  
+  // Dates
+  startDate: string;
+  start_date?: string;
+  endDate: string | null;  // Peut être null pour les contrats à durée indéterminée
+  end_date?: string | null;
+  
+  // Informations financières
+  rent: number;
+  deposit: number;
+  deposit_status: string;  // Peut être 'paid', 'unpaid', 'partial', etc.
+  currency?: string;
+  paymentFrequency?: string;
+  
+  // Statut et métadonnées
+  status: ContractStatus;
+  duration?: string;
+  special_conditions?: string;
+  payment_day?: number | null;
+  
+  // Agent
+  agent?: {
+    id: string | number;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    [key: string]: any;
+  };
+  agent_id?: string | number;
+  
+  // Métadonnées
+  created_at?: string | number;
+  updated_at?: string | number;
+  [key: string]: any;
+}
+
+interface Contract extends Omit<BaseContract, 'property'> {
+  // Propriétés spécifiques à l'interface Contract
+  property?: Property | null;
+  agent?: Agent | null;
+  agentId?: string | number | null;
+  agent_id?: string | number | null;
+  [key: string]: any;
+}
+
+interface Agent {
+  id: string | number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  [key: string]: any;
+}
+
+// Props et émetteurs
+const router = useRouter();
+
+// Stores
+const contractStore = useContractStore();
+const authStore = useAuthStore();
+const tenantStore = useTenantStore();
+const agentStore = useAgentStore();
+
+// Méthode pour afficher les IDs des agents
+const logAgentIds = () => {
+  if (!contractStore.contracts || contractStore.contracts.length === 0) {
+    console.log('Aucun contrat chargé');
+    return;
+  }
+  
+  console.log('=== IDENTIFIANTS DES AGENTS PAR CONTRAT ===');
+  contractStore.contracts.forEach(contract => {
+    const contractId = contract._id || contract.id;
+    const agentId = contract.agent_id || contract.agentId || 
+                   (contract.agent ? (contract.agent._id || contract.agent.id) : null);
     
-    // Références réactives
-    const openMenuId = ref<number | string | null>(null);
-    const showTerminationModal = ref(false);
-    const selectedContract = ref<any>(null);
-    const userAvatar = ref('https://ui-avatars.com/api/?name=Utilisateur');
-    const loading = ref(true);
-    const error = ref('');
-    const searchQuery = ref('');
-    const currentPage = ref(1);
-    const itemsPerPage = 10;
+    console.log(`Contrat ID: ${contractId}`, {
+      agentId: agentId,
+      hasAgentObject: !!contract.agent,
+      agentObject: contract.agent || 'Aucun objet agent',
+      agentInStore: agentId ? agentStore.getAgentById(agentId) : 'Aucun ID d\'agent'
+    });
+  });
+};
+
+// Chargement des données au montage et initialisation des écouteurs
+onMounted(async () => {
+  // Initialiser les écouteurs d'événements
+  document.addEventListener('click', handleClickOutside);
+  localLoading.value = true;
+
+  try {
+    console.log('Début du chargement des données...');
     
-    const filters = ref({
-      status: ''
+    // Charger d'abord les agents
+    console.log('Chargement des agents...');
+    await agentStore.fetchAgents();
+    console.log('Agents chargés:', agentStore.agents);
+    
+    // Puis charger les contrats et les locataires en parallèle
+    await Promise.all([
+      tenantStore.fetchTenants(),
+      contractStore.fetchContracts()
+    ]);
+    
+    console.log('Données chargées:', {
+      locataires: tenantStore.tenants.length,
+      agents: agentStore.agents.length,
+      contrats: contractStore.contracts.length
     });
     
-    // Données calculées
-    const contracts = computed(() => contractStore.contracts || []);
+    // Afficher les IDs des agents pour le débogage
+    logAgentIds();
     
-    const filteredContracts = computed(() => {
-      if (!contracts.value || !Array.isArray(contracts.value)) {
-        return [];
-      }
-      return contracts.value.filter(contract => {
-        // Filtre par statut
-        if (filters.value.status && contract.status !== filters.value.status) {
-          return false;
-        }
-        
-        // Filtre par recherche
-        if (searchQuery.value) {
-          const query = searchQuery.value.toLowerCase();
-          const propertyTitle = contract.property?.title?.toLowerCase() || '';
-          const tenantName = `${contract.tenant?.firstName || ''} ${contract.tenant?.lastName || ''}`.toLowerCase();
-          const address = formatAddress(contract.property?.address).toLowerCase();
-          
-          if (!propertyTitle.includes(query) && 
-              !tenantName.includes(query) && 
-              !address.includes(query)) {
-            return false;
-          }
-        }
-        
-        return true;
-      });
+  } catch (error) {
+    console.error('Erreur lors du chargement des données:', error);
+  } finally {
+    localLoading.value = false;
+  }
+});
+
+// Nettoyer les écouteurs d'événements lors du démontage du composant
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
+
+// Fonctions utilitaires
+const formatDateForInput = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+// États et réactifs
+const searchQuery = ref('');
+const statusFilter = ref('');
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const openActionsId = ref<string | null>(null);
+const showTerminationModal = ref(false);
+const terminationReason = ref('');
+const terminationDate = ref(formatDateForInput(new Date()));
+const selectedContractId = ref<string | null>(null);
+const localLoading = ref(false);
+const agentNames = ref<Record<string, string>>({});
+
+// Propriété computed pour l'état de chargement global
+const isLoading = computed(() => localLoading.value || contractStore.loading);
+
+// Alias pour la compatibilité avec le code existant
+const loading = computed(() => isLoading.value);
+
+// Propriétés calculées
+const contracts = computed(() => contractStore.contracts || []);
+
+const filteredContracts = computed(() => {
+  if (!contracts.value) return [];
+  
+  let result = [...contracts.value];
+  
+  // Filtrage par recherche
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(contract => {
+      const tenantName = formatTenantName(contract.tenantId).toLowerCase();
+      const propertyTitle = contract.property?.title?.toLowerCase() || '';
+      const address = formatAddress(contract.property?.address).toLowerCase();
+      
+      return tenantName.includes(query) || 
+             propertyTitle.includes(query) || 
+             address.includes(query);
     });
-    
-    const totalPages = computed(() => {
-      return Math.ceil(filteredContracts.value.length / itemsPerPage);
-    });
-    
-    const paginatedContracts = computed(() => {
-      const start = (currentPage.value - 1) * itemsPerPage;
-      const end = start + itemsPerPage;
-      return filteredContracts.value.slice(start, end);
-    });
-    
-    // Charger les contrats
-    const loadContracts = async () => {
-      try {
-        loading.value = true;
-        error.value = '';
-        await contractStore.fetchContracts();
-        
-        // Afficher les IDs des contrats dans la console
-        console.log('=== LISTE DES CONTRATS ET LEURS PROPRIÉTÉS ===');
-        if (contractStore.contracts && contractStore.contracts.length > 0) {
-          contractStore.contracts.forEach((contract, index) => {
-            console.log(`\nContrat #${index + 1} (ID: ${contract.id})`);
-            console.log('  ID du contrat:', contract.id);
-            console.log('  ID du propriétaire:', contract.landlordId);
-            console.log('  ID du locataire:', contract.tenantId);
-            console.log('  ID de la propriété:', contract.propertyId);
-            
-            if (contract.property) {
-              console.log('  Propriété associée:');
-              console.log('    ID:', contract.property.id);
-              console.log('    Titre:', contract.property.title || 'Non spécifié');
-              console.log('    Adresse:', contract.property.address || 'Non spécifiée');
-              
-              // Afficher la structure complète de la propriété
-              console.log('    Détails complets:', JSON.stringify(contract.property, null, 2));
-            } else {
-              console.log('  Aucune propriété associée à ce contrat');
-            }
-            
-            console.log('   ---'); // Séparateur entre les contrats
-          });
-        } else {
-          console.log('Aucun contrat trouvé.');
-        }
-        console.log('=================================');
-        
-      } catch (err) {
-        error.value = 'Erreur lors du chargement des contrats';
-        console.error('Erreur:', err);
-      } finally {
-        loading.value = false;
-      }
-    };
-    
-    // Formater une adresse (gère à la fois les chaînes et les objets d'adresse)
-    const formatAddress = (address: string | { street: string; city?: string; postalCode?: string; country?: string; quartier?: string; commune?: string; } | null | undefined) => {
-      if (!address) return 'Non spécifiée';
+  }
+  
+  // Filtrage par statut
+  if (statusFilter.value) {
+    result = result.filter(contract => contract.status === statusFilter.value);
+  }
+  
+  return result;
+});
+
+const paginatedContracts = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredContracts.value.slice(start, end);
+});
+
+// Fonctions utilitaires
+const formatDate = (dateString: string | number | Date | null | undefined): string => {
+  if (!dateString) return 'Non spécifiée';
+  
+  try {
+    const date = typeof dateString === 'string' || typeof dateString === 'number' 
+      ? new Date(dateString) 
+      : dateString;
       
-      // Si c'est déjà une chaîne, on la retourne telle quelle
-      if (typeof address === 'string') return address;
-      
-      // Si c'est un objet, on construit l'adresse à partir des champs
-      const parts = [
-        address.street,
-        address.quartier,
-        address.commune,
-        address.city,
-        address.postalCode,
-        address.country
-      ].filter(Boolean);
-      
-      return parts.length > 0 ? parts.join(', ') : 'Adresse non spécifiée';
-    };
-
-    // Fonction pour basculer le menu déroulant
-    const toggleMenu = (id: number | string | undefined) => {
-      if (id === undefined) return;
-      openMenuId.value = openMenuId.value === id ? null : id;
-    };
-
-    // Fonction pour ouvrir la modal de rupture
-    const openTerminationModal = (contract: any) => {
-      selectedContract.value = contract;
-      showTerminationModal.value = true;
-      openMenuId.value = null; // Fermer le menu déroulant
-    };
-
-    // Fonction pour fermer la modal
-    const closeTerminationModal = () => {
-      showTerminationModal.value = false;
-      selectedContract.value = null;
-    };
-
-    // Fonction pour confirmer la rupture du contrat
-    const confirmTermination = async () => {
-      if (!selectedContract.value) return;
-      
-      try {
-        // TODO: Implémenter la logique de rupture de contrat
-        console.log('Rupture du contrat:', selectedContract.value.id);
-        // Exemple : await contractStore.terminateContract(selectedContract.value.id);
-        
-        // Recharger les contrats
-        await loadContracts();
-        
-        // Fermer la modal
-        closeTerminationModal();
-        
-        // Afficher un message de succès
-        // TODO: Remplacer par un système de notification
-        alert('Le contrat a été rompu avec succès');
-      } catch (error) {
-        console.error('Erreur lors de la rupture du contrat:', error);
-        // TODO: Afficher un message d'erreur
-        alert('Une erreur est survenue lors de la rupture du contrat');
-      }
-    };
-
-    // Fonctions de navigation
-    const viewContractDetails = (contract: any) => {
-      console.log('Voir les détails du contrat:', contract.id);
-      // TODO: Implémenter la navigation vers la page de détails
-      openMenuId.value = null;
-    };
-
-    const editContract = (contract: any) => {
-      console.log('Modifier le contrat:', contract.id);
-      // TODO: Implémenter la navigation vers la page d'édition
-      openMenuId.value = null;
-    };
+    if (isNaN(date.getTime())) return 'Date invalide';
     
-    // Navigation de pagination
-    const prevPage = () => {
-      if (currentPage.value > 1) {
-        currentPage.value--;
-      }
-    };
-    
-    const nextPage = () => {
-      if (currentPage.value < totalPages.value) {
-        currentPage.value++;
-      }
-    };
-
-    // Fermer le menu déroulant lors d'un clic en dehors
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('[aria-label="Actions"]') && !target.closest('[role="menu"]')) {
-        openMenuId.value = null;
-      }
-    };
-
-    // Hooks de cycle de vie
-    onMounted(() => {
-      document.addEventListener('click', handleClickOutside);
-      loadContracts();
-    });
-
-    onUnmounted(() => {
-      document.removeEventListener('click', handleClickOutside);
-    });
-
-    // Réinitialiser la pagination lorsque les filtres changent
-    watch([() => filters.value.status, searchQuery], () => {
-      currentPage.value = 1;
-    });
-
-    // Couleur du statut
-    const getStatusColor = (status: string) => {
-      switch (status) {
-        case 'active':
-          return 'text-green-600';
-        case 'pending':
-          return 'text-yellow-600';
-        case 'ended':
-        case 'cancelled':
-          return 'text-red-600';
-        case 'draft':
-          return 'text-gray-600';
-        default:
-          return 'text-gray-600';
-      }
-    };
-    
-    // Libellé du statut
-    const getStatusLabel = (status: string) => {
-      const statusLabels: Record<string, string> = {
-        'draft': 'Brouillon',
-        'pending': 'En attente',
-        'active': 'Actif',
-        'ended': 'Terminé',
-        'cancelled': 'Annulé'
-      };
-      return statusLabels[status] || status;
-    };
-
-    // Exposer les propriétés nécessaires au template
-    return {
-      // Données
-      contracts: paginatedContracts,
-      filteredContracts,
-      paginatedContracts,
-      loading,
-      error,
-      searchQuery,
-      currentPage,
-      totalPages,
-      itemsPerPage,
-      filters,
-      
-      // Références
-      openMenuId,
-      showTerminationModal,
-      selectedContract,
-      userAvatar,
-      
-      // Méthodes
-      formatDate,
-      formatAddress,
-      getStatusColor,
-      getStatusLabel,
-      toggleMenu,
-      openTerminationModal,
-      closeTerminationModal,
-      confirmTermination,
-      viewContractDetails,
-      editContract,
-      prevPage,
-      nextPage,
-      
-      // Fonctions de navigation
-      loadContracts
-    };
+    return format(date, 'dd/MM/yyyy', { locale: fr });
+  } catch (error) {
+    console.error('Erreur de formatage de date:', error);
+    return 'Date invalide';
   }
 };
+
+const formatAddress = (address: any): string => {
+  if (!address) return 'Adresse non spécifiée';
+  if (typeof address === 'string') return address;
+  
+  const parts = [];
+  if (address.street) parts.push(address.street);
+  
+  const postalCode = address.postal_code || address.postalCode;
+  if (postalCode || address.city) {
+    parts.push([postalCode, address.city].filter(Boolean).join(' '));
+  }
+  
+  if (address.country) parts.push(address.country);
+  
+  return parts.join(', ');
+};
+
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(amount);
+};
+
+const getStatusBadgeClass = (status: string): string => {
+  const classes = {
+    active: 'bg-green-100 text-green-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    ended: 'bg-gray-100 text-gray-800',
+    cancelled: 'bg-red-100 text-red-800',
+    draft: 'bg-blue-100 text-blue-800'
+  };
+  return classes[status as keyof typeof classes] || 'bg-gray-100 text-gray-800';
+};
+
+const getStatusLabel = (status: string): string => {
+  const labels = {
+    active: 'Actif',
+    pending: 'En attente',
+    ended: 'Terminé',
+    cancelled: 'Annulé',
+    draft: 'Brouillon'
+  };
+  return labels[status as keyof typeof labels] || status;
+};
+
+const formatTenantName = (tenantId: string | number): string => {
+  const tenant = tenantStore.tenants.find(t => String(t._id) === String(tenantId));
+  if (!tenant) return 'Locataire inconnu';
+  return `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() || 'Locataire sans nom';
+};
+
+const formatAgentName = async (contract: Contract): Promise<string> => {
+  if (!contract) {
+    console.log('Aucun contrat fourni');
+    return 'Aucun agent';
+  }
+  
+  console.log('Contrat:', {
+    id: contract._id || contract.id,
+    hasAgentProperty: !!contract.agent,
+    agentId: contract.agent_id || contract.agentId,
+    agentObject: contract.agent
+  });
+  
+  // Vérifier si l'agent est déjà dans le contrat avec des informations complètes
+  if (contract.agent) {
+    const name = `${contract.agent.firstName || ''} ${contract.agent.lastName || ''}`.trim();
+    if (name) {
+      console.log('Nom de l\'agent trouvé dans le contrat:', name);
+      return name;
+    }
+  }
+  
+  // Récupérer l'ID de l'agent depuis différentes sources possibles
+  const agentId = contract.agent_id || contract.agentId || 
+                 (contract.agent ? (contract.agent._id || contract.agent.id) : null);
+  
+  console.log('ID de l\'agent extrait:', agentId);
+  
+  if (!agentId) {
+    console.log('Aucun ID d\'agent trouvé dans le contrat');
+    return 'Aucun agent';
+  }
+  
+  try {
+    // Essayer de récupérer l'agent depuis le store
+    const agentFromStore = agentStore.getAgentById(agentId);
+    
+    // Si l'agent est dans le store, le retourner
+    if (agentFromStore) {
+      const name = `${agentFromStore.firstName || ''} ${agentFromStore.lastName || ''}`.trim();
+      console.log('Agent trouvé dans le store:', name);
+      return name || 'Agent sans nom';
+    }
+    
+    console.log('Agent non trouvé dans le store, tentative de chargement...');
+    
+    // Si l'agent n'est pas dans le store, essayer de le charger
+    const fetchedAgent = await agentStore.fetchAgentById(agentId);
+    
+    if (fetchedAgent) {
+      const name = `${fetchedAgent.firstName || ''} ${fetchedAgent.lastName || ''}`.trim();
+      console.log('Agent chargé avec succès:', name);
+      return name || 'Agent sans nom';
+    }
+    
+    console.log(`Aucun agent trouvé avec l'ID: ${agentId}`);
+    return `Agent #${agentId}`;
+    
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'agent:', error);
+    return 'Erreur de chargement';
+  }
+};
+
+// Gestion des actions
+const toggleActions = (contractId: string | null) => {
+  openActionsId.value = openActionsId.value === contractId ? null : contractId;
+};
+
+const viewContract = (contract: Contract) => {
+  if (contract._id) {
+    router.push(`/landlord/contracts/${contract._id}`);
+  }
+};
+
+const editContract = (contract: Contract) => {
+  if (contract._id) {
+    router.push(`/landlord/contracts/${contract._id}/edit`);
+  }
+};
+
+const openTerminationModal = (contract: Contract, event: Event) => {
+  event.stopPropagation();
+  openActionsId.value = null; // Fermer le menu déroulant
+  selectedContractId.value = contract._id ? String(contract._id) : null;
+  terminationDate.value = formatDateForInput(new Date());
+  terminationReason.value = '';
+  showTerminationModal.value = true;
+};
+
+const closeTerminationModal = () => {
+  showTerminationModal.value = false;
+  selectedContractId.value = null;
+  terminationReason.value = '';
+  // Réinitialiser la date de résiliation à aujourd'hui
+  terminationDate.value = formatDateForInput(new Date());
+};
+
+const confirmTermination = async () => {
+  if (!selectedContractId.value) return;
+  
+  try {
+    await contractStore.updateContractStatus(selectedContractId.value, 'cancelled');
+    closeTerminationModal();
+    // Rafraîchir la liste des contrats
+    await contractStore.fetchContracts();
+  } catch (error) {
+    console.error('Erreur lors de la résiliation du contrat:', error);
+  }
+};
+
+// Pagination
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+  }
+};
+
+const nextPage = () => {
+  if (currentPage.value * itemsPerPage < filteredContracts.value.length) {
+    currentPage.value++;
+  }
+};
+
+// Mettre à jour les noms des agents lorsque les contrats changent
+watch(contracts, async (newContracts) => {
+  if (!newContracts) return;
+  
+  console.log('=== MISE À JOUR DES NOMS D\'AGENTS ===');
+  console.log('Contrats reçus:', newContracts.length);
+  
+  const updates: Record<string, string> = {};
+  
+  for (const contract of newContracts) {
+    if (contract?._id) {
+      console.log(`Traitement du contrat ${contract._id}:`, {
+        hasAgent: !!contract.agent,
+        agentId: contract.agent_id || contract.agentId,
+        agentData: contract.agent
+      });
+      
+      if (!agentNames.value[contract._id]) {
+        try {
+          const name = await formatAgentName(contract);
+          updates[contract._id] = name;
+          console.log(`Nom d'agent pour le contrat ${contract._id}:`, name);
+        } catch (error) {
+          console.error('Erreur lors du formatage du nom de l\'agent:', error);
+          updates[contract._id] = 'Erreur de chargement';
+        }
+      }
+    }
+  }
+  
+  // Mise à jour unique de l'état
+  if (Object.keys(updates).length > 0) {
+    console.log('Mise à jour des noms d\'agents:', updates);
+    agentNames.value = {
+      ...agentNames.value,
+      ...updates
+    };
+  } else {
+    console.log('Aucune mise à jour de noms d\'agents nécessaire');
+  }
+}, { immediate: true, deep: true });
+
+// Gestionnaire de clic en dehors du menu déroulant
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+  if (!target.closest('.actions-menu') && !target.closest('.actions-button')) {
+    openActionsId.value = null;
+  }
+};
+
+
+
+// Mettre à jour l'état de chargement local lors du chargement initial
+watchEffect(() => {
+  if (contractStore.loading) {
+    localLoading.value = true;
+  } else {
+    // Délai pour éviter les clignotements pendant le chargement
+    const timer = setTimeout(() => {
+      localLoading.value = false;
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }
+});
+
+// Nettoyage
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <style scoped>
-/* Vous pouvez ajouter des styles spécifiques ici si nécessaire */
+/* Styles spécifiques au composant */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-content {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .modal-content {
+    width: 95%;
+    margin: 0 auto;
+  }
+}
 </style>

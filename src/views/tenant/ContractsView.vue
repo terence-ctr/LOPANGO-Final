@@ -111,17 +111,22 @@
               class="hover:bg-gray-50"
             >
               <!-- Propriété -->
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-md flex items-center justify-center">
+              <td class="px-6 py-4">
+                <div class="flex items-start">
+                  <div class="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-md flex items-center justify-center mt-1">
                     <i class="fas fa-home text-gray-500"></i>
                   </div>
                   <div class="ml-4">
                     <div class="text-sm font-medium text-gray-900">
-                      {{ contract.property?.title || 'Propriété sans nom' }}
+                      {{ contract.property_name || 'Propriété sans nom' }}
                     </div>
-                    <div class="text-sm text-gray-500">
-                      {{ formatAddress(contract.property?.address) }}
+                    <div v-if="contract.property_address" class="text-xs text-gray-500 mt-1 max-w-xs truncate">
+                      {{ contract.property_address }}
+                    </div>
+                    <div v-if="contract.property_status" class="mt-1">
+                      <span :class="getStatusBadgeClass(contract.property_status)" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium">
+                        {{ formatPropertyStatus(contract.property_status) }}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -338,6 +343,38 @@ export default {
       });
     };
     
+    // Formater le statut de la propriété pour l'affichage
+    const formatPropertyStatus = (status: string): string => {
+      const statusMap: Record<string, string> = {
+        'draft': 'Brouillon',
+        'pending': 'En attente',
+        'active': 'Actif',
+        'inactive': 'Inactif',
+        'rented': 'Loué',
+        'available': 'Disponible',
+        'maintenance': 'En maintenance',
+        'ended': 'Terminé',
+        'cancelled': 'Annulé'
+      };
+      return statusMap[status.toLowerCase()] || status;
+    };
+
+    // Classe CSS pour les badges de statut
+    const getStatusBadgeClass = (status: string): string => {
+      const statusClasses: Record<string, string> = {
+        'draft': 'bg-gray-100 text-gray-800',
+        'pending': 'bg-yellow-100 text-yellow-800',
+        'active': 'bg-green-100 text-green-800',
+        'inactive': 'bg-gray-100 text-gray-600',
+        'rented': 'bg-blue-100 text-blue-800',
+        'available': 'bg-green-100 text-green-800',
+        'maintenance': 'bg-red-100 text-red-800',
+        'ended': 'bg-gray-100 text-gray-600',
+        'cancelled': 'bg-red-100 text-red-800'
+      };
+      return statusClasses[status.toLowerCase()] || 'bg-gray-100 text-gray-800';
+    };
+
     // Formater un montant en euros
     const formatCurrency = (amount: number) => {
       if (amount === undefined || amount === null) return 'N/A';
@@ -374,27 +411,17 @@ export default {
       return parts.length > 0 ? parts.join(', ') : 'Adresse non disponible';
     };
     
-    // Obtenir la classe CSS pour le badge de statut
-    const getStatusBadgeClass = (status: ContractStatus) => {
-      const statusClasses: Record<string, string> = {
-        draft: 'bg-gray-100 text-gray-800',
-        pending: 'bg-yellow-100 text-yellow-800',
-        active: 'bg-green-100 text-green-800',
-        ended: 'bg-blue-100 text-blue-800',
-        cancelled: 'bg-red-100 text-red-800'
-      };
-      
-      return statusClasses[status] || 'bg-gray-100 text-gray-800';
-    };
-    
     // Obtenir le libellé du statut
     const getStatusLabel = (status: ContractStatus) => {
       const statusLabels: Record<string, string> = {
-        draft: 'Brouillon',
-        pending: 'En attente',
-        active: 'Actif',
-        ended: 'Terminé',
-        cancelled: 'Annulé'
+        'draft': 'Brouillon',
+        'pending': 'En attente',
+        'active': 'Actif',
+        'ended': 'Terminé',
+        'cancelled': 'Annulé',
+        'renewed': 'Renouvelé',
+        'terminated': 'Résilié',
+        'expired': 'Expiré'
       };
       
       return statusLabels[status] || status;
@@ -471,6 +498,7 @@ export default {
       formatCurrency,
       getStatusBadgeClass,
       getStatusLabel,
+      formatPropertyStatus,
       viewContract,
       downloadContract
     };

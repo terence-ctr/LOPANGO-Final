@@ -18,7 +18,7 @@ const USER_DATA_KEY = 'lopango_user_data';
 // Étendre le type RegisterData pour inclure userType
 interface ExtendedRegisterData extends Omit<RegisterData, 'passwordConfirmation'> {
   userType: UserType;
-  address?: string;
+  // L'adresse est déjà définie dans RegisterData avec le type Omit<Address, 'additionalInfo'>
 }
 
 const authService = {
@@ -289,7 +289,7 @@ const authService = {
       
       // Utiliser le chemin complet avec le préfixe /api
       const response = await api.get(`${apiConfig.endpoints.auth.me}`);
-      console.log('URL de la requête:', `${apiConfig.apiUrl}${apiConfig.endpoints.auth.me}`);
+      console.log('URL de la requête:', `${apiConfig.baseURL}${apiConfig.endpoints.auth.me}`);
       
       // Vérifier si la réponse contient des données valides
       if (!response?.data?.data) {
@@ -331,7 +331,14 @@ const authService = {
    * Déconnexion de l'utilisateur
    * @param redirectToLogin Rediriger vers la page de connexion après déconnexion (par défaut: true)
    */
-  async logout(redirectToLogin: boolean = true): Promise<{ success: boolean; message?: string }> {
+  async logout(redirectToLogin: boolean = true): Promise<{ 
+    success: boolean; 
+    message?: string; 
+    data?: any;
+    wasForced?: boolean;
+    error?: string;
+    status?: number;
+  }> {
     // Nettoyer les données d'authentification locales
     this.clearAuthData();
     // Vérifier si on est côté navigateur

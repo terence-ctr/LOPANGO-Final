@@ -88,6 +88,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
+  // Méthode pour obtenir le token d'authentification
+  const getAuthToken = (): string | null => {
+    // Récupérer le token depuis le localStorage ou un autre stockage sécurisé
+    return localStorage.getItem('auth_token');
+  };
+
   return {
     user,
     isAuthenticated,
@@ -96,5 +102,6 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     checkAuth,
+    getAuthToken,
   };
 });

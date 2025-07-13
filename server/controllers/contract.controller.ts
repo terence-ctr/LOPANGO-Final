@@ -68,7 +68,7 @@ interface LocalContractQueryResult {
   id: number;
   property_id: number;
   tenant_id: number;
-  landlord_id: number;
+  owner_id: number;
   agent_id: number | null;
   start_date: string;
   end_date: string;
@@ -164,57 +164,8 @@ export const getTenantContracts = async (req: LocalContractRequest, res: Respons
   const userId = req.user.id;
   const userType = req.user.userType;
   
-  // Afficher les contrats liés à l'utilisateur connecté dans les logs
   try {
-    let userContracts: Array<{
-      id: number;
-      property_id: number | null;
-      tenant_id: number | null;
-      landlord_id: number | null;
-      start_date: string;
-      end_date: string | null;
-      status: string;
-      payment_day: number | null;
-      rent: number;
-      currency: string;
-      deposit: number;
-      duration: string;
-      special_conditions: string | null;
-      created_at: string;
-      updated_at: string;
-    }> = [];
-    
-    if (userType === 'tenant') {
-      console.log(`=== CONTRATS DU LOCATAIRE (ID: ${userId}) ===`);
-      userContracts = await db('contracts')
-        .where('tenant_id', userId);
-    } else if (userType === 'landlord') {
-      console.log(`=== CONTRATS DU PROPRIÉTAIRE (ID: ${userId}) ===`);
-      userContracts = await db('contracts')
-        .where('landlord_id', userId);
-    } else if (userType === 'admin') {
-      console.log('=== TOUS LES CONTRATS (ACCÈS ADMIN) ===');
-      userContracts = await db('contracts').select('*');
-    }
-    
-    console.log(JSON.stringify(userContracts, null, 2));
-    console.log('======================================');
-  } catch (error) {
-    console.error('Erreur lors de la récupération des contrats:', error);
-  }
-  
-  try {
-    // Vérifier si l'utilisateur est connecté
-    if (!req.user) {
-      console.error('Non autorisé: Utilisateur non connecté');
-      return res.status(401).json({ 
-        status: 'error',
-        message: 'Non autorisé: Utilisateur non connecté' 
-      });
-    }
-
-    const userId = req.user.id;
-    console.log(`Locataire connecté: ID=${userId}, Type=${req.user.userType}`);
+    console.log(`Utilisateur connecté: ID=${userId}, Type=${userType}`);
 
     // Récupérer les paramètres de requête
     const { status, sortBy = 'start_date', sortOrder = 'desc' } = req.query;
@@ -223,19 +174,20 @@ export const getTenantContracts = async (req: LocalContractRequest, res: Respons
     // Construire la requête de base
     console.log('Construction de la requête de base...');
     
-    // Récupérer d'abord les contrats de base
+    // Récupérer les contrats avec les informations de base
     let contractsQuery = db('contracts as c')
-      .select('*')
-      .whereNot('status', 'deleted');
+      .select('c.*')
+      .whereNot('c.status', 'deleted')
+      .orderBy(sortBy, sortOrder);
       
     // Filtrer en fonction du type d'utilisateur
-    if (req.user.userType === 'tenant') {
+    if (userType === 'tenant') {
       console.log(`Filtrage pour locataire (ID: ${userId})`);
       contractsQuery = contractsQuery.where('tenant_id', userId);
-    } else if (req.user.userType === 'landlord') {
+    } else if (userType === 'landlord') {
       console.log(`Filtrage pour propriétaire (ID: ${userId})`);
       contractsQuery = contractsQuery.where('landlord_id', userId);
-    } else if (req.user.userType !== 'admin') {
+    } else if (userType !== 'admin') {
       // Si l'utilisateur n'est ni admin, ni propriétaire, ni locataire, on ne retourne rien
       console.log('Utilisateur non autorisé à voir les contrats');
       return res.status(200).json({ status: 'success', data: [] });
@@ -247,25 +199,45 @@ export const getTenantContracts = async (req: LocalContractRequest, res: Respons
       contractsQuery = contractsQuery.where('status', status);
     }
 
-    // Trier les résultats
-    console.log(`Tri par: ${sortBy} (${sortOrder})`);
-    contractsQuery = contractsQuery.orderBy(sortBy, sortOrder as 'asc' | 'desc');
-
     // Exécuter la requête pour obtenir les contrats
     console.log('Exécution de la requête de récupération des contrats...');
-    console.log('Requête SQL:', contractsQuery.toSQL().toNative());
     
-    let contracts = [];
+    // Ajouter les jointures nécessaires pour récupérer les informations de l'agent
+    contractsQuery = contractsQuery
+      .leftJoin('users as a', 'c.agent_id', 'a.id')
+      .select([
+        'c.*',
+        'a.id as agent_id',
+        'a.first_name as agent_first_name',
+        'a.last_name as agent_last_name',
+        'a.email as agent_email'
+      ]);
+    
+    const sql = contractsQuery.toSQL().toNative();
+    console.log('Requête SQL complète:', sql);
+    
+    let contracts;
     try {
       contracts = await contractsQuery;
       console.log(`Nombre de contrats trouvés: ${contracts.length}`);
-      console.log('Contrats bruts:', JSON.stringify(contracts, null, 2));
-    } catch (error) {
-      console.error('Erreur lors de la récupération des contrats:', error);
+      
+      // Afficher les données brutes des contrats pour débogage
+      console.log('\n=== DONNÉES BRUTES DES CONTRATS ===');
+      contracts.forEach((contract, index) => {
+        console.log(`\nContrat #${index + 1}:`);
+        console.log('- ID:', contract.id);
+        console.log('- Agent ID:', contract.agent_id);
+        console.log('- Agent Nom Complet:', `${contract.agent_first_name || ''} ${contract.agent_last_name || ''}`.trim() || 'Non spécifié');
+        console.log('- Données brutes:', JSON.stringify(contract, null, 2));
+      });
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      console.error('Erreur lors de la récupération des contrats:', errorMessage);
       return res.status(500).json({
         status: 'error',
         message: 'Erreur lors de la récupération des contrats',
-        error: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: errorMessage
       });
     }
     
@@ -280,120 +252,99 @@ export const getTenantContracts = async (req: LocalContractRequest, res: Respons
       });
     }
     
+    // Afficher les colonnes et valeurs pour le premier contrat
+    console.log('\n=== VALEURS DU PREMIER CONTRAT ===');
+    const sampleContract = contracts[0];
+    console.log('Colonnes disponibles dans la table contracts:');
+    Object.keys(sampleContract).forEach(key => {
+      console.log(`- ${key}:`, sampleContract[key]);
+    });
+    
+    // Vérifier et afficher les champs spécifiques
+    console.log('\nChamps spécifiques:');
+    console.log('- property_name:', sampleContract.property_name);
+    console.log('- property_address:', sampleContract.property_address);
+    console.log('- property_status:', sampleContract.property_status);
+    console.log('==============================\n');
+    
     console.log('Récupération des informations supplémentaires pour chaque contrat...');
-    const enrichedContracts = await Promise.all(contracts.map(async (contract: any) => {
-      // Récupérer les informations du bien
-      const property = await db('properties')
-        .where('id', contract.property_id)
-        .first()
-        .select(
-          'title',
-          'quartier',
-          'commune'
-        );
-      
-      // Récupérer les informations du propriétaire
-      const landlord = await db('users')
-        .where('id', contract.landlord_id)
-        .first()
-        .select('first_name', 'last_name', 'email');
-      
-      // Récupérer les informations du locataire
-      const tenant = await db('users')
-        .where('id', contract.tenant_id)
-        .first()
-        .select('first_name', 'last_name', 'email');
-      
-      // Construire l'objet de réponse avec toutes les propriétés nécessaires
-      const formattedContract = {
-        // Champs de base
-        id: contract.id,
-        property_id: contract.property_id,
-        tenant_id: contract.tenant_id,
-        landlord_id: contract.landlord_id,
-        start_date: contract.start_date,
-        end_date: contract.end_date,
-        status: contract.status,
-        payment_day: contract.payment_day,
-        rent: contract.rent,
-        deposit: contract.deposit,
-        deposit_status: contract.deposit_status || 'non payé',
-        currency: contract.currency || 'EUR',
-        duration: contract.duration || '1 an',
-        special_conditions: contract.special_conditions || '',
-        created_at: contract.created_at,
-        updated_at: contract.updated_at,
-        
-        // Propriétés du bien
-        // Utiliser les champs d'adresse existants
-        property_title: property?.title || 'Propriété inconnue',
-        property_address_street: property?.quartier || '',
-        property_address_city: property?.commune || '',
-        property_address_postal_code: '', // Champ non disponible dans la base actuelle
-        property_address_country: 'congo', // Valeur par défaut
-        
-        // Informations du propriétaire
-        landlord_first_name: landlord?.first_name || 'Propriétaire',
-        landlord_last_name: landlord?.last_name || 'Inconnu',
-        landlord_email: landlord?.email || '',
-        
-        // Informations du locataire
-        tenant_first_name: tenant?.first_name || 'Locataire',
-        tenant_last_name: tenant?.last_name || 'Inconnu',
-        tenant_email: tenant?.email || ''
-      };
-      
-      console.log('Contrat formaté:', JSON.stringify(formattedContract, null, 2));
-      return formattedContract;
+    const enrichedContracts = contracts.map(contract => ({
+      ...contract,
+      property_title: contract.property_name || 'Propriété sans nom',
+      property_address: contract.property_address || 'Adresse non disponible',
+      property_status: contract.property_status || 'inconnu'
     }));
     
     console.log('Contrats enrichis avec succès');
-    console.log('Contrats bruts:', JSON.stringify(enrichedContracts, null, 2));
-
+    
     // Formater les données pour le frontend
     console.log('Formatage des données pour le frontend...');
-    const formattedContracts = [];
-    
-    for (const contract of enrichedContracts) {
-      try {
-        // Créer l'objet de contrat formaté avec les champs attendus par le frontend
-        const formattedContract = {
-          id: contract.id,
-          landlord_id: contract.landlord_id,
-          tenant_id: contract.tenant_id,
-          property_id: contract.property_id,
-          start_date: contract.start_date || new Date().toISOString().split('T')[0],
-          end_date: contract.end_date || '',
+    const formattedContracts = enrichedContracts.map(contract => {
+      // Parser l'adresse complète en composants individuels
+      const addressParts = (contract.property_address || '').split(',').map((part: string) => part.trim());
+      const [street, city, postal_code, country] = addressParts;
+      
+      // Préparer l'objet agent s'il y a un agent_id
+      let agent = null;
+      if (contract.agent_id) {
+        agent = {
+          id: contract.agent_id,
+          firstName: contract.agent_first_name || '',
+          lastName: contract.agent_last_name || '',
+          email: contract.agent_email || ''
+        };
+        console.log(`Agent pour le contrat ${contract.id}:`, agent);
+      } else {
+        console.log(`Aucun agent pour le contrat ${contract.id}`);
+      }
+      
+      return {
+        id: contract.id,
+        landlord_id: contract.landlord_id,
+        tenant_id: contract.tenant_id,
+        property_id: contract.property_id,
+        agent_id: contract.agent_id, // Ajouter l'ID de l'agent au niveau racine
+        property: {
+          id: contract.property_id,
+          title: contract.property_name || 'Propriété sans nom',
+          // Structure d'adresse standardisée
+          address: {
+            street: street || '',
+            city: city || '',
+            postal_code: postal_code || '',
+            country: country || 'Congo',
+            // Adresse complète pour la rétrocompatibilité
+            full_address: contract.property_address || ''
+          },
+          type: contract.usage || 'inconnu',
           rent: contract.rent || 0,
           deposit: contract.deposit || 0,
-          currency: contract.currency || 'EUR',
-          duration: contract.duration || '1 an',
-          status: contract.status || 'draft',
-          special_conditions: contract.special_conditions || '',
-          payment_day: contract.payment_day || null,
-          // Champs supplémentaires pour la rétrocompatibilité avec le frontend
-          landlord_first_name: contract.landlord_first_name || 'Propriétaire',
-          landlord_last_name: contract.landlord_last_name || 'Inconnu',
-          landlord_email: contract.landlord_email || '',
-          tenant_first_name: contract.tenant_first_name || 'Locataire',
-          tenant_last_name: contract.tenant_last_name || 'Inconnu',
-          tenant_email: contract.tenant_email || '',
-          property_title: contract.property_title || 'Propriété inconnue',
-          property_address_street: contract.property_address_street || '',
-          property_address_city: contract.property_address_city || '',
-          property_address_postal_code: contract.property_address_postal_code || '',
-          property_address_country: contract.property_address_country || 'congo',
-          deposit_status: contract.deposit_status || 'non payé',
-          created_at: contract.created_at || new Date().toISOString(),
-          updated_at: contract.updated_at || new Date().toISOString()
-        };
-        
-        console.log('Contrat formaté pour le frontend:', JSON.stringify(formattedContract, null, 2));
-        formattedContracts.push(formattedContract);
-      } catch (error) {
-        console.error('Erreur lors du formatage du contrat:', error);
-      }
-    }
+          currency: contract.currency || 'USD',
+          status: contract.property_status || 'inconnu',
+          // Inclure l'agent dans la propriété
+          agent: agent
+        },
+        start_date: contract.start_date,
+        end_date: contract.end_date,
+        rent: contract.rent || 0,
+        deposit: contract.deposit || 0,
+        deposit_status: contract.deposit_status || 'non payé',
+        currency: contract.currency || 'USD',
+        duration: contract.duration,
+        status: contract.status,
+        special_conditions: contract.special_conditions || '',
+        payment_day: contract.payment_day,
+        // Inclure l'agent au niveau racine également pour la rétrocompatibilité
+        agent: agent,
+        usage: contract.usage || 'inconnu',
+        created_at: contract.created_at || new Date().toISOString(),
+        updated_at: contract.updated_at || new Date().toISOString(),
+        // Propriétés dépréciées (à supprimer après mise à jour du frontend)
+        property_name: contract.property_name,
+        property_address: contract.property_address,
+        property_status: contract.property_status
+      };
+    });
     
     console.log('Contrats du locataire formatés avec succès');
     console.log('=== FIN getTenantContracts - SUCCÈS ===');
@@ -424,6 +375,33 @@ export const getTenantContracts = async (req: LocalContractRequest, res: Respons
         (error instanceof Error ? error.message : 'Erreur inconnue') : 
         undefined,
       timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Crée un nouveau contrat
+ */
+/**
+ * Récupère la liste des agents immobiliers
+ */
+export const getAgents = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const agents = await db('users')
+      .select('id', 'first_name as firstName', 'last_name as lastName', 'email', 'phone')
+      .where('user_type', 'agent')
+      .where('is_active', true)
+      .orderBy('last_name', 'asc');
+
+    return res.status(200).json({
+      status: 'success',
+      data: agents
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des agents:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Une erreur est survenue lors de la récupération des agents'
     });
   }
 };
@@ -502,7 +480,7 @@ export const createContract = async (req: LocalContractRequest, res: Response): 
     // Vérifier si la propriété existe et appartient bien au propriétaire
     const property = await trx('properties')
       .where('id', propertyId)
-      .where('landlord_id', landlordId)
+      .where('owner_id', landlordId) // Changé de landlord_id à owner_id
       .first();
 
     if (!property) {
@@ -516,7 +494,7 @@ export const createContract = async (req: LocalContractRequest, res: Response): 
     // Vérifier si la propriété n'est pas déjà louée pour la période spécifiée
     const existingContract = await trx('contracts')
       .where('property_id', propertyId)
-      .whereNot('status', 'terminated')
+      .whereNotIn('status', ['terminated', 'rejected', 'cancelled'])
       .where(function() {
         this.where('end_date', '>=', startDate)
           .orWhereNull('end_date');
@@ -524,42 +502,195 @@ export const createContract = async (req: LocalContractRequest, res: Response): 
       .first();
 
     if (existingContract) {
+      // Vérifier si le contrat existant est expiré
+      const isExpired = existingContract.end_date && new Date(existingContract.end_date) < new Date();
+      
+      if (!isExpired) {
+        await trx.rollback();
+        
+        // Récupérer les détails de la propriété pour le message d'erreur
+        const property = await trx('properties')
+          .where('id', propertyId)
+          .first();
+        
+        return res.status(409).json({
+          status: 'error',
+          code: 'PROPERTY_ALREADY_RENTED',
+          message: 'Cette propriété est déjà louée',
+          details: {
+            propertyTitle: property?.title || 'Propriété inconnue',
+            propertyId: propertyId,
+            contractId: existingContract.id,
+            status: existingContract.status,
+            endDate: existingContract.end_date 
+              ? new Date(existingContract.end_date).toLocaleDateString('fr-FR')
+              : 'Date de fin non définie'
+          },
+          userMessage: `La propriété "${property?.title || ''}" est déjà louée jusqu'au ${
+            existingContract.end_date 
+              ? new Date(existingContract.end_date).toLocaleDateString('fr-FR')
+              : 'une date ultérieure'
+          }`
+        });
+      } else {
+        // Mettre à jour le statut du contrat expiré
+        await trx('contracts')
+          .where('id', existingContract.id)
+          .update({
+            status: 'terminated',
+            updated_at: new Date()
+          });
+      }
+    }
+
+    // Récupérer et valider l'agent_id s'il est fourni
+    const agentId = req.body.agentId ? parseInt(req.body.agentId, 10) : null;
+    
+    if (!agentId) {
       await trx.rollback();
-      return res.status(409).json({
+      return res.status(400).json({
         status: 'error',
-        message: 'La propriété est déjà louée pour la période spécifiée'
+        code: 'AGENT_REQUIRED',
+        message: 'Un agent immobilier est requis pour la création du contrat'
       });
     }
 
-    // Créer le contrat
-    const [contractId] = await trx('contracts').insert({
-      name: `Contrat ${property.title || 'sans nom'}`,
+    // Vérifier si l'agent existe et a les droits
+    console.log('Recherche de l\'agent avec ID:', agentId);
+    const agent = await trx('users')
+      .where('id', agentId)
+      .where('user_type', 'agent')
+      .first();
+    
+    if (!agent) {
+      console.error('Agent non trouvé ou n\'est pas un agent:', agentId);
+      await trx.rollback();
+      return res.status(404).json({
+        status: 'error',
+        code: 'AGENT_NOT_FOUND',
+        message: 'L\'agent immobilier spécifié est introuvable ou n\'a pas les droits nécessaires'
+      });
+    }
+    console.log('Agent trouvé:', agent);
+    console.log('Type de l\'ID de l\'agent:', typeof agentId, 'Valeur:', agentId);
+
+    // Récupérer les informations de la propriété
+    const propertyData = await trx('properties')
+      .where('id', propertyId)
+      .first();
+
+    if (!propertyData) {
+      await trx.rollback();
+      return res.status(404).json({
+        status: 'error',
+        message: 'La propriété spécifiée est introuvable'
+      });
+    }
+
+    // Préparer les données du contrat
+    console.log('Préparation des données du contrat - agent_id:', agentId);
+    const contractData: any = {
       property_id: propertyId,
-      landlord_id: landlordId,
       tenant_id: tenantId,
+      landlord_id: landlordId,
+      agent_id: agentId, // On est sûr que agentId n'est pas null grâce aux validations précédentes
       start_date: startDate,
       end_date: endDate,
-      rent_amount: rent,
-      deposit_amount: deposit,
-      currency: currency,
+      rent: parseFloat(rent), // Assurez-vous que c'est un nombre
+      deposit: parseFloat(deposit), // Assurez-vous que c'est un nombre
+      currency,
       duration: duration,
       special_conditions: specialConditions,
       status: status,
       payment_day: paymentDay,
       created_at: new Date(),
       updated_at: new Date()
-    });
+    };
 
-    // Mettre à jour le statut de la propriété
-    await trx('properties')
-      .where('id', propertyId)
-      .update({
-        status: 'rented',
-        updated_at: new Date()
+    // Valider et formater les informations de la propriété
+    if (!propertyData.title) {
+      await trx.rollback();
+      return res.status(400).json({
+        status: 'error',
+        code: 'PROPERTY_TITLE_REQUIRED',
+        message: 'Le titre de la propriété est requis'
       });
+    }
 
-    // Valider la transaction
-    await trx.commit();
+    const propertyAddress = [
+      propertyData.street,
+      propertyData.city,
+      propertyData.postal_code,
+      propertyData.country
+    ].filter(Boolean).join(', ');
+
+    if (!propertyAddress) {
+      await trx.rollback();
+      return res.status(400).json({
+        status: 'error',
+        code: 'PROPERTY_ADDRESS_REQUIRED',
+        message: 'L\'adresse complète de la propriété est requise'
+      });
+    }
+
+    // Ajouter les informations de la propriété au contrat
+    contractData.property_name = propertyData.title;
+    contractData.property_address = propertyAddress;
+    contractData.property_status = propertyData.status || 'active';
+
+    // Ajouter l'usage si disponible
+    if (req.body.usage) {
+      contractData.usage = req.body.usage;
+    }
+    
+    console.log('Données du contrat avant insertion:', JSON.stringify(contractData, null, 2));
+
+    // Insérer le contrat
+    console.log('Insertion du contrat avec les données:', JSON.stringify(contractData, null, 2));
+    let contractId;
+    try {
+      [contractId] = await trx('contracts').insert(contractData).returning('id');
+      console.log('Contrat inséré avec ID:', contractId);
+      console.log('agent_id inséré dans le contrat:', contractData.agent_id);
+    } catch (error) {
+      console.error('Erreur lors de l\'insertion du contrat:', error);
+      throw error; // La transaction sera rollback automatiquement
+    }
+
+    // Mettre à jour la propriété avec les IDs du locataire et de l'agent
+    console.log('Mise à jour de la propriété - agent_id:', agentId);
+    const propertyUpdateData: any = {
+      status: 'rented',
+      updated_at: new Date(),
+      tenant_id: tenantId,
+      agent_id: agentId // On est sûr que agentId n'est pas null grâce aux validations précédentes
+    };
+
+    console.log('Données de mise à jour de la propriété:', JSON.stringify(propertyUpdateData, null, 2));
+
+    // Mettre à jour la propriété
+    try {
+      const updated = await trx('properties')
+        .where('id', propertyId)
+        .update(propertyUpdateData);
+      
+      console.log('Propriété mise à jour:', updated, 'lignes affectées');
+      
+      // Vérifier que l'agent a bien été mis à jour
+      const updatedProperty = await trx('properties')
+        .where('id', propertyId)
+        .first();
+      
+      console.log('Propriété après mise à jour - agent_id:', updatedProperty?.agent_id);
+      
+      // Valider la transaction
+      await trx.commit();
+      
+      console.log('Transaction validée avec succès');
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la propriété:', error);
+      throw error; // La transaction sera rollback automatiquement
+    }
 
     console.log(`Contrat créé avec succès avec l'ID: ${contractId}`);
     
@@ -572,6 +703,10 @@ export const createContract = async (req: LocalContractRequest, res: Response): 
         propertyId: propertyId,
         landlordId: landlordId,
         tenantId: tenantId,
+        agentId: agentId || null,
+        propertyName: contractData.property_name,
+        propertyAddress: contractData.property_address,
+        propertyStatus: contractData.property_status,
         startDate: startDate,
         endDate: endDate,
         rent: rent,
@@ -593,12 +728,32 @@ export const createContract = async (req: LocalContractRequest, res: Response): 
     }
     
     const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
-    console.error('Erreur lors de la création du contrat:', errorMessage);
+    const errorStack = error instanceof Error ? error.stack : 'Pas de stack trace disponible';
+    
+    console.error('=== ERREUR LORS DE LA CRÉATION DU CONTRAT ===');
+    console.error('Message:', errorMessage);
+    console.error('Stack:', errorStack);
+    
+    if (error instanceof Error && 'code' in error) {
+      console.error('Code d\'erreur SQL:', (error as any).code);
+    }
+    
+    if (error instanceof Error && 'sqlMessage' in error) {
+      console.error('Message SQL:', (error as any).sqlMessage);
+    }
+    
+    if (error instanceof Error && 'sql' in error) {
+      console.error('Requête SQL:', (error as any).sql);
+    }
     
     return res.status(500).json({
       status: 'error',
       message: 'Une erreur est survenue lors de la création du contrat',
-      error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        message: errorMessage,
+        stack: errorStack,
+        ...(error && typeof error === 'object' ? error : {})
+      } : undefined
     });
   }
 };
