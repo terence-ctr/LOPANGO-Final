@@ -470,6 +470,75 @@ export const getMyProperties = async (req: Request, res: Response) => {
   }
 };
 
+// Récupérer les propriétés disponibles (sans contrat actif)
+export const getAvailableProperties = async (req: Request, res: Response) => {
+  try {
+    // Récupérer les IDs des propriétés avec des contrats actifs
+    const activeContractProperties = await db('contracts')
+      .where(function() {
+        this.whereNotIn('status', ['terminated', 'rejected', 'cancelled'])
+          .andWhere(function() {
+            this.where('end_date', '>=', new Date())
+                .orWhereNull('end_date');
+          });
+      })
+      .distinct('property_id')
+      .pluck('property_id');
+
+    console.log('Propriétés avec contrats actifs:', activeContractProperties);
+
+    // Récupérer les propriétés qui n'ont pas de contrats actifs
+    const query = db('properties')
+      .where('status', 'DISPONIBLE');
+
+    if (activeContractProperties && activeContractProperties.length > 0) {
+      query.whereNotIn('id', activeContractProperties);
+    }
+
+    const properties = await query.select('*');
+    console.log('Propriétés disponibles:', properties.length);
+    
+    // Convertir les équipements de JSON en tableau
+    const formattedProperties = properties.map(prop => {
+      let equipment = [];
+      try {
+        equipment = prop.equipment && typeof prop.equipment === 'string' 
+          ? JSON.parse(prop.equipment) 
+          : Array.isArray(prop.equipment) 
+            ? prop.equipment 
+            : [];
+      } catch (e) {
+        console.error('Erreur de parsing des équipements:', e);
+        equipment = [];
+      }
+      
+      return {
+        ...prop,
+        equipment,
+        // Créer un objet d'adresse standardisé
+        address: {
+          street: prop.address || '',
+          city: prop.city || '',
+          postal_code: prop.postal_code || '',
+          country: prop.country || 'congo'
+        }
+      };
+    });
+    
+    res.json({
+      success: true,
+      data: formattedProperties
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des propriétés disponibles:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des propriétés disponibles',
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    });
+  }
+};
+
 // Récupérer toutes les propriétés
 export const getProperties = async (req: Request, res: Response) => {
   try {

@@ -64,23 +64,56 @@ export const validatePropertyData = (req: Request, res: Response, next: NextFunc
 
   // Vérification du type
   console.log('\n=== VALIDATION DU TYPE ===');
+  console.log('Type reçu:', propertyData.type);
+  console.log('Types valides:', propertyConfig.propertyTypes.map(t => t.value));
+  
   if (!propertyData.type) {
     console.log('❌ Erreur: Le type est obligatoire');
     errors.type = 'Le type est obligatoire';
-  } else if (!propertyConfig.propertyTypes.some(t => t.value === propertyData.type)) {
-    console.log(`❌ Erreur: Type de propriété invalide: ${propertyData.type}`);
-    errors.type = 'Type de propriété invalide';
   } else {
-    console.log(`✅ Type valide: ${propertyData.type}`);
+    const typeFound = propertyConfig.propertyTypes.some(t => {
+      const match = t.value === propertyData.type;
+      console.log(`Comparaison: ${t.value} === ${propertyData.type} -> ${match}`);
+      return match;
+    });
+    
+    if (!typeFound) {
+      console.log(`❌ Erreur: Type de propriété invalide: ${propertyData.type}`);
+      errors.type = 'Type de propriété invalide';
+    } else {
+      console.log(`✅ Type valide: ${propertyData.type}`);
+    }
   }
 
-  // Vérification de l'adresse (nouvelle structure)
+  // Vérification de l'adresse (accepte à la fois une chaîne ou un objet)
   console.log('\n=== VALIDATION DE L\'ADRESSE ===');
-  if (!propertyData.address || typeof propertyData.address !== 'string' || propertyData.address.trim() === '') {
-    console.log('❌ Erreur: L\'adresse est obligatoire et doit être une chaîne de caractères.');
-    errors.address = 'L\'adresse est obligatoire.';
+  if (!propertyData.address) {
+    console.log('❌ Erreur: L\'adresse est obligatoire');
+    errors.address = 'L\'adresse est obligatoire';
+  } else if (typeof propertyData.address === 'string') {
+    if (propertyData.address.trim() === '') {
+      console.log('❌ Erreur: L\'adresse ne peut pas être vide');
+      errors.address = 'L\'adresse ne peut pas être vide';
+    } else {
+      console.log('✅ Adresse fournie (format chaîne):', propertyData.address);
+    }
+  } else if (typeof propertyData.address === 'object' && propertyData.address !== null) {
+    // Vérifier que l'objet d'adresse a les champs requis
+    const requiredFields = ['street', 'city', 'postal_code', 'country'];
+    const missingFields = requiredFields.filter(field => !propertyData.address[field]);
+    
+    if (missingFields.length > 0) {
+      const errorMsg = `Les champs suivants sont manquants dans l'adresse: ${missingFields.join(', ')}`;
+      console.log(`❌ Erreur: ${errorMsg}`);
+      errors.address = errorMsg;
+    } else {
+      console.log('✅ Adresse fournie (format objet):', JSON.stringify(propertyData.address, null, 2));
+      // Convertir l'adresse en chaîne pour le stockage si nécessaire
+      propertyData.address = `${propertyData.address.street}, ${propertyData.address.postal_code} ${propertyData.address.city}, ${propertyData.address.country}`;
+    }
   } else {
-    console.log('✅ Adresse fournie:', propertyData.address);
+    console.log('❌ Erreur: Format d\'adresse non valide');
+    errors.address = 'Le format de l\'adresse est invalide. Utilisez une chaîne ou un objet avec les champs street, city, postal_code et country';
   }
 
   // Vérification de la surface

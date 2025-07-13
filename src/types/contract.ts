@@ -1,29 +1,101 @@
 export type ContractStatus = 'active' | 'pending' | 'ended' | 'cancelled' | 'draft';
 
-// Aligned with backend property address structure
-export interface Address {
+// Interface pour l'adresse standardisée
+export interface StandardAddress {
   street: string;
-  city?: string;
-  postalCode?: string;
-  country?: string;
-  quartier?: string;
-  commune?: string;
+  city: string;
+  postal_code: string;
+  country: string;
 }
 
-// Aligned with authStore and backend user model
-export interface User {
-  id: string | number;
+export interface Identity {
+  nationalId: string;
+  documentType: string;
+}
+
+export interface FormLandlord {
+  id: string;
+  _id?: string;
   firstName: string;
   lastName: string;
   email?: string;
-  telephone?: string;
-  // Fields specific to contract context
   nationality?: string;
-  idType?: IdType;
-  idNumber?: string;
-  address?: Address;
-  birthDate?: string;
-  birthPlace?: string;
+  identity: Identity;
+  address: StandardAddress;
+  phone: string;
+  userType?: string;
+}
+
+export interface FormTenant {
+  id: string;
+  _id?: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  nationality?: string;
+  identity: Identity;
+  address: StandardAddress;
+  phone: string;
+  userType?: string;
+}
+
+export interface FormAgent {
+  id: string;
+  _id?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  identity: Identity;
+  address: StandardAddress;
+  userType?: string;
+}
+
+export interface ContractData {
+  startDate: string;
+  endDate: string;
+  rent: number;
+  charges: number;
+  deposit: number;
+  currency: string;
+  duration: number;
+  paymentDay: number | null;
+  status: ContractStatus;
+  specialConditions: string;
+  etage?: number | string;
+  hasElevator?: boolean;
+  hasParking?: boolean;
+  hasGarden?: boolean;
+  hasBalcony?: boolean;
+  hasTerrace?: boolean;
+  hasPool?: boolean;
+  hasAirConditioning?: boolean;
+  hasHeating?: boolean;
+  isFurnished?: boolean;
+}
+
+// Extension de l'interface Property pour inclure hasApartments
+export interface PropertyWithApartments extends Omit<Property, 'id' | 'address' | 'type'> {
+  id: string;
+  _id?: string;
+  address: StandardAddress;
+  hasApartments: boolean;
+  type: PropertyType | string;
+}
+
+import { Property as PropertyType, PropertyStatus, PropertyAddress } from './property';
+import {  Address } from './user';
+
+export type User = {
+  id: string;
+  _id?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  identity: Identity;
+  address: StandardAddress;
+  userType?: string;
 }
 
 // Aligned with backend property model
@@ -31,23 +103,16 @@ export interface Property {
   id: string | number;
   title: string;
   // Champs d'adresse détaillés
-  address?: string; // Adresse complète formatée
-  street?: string;
-  city?: string;
-  postal_code?: string;
-  country?: string;
-  quartier?: string;
-  commune?: string;
-  // Gestion des erreurs d'adresse
-  addressError?: string;
+  // Adresse peut être une chaîne ou un objet PropertyAddress
+  address: string | PropertyAddress;
   
   // Détails de la propriété
-  type: 'APPARTEMENT' | 'MAISON' | 'BUREAU' | 'LOCAL' | 'AUTRE' | string;
+  type: PropertyType;
   rent: number;
   charges?: number;
   deposit: number;
   currency?: string;
-  status?: string;
+  status?: PropertyStatus;
   is_active?: boolean;
   
   // Caractéristiques
@@ -92,6 +157,9 @@ export interface ContractFormData {
   tenantIdType: IdType;
   tenantIdNumber: string;
   tenantAddress: Address;
+
+  // Agent Info (optionnel)
+  agentId?: string | number | null;
 
   // Property Info
   propertyId: string;

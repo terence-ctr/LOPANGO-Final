@@ -15,7 +15,7 @@ export interface ApiError extends Error {
 
 // Configuration de base de l'API
 const api = axios.create({
-  baseURL: apiConfig.apiUrl,
+  baseURL: apiConfig.baseURL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -65,7 +65,7 @@ const refreshToken = async (): Promise<string | null> => {
     console.log('Tentative de rafraîchissement du token...');
     // Utiliser l'URL complète avec le préfixe /api car le proxy le supprimera
     const response = await axios.post(
-      `${apiConfig.apiUrl}${apiConfig.endpoints.auth.refresh}`,
+      `${apiConfig.baseURL}${apiConfig.endpoints.auth.refresh}`,
       {},
       { 
         withCredentials: true,
@@ -390,4 +390,6 @@ api.interceptors.response.use(
   }
 );
 
+// Export à la fois par défaut et nommé pour la compatibilité
+export const apiClient = api;
 export default api;

@@ -3,9 +3,9 @@ import { createPinia } from 'pinia'
 import { MotionPlugin } from '@vueuse/motion'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import ClickOutside from '@/directives/click-outside'
-import { toast } from 'vue3-toastify'
-import 'vue3-toastify/dist/index.css'
 import tooltipDirective from '@/directives/tooltip'
+import { Toast, options } from '@/plugins/toast'
+import 'vue-toastification/dist/index.css'
 import '@/plugins/fontawesome' // Import pour ajouter les icônes à la bibliothèque
 import App from './App.vue'
 import router from './router'
@@ -57,6 +57,12 @@ const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 
+// Utiliser le plugin Toast
+app.use(Toast, options)
+
+// Définir une propriété $toast globale pour un accès facile
+app.config.globalProperties.$toast = Toast
+
 // Utiliser le routeur
 app.use(router)
 
@@ -79,21 +85,7 @@ app.directive('click-outside', ClickOutside);
 // Enregistrer la directive de tooltip personnalisée
 app.directive('tooltip', tooltipDirective);
 
-// Configuration de vue3-toastify
-const toastOptions = {
-  position: 'top-right',
-  autoClose: 5000,
-  hideProgressBar: false,
-  closeOnClick: true,
-  pauseOnHover: true,
-  draggable: true,
-  draggablePercent: 60,
-  progress: undefined,
-  theme: 'light'
-};
-
-// Fournir toast comme une propriété globale
-app.provide('toast', toast);
-app.provide('toastOptions', toastOptions);
+// Configuration de toastification
+app.provide('toast', Toast);
 
 app.mount('#app')

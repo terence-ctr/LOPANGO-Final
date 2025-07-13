@@ -1,10 +1,7 @@
 // Configuration de l'API
 export const apiConfig = {
-  // URL de base de l'API - sera remplacée par les variables d'environnement en production
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
-  // URL de base de l'API (dépréciée, utiliser baseURL à la place)
-  // @deprecated Utiliser baseURL à la place
-  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001',
+  // URL de base de l'API - sans le /api final car il est ajouté par le serveur
+  baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/+$/, ''),
   
   // Timeout des requêtes en millisecondes
   timeout: 10000, // 10 secondes
@@ -33,15 +30,19 @@ export const apiConfig = {
       propertyEquipments: '/metadata/property-equipments'
     },
     contracts: {
-      base: '/contracts',
-      byId: (id: string | number) => `/contracts/${id}`,
-      byTenant: (tenantId: string | number) => `/contracts?tenantId=${tenantId}`,
-      byProperty: (propertyId: string | number) => `/contracts?propertyId=${propertyId}`,
-      create: '/contracts',
-      update: (id: string | number) => `/contracts/${id}`,
-      delete: (id: string | number) => `/contracts/${id}`,
-      sign: (id: string | number) => `/contracts/${id}/sign`,
-      download: (id: string | number) => `/contracts/${id}/download`
+      base: '',
+      byId: (id: string | number) => `/${id}`,
+      byTenant: (tenantId: string | number) => `?tenantId=${tenantId}`,
+      byLandlord: (landlordId: string | number) => `?landlordId=${landlordId}`,
+      byProperty: (propertyId: string | number) => `?propertyId=${propertyId}`,
+      create: '',
+      update: (id: string | number) => `/${id}`,
+      delete: (id: string | number) => `/${id}`,
+      sign: (id: string | number) => `/${id}/sign`,
+      download: (id: string | number) => `/${id}/download`,
+      myContracts: '/me',
+      tenantContracts: '/tenant/me',
+      landlordContracts: '/landlord/me'
     },
     // Ajoutez d'autres endpoints au besoin
   },

@@ -1,18 +1,168 @@
 :root {
+  /* Styles de base */
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
   background-color: #242424;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Variables pour les notifications toast */
+  --toastify-color-light: #fff;
+  --toastify-color-dark: #1a1a1a;
+  --toastify-color-info: #3498db;
+  --toastify-color-success: #10b981;
+  --toastify-color-warning: #f59e0b;
+  --toastify-color-error: #ef4444;
+  --toastify-color-transparent: rgba(255, 255, 255, 0.7);
+  --toastify-toast-min-height: 64px;
+  --toastify-toast-max-height: 800px;
+  --toastify-text-color-light: #1f2937;
+  --toastify-text-color-dark: #fff;
+  --toastify-spinner-color: #616161;
+  --toastify-spinner-color-empty-area: #e0e0e0;
+  --toastify-font-family: 'Inter', sans-serif;
 }
 
+/* Styles personnalisés pour les notifications */
+.Vue-Toastification__toast {
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  margin-bottom: 16px;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 400px;
+}
+
+.Vue-Toastification__toast--error {
+  background-color: #fff5f5;
+  border-left: 4px solid #ef4444;
+  color: #991b1b;
+}
+
+.Vue-Toastification__toast--success {
+  background-color: #f0fdf4;
+  border-left: 4px solid #10b981;
+  color: #065f46;
+}
+
+.Vue-Toastification__toast--warning {
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  color: #92400e;
+}
+
+.Vue-Toastification__toast--info {
+  background-color: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  color: #1e40af;
+}
+
+/* Icônes */
+.Vue-Toastification__icon {
+  margin-right: 12px;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+/* Bouton de fermeture */
+.Vue-Toastification__close-button {
+  color: #6b7280;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  margin-left: 12px;
+}
+
+.Vue-Toastification__close-button:hover {
+  opacity: 1;
+}
+
+/* Contenu */
+.Vue-Toastification__toast-body {
+  padding: 0;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+.Vue-Toastification__fade-enter-active {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.Vue-Toastification__fade-leave-active {
+  animation: fadeOut 0.3s ease-in forwards;
+}
+
+.Vue-Toastification__close-button {
+  color: #6b7280;
+  opacity: 0.8;
+}
+
+.Vue-Toastification__close-button:hover,
+.Vue-Toastification__close-button:focus {
+  opacity: 1;
+}
+
+.Vue-Toastification__progress-bar {
+  height: 3px;
+}
+
+.Vue-Toastification__toast-body {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.Vue-Toastification__toast-icon {
+  margin-right: 12px;
+  font-size: 1.5rem;
+}
+
+/* Animation d'entrée/sortie */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+.Vue-Toastification__fade-enter-active {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.Vue-Toastification__fade-leave-active {
+  animation: fadeOut 0.3s ease-in forwards;
+}
+
+/* Style pour les notifications d'erreur spécifiques */
+.error-toast {
+  border-left: 4px solid #ef4444;
+}
+
+.success-toast {
+  border-left: 4px solid #10b981;
+}
 
 a {
   font-weight: 500;

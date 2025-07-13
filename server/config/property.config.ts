@@ -1,16 +1,31 @@
 // Configuration pour les propriétés
 export const propertyConfig = {
-  // Types de propriétés disponibles
+  // Types de propriétés disponibles (doivent correspondre à la table property_types)
   propertyTypes: [
-    { value: 'T1', label: 'T1' },
-    { value: 'T2', label: 'T2' },
-    { value: 'T3', label: 'T3' },
-    { value: 'T4+', label: 'T4 et plus' },
-    { value: 'MAISON', label: 'Maison' },
+    { value: 'T1', label: 'Studio' },
+    { value: 'T2', label: 'T2 (2 pièces)' },
+    { value: 'T3', label: 'T3 (3 pièces)' },
+    { value: 'T4+', label: 'T4+ (4 pièces et plus)' },
+    { value: 'MAISON', label: 'Maison individuelle' },
     { value: 'APPARTEMENT', label: 'Appartement' },
     { value: 'BUREAU', label: 'Bureau' },
     { value: 'COMMERCE', label: 'Local commercial' },
-    { value: 'AUTRE', label: 'Autre' }
+    { value: 'AUTRE', label: 'Autre type de bien' },
+    { value: 'MAISON_ETAGE', label: 'Maison avec étage' },
+    { value: 'MAISON_SANS_ETAGE', label: 'Maison sans étage' },
+    { value: 'IMMEUBLE', label: 'Immeuble (bâtiment à plusieurs logements ou bureaux)' },
+    { value: 'STUDIO', label: 'Studio' },
+    { value: 'VILLA', label: 'Villa' },
+    { value: 'TERRAIN', label: 'Terrain (parcelle)' },
+    { value: 'COMMERCE_LOCAL', label: 'Commerce local' },
+    { value: 'HOTEL', label: 'Hôtel' },
+    { value: 'ENTREPOT', label: 'Entrepôt' },
+    { value: 'FERME', label: 'Ferme / Concession agricole' },
+    { value: 'MAISON_PREFABRIQUEE', label: 'Maison préfabriquée' },
+    { value: 'APPARTEMENT_COLLECTIF', label: 'Appartement (logement collectif)' },
+    { value: 'LOGGEMENT_SOCIAL', label: 'Logement social' },
+    { value: 'COMMERCE_DETAIL', label: 'Commerce de détail' },
+    { value: 'BATIMENT_INDUSTRIEL', label: 'Bâtiment industriel' }
   ],
   
   // Statuts disponibles pour une propriété

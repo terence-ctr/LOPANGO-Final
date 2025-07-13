@@ -165,37 +165,42 @@
         </h2>
       </div>
       <div class="p-6">
-        <div class="grid grid-cols-1 md:grid-cols-6 gap-6">
-          <!-- Numéro -->
-          <div class="md:col-span-1">
-            <label for="numero" class="block text-sm font-medium text-gray-700">Numéro</label>
-            <input id="numero" v-model="addressNumero" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="123">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Rue -->
+          <div class="md:col-span-2">
+            <label for="street" class="block text-sm font-medium text-gray-700">Adresse complète</label>
+            <input 
+              id="street" 
+              v-model="propertyData.street" 
+              type="text" 
+              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+              placeholder="123 Avenue de la Victoire"
+            >
           </div>
-          <!-- Avenue -->
-          <div class="md:col-span-5">
-            <label for="avenue" class="block text-sm font-medium text-gray-700">Avenue / Rue</label>
-            <input id="avenue" v-model="addressAvenue" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Avenue de la Victoire">
-          </div>
-          <!-- Quartier -->
-          <div class="md:col-span-3">
-            <label for="quartier" class="block text-sm font-medium text-gray-700">Quartier</label>
-            <input id="quartier" v-model="propertyData.quartier" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Matonge">
-          </div>
-          <!-- Commune -->
-          <div class="md:col-span-3">
-            <label for="commune" class="block text-sm font-medium text-gray-700">Commune</label>
-            <input id="commune" v-model="propertyData.commune" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Kalamu">
-          </div>
+          
           <!-- Ville -->
-          <div class="md:col-span-2">
+          <div class="md:col-span-1">
             <label for="city" class="block text-sm font-medium text-gray-700">Ville</label>
-            <input id="city" v-model="propertyData.city" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Kinshasa">
+            <input 
+              id="city" 
+              v-model="propertyData.city" 
+              type="text" 
+              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+              placeholder="Kinshasa"
+            >
           </div>
+          
           <!-- Code Postal -->
-          <div class="md:col-span-2">
-            <label for="postalCode" class="block text-sm font-medium text-gray-700">Code Postal</label>
-            <input id="postalCode" v-model="propertyData.postalCode" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="">
+          <div class="md:col-span-1">
+            <label for="postal_code" class="block text-sm font-medium text-gray-700">Code Postal</label>
+            <input 
+              id="postal_code" 
+              v-model="propertyData.postal_code" 
+              type="text" 
+              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+              placeholder="">
           </div>
+          
           <!-- Pays -->
           <div class="md:col-span-2">
             <label for="country" class="block text-sm font-medium text-gray-700">Pays</label>
@@ -336,20 +341,19 @@ export default defineComponent({
       getCurrentProperty, 
       getPropertyTypes, 
       getPropertyStatuses, 
-      getPropertyEquipments, 
-      loading, 
-      error 
+      getPropertyEquipments
     } = storeToRefs(propertyStore);
+    
+    const isLoading = ref(false);
+    const error = ref<string | null>(null);
 
     const propertyData = ref<Partial<PropertyFormData>>({
       title: '',
       type: 'APPARTEMENT',
       status: 'DISPONIBLE',
       street: '',
-      quartier: '',
-      commune: '',
       city: '',
-      postalCode: '',
+      postal_code: '',
       country: 'Congo',
       fullAddress: '',
       area: 0,
@@ -368,9 +372,17 @@ export default defineComponent({
     const addressAvenue = ref('');
 
     onMounted(async () => {
-      propertyStore.fetchPropertyMetadata();
-      if (props.propertyId) {
-        await propertyStore.fetchPropertyById(props.propertyId);
+      try {
+        isLoading.value = true;
+        await propertyStore.fetchPropertyMetadata();
+        if (props.propertyId) {
+          await propertyStore.fetchPropertyById(props.propertyId);
+        }
+      } catch (err) {
+        error.value = 'Erreur lors du chargement des données';
+        console.error('Erreur:', err);
+      } finally {
+        isLoading.value = false;
       }
     });
 
@@ -392,19 +404,22 @@ export default defineComponent({
             charges: newVal.charges || 0,
             deposit: newVal.deposit || 0,
             currency: newVal.currency || 'EUR',
-            fullAddress: newVal.address || '',
-            images: [], // Keep images as empty File array to avoid type conflict
+            // Gestion de l'adresse
+            ...(typeof newVal.address === 'string' 
+              ? parseAddressString(newVal.address)
+              : {
+                  street: newVal.address?.street || '',
+                  city: newVal.address?.city || 'Kinshasa',
+                  postal_code: newVal.address?.postal_code || '',
+                  country: newVal.address?.country || 'Congo',
+                  fullAddress: newVal.address 
+                    ? `${newVal.address.street || ''}, ${newVal.address.city || ''}, ${newVal.address.postal_code || ''}, ${newVal.address.country || ''}`
+                    : '',
+                  latitude: newVal.address?.latitude,
+                  longitude: newVal.address?.longitude
+                }),
+            images: [] // Keep images as empty File array to avoid type conflict
         };
-
-        if (newVal.address) {
-            const addressParts = newVal.address.split(',').map(p => p.trim());
-            data.street = addressParts[0] || '';
-            data.quartier = addressParts[1] || '';
-            data.commune = addressParts[2] || '';
-            data.city = addressParts[3] || 'Kinshasa';
-            data.postalCode = addressParts[4] || '';
-            data.country = addressParts[5] || 'Congo';
-        }
         
         propertyData.value = data;
 
@@ -463,31 +478,32 @@ export default defineComponent({
     };
 
     const submitForm = async () => {
+      error.value = null;
       const validation = validateForm();
       if (!validation.valid) {
-        propertyStore.setError(validation.errors.join('\n'));
+        error.value = validation.errors.join('\n');
         return;
       }
 
       try {
-        // Construct the full address string
-        const { street, city, postalCode, country } = propertyData.value;
-        const fullAddress = [street, city, postalCode, country].filter(Boolean).join(', ');
-
+        isLoading.value = true;
         // Create a mutable copy of the form data
         const dataToSubmit: Record<string, any> = { ...propertyData.value };
 
-        // Set the address and clean up address-related fields
-        dataToSubmit.address = fullAddress;
+        // Set the address as an object with the standardized structure
+        dataToSubmit.address = {
+          street: dataToSubmit.street || '',
+          city: dataToSubmit.city || '',
+          postal_code: dataToSubmit.postal_code || '',
+          country: dataToSubmit.country || 'Congo'
+        };
+
+        // Clean up address-related fields
         delete dataToSubmit.street;
         delete dataToSubmit.city;
-        delete dataToSubmit.postalCode;
+        delete dataToSubmit.postal_code;
         delete dataToSubmit.country;
         delete dataToSubmit.fullAddress;
-        delete dataToSubmit.quartier;
-        delete dataToSubmit.commune;
-        delete dataToSubmit.latitude;
-        delete dataToSubmit.longitude;
 
         // Remove file arrays, as they are likely handled separately
         if ('images' in dataToSubmit) {
@@ -510,7 +526,9 @@ export default defineComponent({
         emit('submit');
       } catch (e) {
         console.error('Submission error:', e);
-        propertyStore.setError('Une erreur est survenue lors de la soumission.');
+        error.value = 'Une erreur est survenue lors de la soumission.';
+      } finally {
+        isLoading.value = false;
       }
     };
 
@@ -520,7 +538,7 @@ export default defineComponent({
 
     return {
       propertyData,
-      isLoading: loading,
+      isLoading,
       error,
       propertyTypes: getPropertyTypes,
       propertyStatuses: getPropertyStatuses,
@@ -536,4 +554,18 @@ export default defineComponent({
     };
   }
 });
+
+// Fonction utilitaire pour parser une adresse sous forme de chaîne
+function parseAddressString(addressStr: string): Partial<PropertyFormData> {
+  if (!addressStr) return {};
+  
+  const parts = addressStr.split(',').map(p => p.trim());
+  return {
+    street: parts[0] || '',
+    city: parts[1] || 'Kinshasa',
+    postal_code: parts[2] || '',
+    country: parts[3] || 'Congo',
+    fullAddress: addressStr
+  };
+}
 </script>

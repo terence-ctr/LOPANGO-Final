@@ -99,7 +99,88 @@
           </div>
         </div>
       </section>
-
+      <section>
+            <h2 class="font-semibold text-sm mb-4">Informations de l'Agent Immobilier (facultatif)</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 max-w-3xl">
+              <div>
+                <label class="block text-xs mb-1" for="agent-nom">Choisir l'agent</label>
+                <select 
+                  class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600" 
+                  id="agent-nom" 
+                  v-model="form.contract.agentId"
+                >
+                  <option value="">Sélectionner un agent</option>
+                  <option 
+                    v-for="agent in agents" 
+                    :key="agent._id" 
+                    :value="agent._id"
+                  >
+                    {{ agent.firstName }} {{ agent.lastName }}
+                  </option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs mb-1" for="agent-email">Email</label>
+                <input 
+                  class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 bg-gray-100" 
+                  id="agent-email" 
+                  type="text" 
+                  :value="selectedAgent?.email || ''" 
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="block text-xs mb-1" for="agent-telephone">Téléphone</label>
+                <input 
+                  class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 bg-gray-100" 
+                  id="agent-telephone" 
+                  type="text" 
+                  :value="selectedAgent?.phone || ''" 
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="block text-xs mb-1" for="agent-avenue">Avenue</label>
+                <input 
+                  class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 bg-gray-100" 
+                  id="agent-avenue" 
+                  type="text" 
+                  :value="selectedAgent?.address?.street || ''" 
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="block text-xs mb-1" for="agent-ville">Ville</label>
+                <input 
+                  class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 bg-gray-100" 
+                  id="agent-ville" 
+                  type="text" 
+                  :value="selectedAgent?.address?.city || ''" 
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="block text-xs mb-1" for="agent-code-postal">Code Postal</label>
+                <input 
+                  class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 bg-gray-100" 
+                  id="agent-code-postal" 
+                  type="text" 
+                  :value="selectedAgent?.address?.postal_code || ''" 
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="block text-xs mb-1" for="agent-pays">Pays</label>
+                <input 
+                  class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 bg-gray-100" 
+                  id="agent-pays" 
+                  type="text" 
+                  :value="selectedAgent?.address?.country || ''" 
+                  readonly
+                />
+              </div>
+            </div>
+          </section>
       <!-- Clauses du contrat -->
       <section>
         <h2 class="font-semibold text-sm mb-4">Clauses du contrat</h2>
@@ -145,14 +226,17 @@
               <option value="5 ans">5 ans</option>
             </select>
           </div>
-          <!-- Champ des conditions spéciales -->
-          <div class="col-span-full">
-            <label class="block text-xs mb-1" for="special-conditions">Conditions spéciales</label>
-            <textarea 
+        
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="special-conditions">
+              Conditions spéciales
+            </label>
+            <textarea
               id="special-conditions"
-              class="w-full border border-gray-300 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 min-h-[100px]"
               v-model="form.contract.specialConditions"
-              placeholder="Entrez toutes les conditions spéciales du contrat ici..."
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              rows="3"
+              placeholder="Entrez les conditions spéciales du contrat (facultatif)"
             ></textarea>
           </div>
           <div>
@@ -219,15 +303,16 @@
 <script setup lang="ts">
 import { reactive, computed, onMounted, watch, defineComponent, Ref } from 'vue';
 import { useRouter } from 'vue-router';
-import type { Property } from '@/types/property';
-import { mapContractToApiFormat } from '@/utils/contractMapper';
-import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { usePropertyStore } from '@/stores/propertyStore';
 import { useContractStore } from '@/stores/contractStore';
 import { useTenantStore } from '@/stores/tenantStore';
 import { useLandlordStore } from '@/stores/landlordStore';
-import type { ContractFormData, IdType, PropertyUsage } from '@/types/contract';
+import { useAgentStore } from '@/stores/agentStore';
+import { storeToRefs } from 'pinia';
+import type { Property, PropertyType } from '@/types/property';
+import type { User, Address } from '@/types/user';
+import type { ContractStatus, IdType, PropertyUsage, ContractFormData } from '@/types/contract';
 import { propertyTypeLabels } from '@/types/property';
 
 // Fonction utilitaire pour convertir le type de document
@@ -258,13 +343,14 @@ const propertyStore = usePropertyStore();
 const contractStore = useContractStore();
 const tenantStore = useTenantStore();
 const landlordStore = useLandlordStore();
+const agentStore = useAgentStore();
 
-// Charger les propriétés au montage du composant
+// Charger les propriétés disponibles (sans contrat actif) au montage du composant
 onMounted(async () => {
   try {
-    await propertyStore.fetchProperties();
+    await propertyStore.fetchProperties(true); // true pour ne charger que les propriétés disponibles
   } catch (error) {
-    console.error('Erreur lors du chargement des propriétés:', error);
+    console.error('Erreur lors du chargement des propriétés disponibles:', error);
   }
 });
 
@@ -273,6 +359,7 @@ const propertyStoreRefs = storeToRefs(propertyStore);
 const properties = computed(() => propertyStore.getProperties);
 const { tenants } = storeToRefs(tenantStore);
 const { landlords } = storeToRefs(landlordStore);
+const { agents } = storeToRefs(agentStore);
 
 const form = reactive({
   landlord: {
@@ -308,7 +395,8 @@ const form = reactive({
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
     paymentDay: null as number | null,
-    specialConditions: ''
+    specialConditions: '',
+    agentId: ''
   } as {
     propertyId: string;
     usage: string;
@@ -320,6 +408,7 @@ const form = reactive({
     endDate: string;
     paymentDay: number | null;
     specialConditions: string;
+    agentId: string;
   },
 });
 
@@ -336,6 +425,11 @@ const selectedTenant = computed(() => {
 const selectedLandlord = computed(() => {
   if (!form.landlord.id) return null;
   return landlordStore.getLandlordById(form.landlord.id);
+});
+
+const selectedAgent = computed(() => {
+  if (!form.contract.agentId) return null;
+  return agentStore.getAgentById(form.contract.agentId);
 });
 
 watch(selectedProperty, (newProperty) => {
@@ -401,43 +495,111 @@ watch(selectedLandlord, (newLandlord) => {
   }
 });
 
-onMounted(() => {
-  propertyStore.fetchProperties();
-  tenantStore.fetchTenants();
-  landlordStore.fetchLandlords();
+watch(selectedAgent, (newAgent) => {
+  if (newAgent) {
+    console.log('Agent sélectionné:', newAgent);
+    // Mettre à jour les informations de l'agent
+  } else {
+    // Réinitialiser les informations de l'agent
+  }
 });
+
+onMounted(async () => {
+  await Promise.all([
+    propertyStore.fetchProperties(),
+    tenantStore.fetchTenants(),
+    landlordStore.fetchLandlords(),
+    agentStore.fetchAgents()
+  ]);
+});
+
+import { useToast, POSITION } from 'vue-toastification';
+
+// Fonction utilitaire pour afficher les notifications d'erreur
+const showErrorNotification = (error: any) => {
+  const toast = useToast();
+  
+  // Si c'est une erreur de propriété déjà louée
+  if (error?.response?.data?.code === 'PROPERTY_ALREADY_RENTED') {
+    const details = error.response.data.details;
+    const message = error.response.data.userMessage || 'Cette propriété est déjà louée';
+    
+    toast.error(message, {
+      position: POSITION.TOP_RIGHT,
+      timeout: 8000,
+      closeOnClick: true,
+      pauseOnFocusLoss: true,
+      pauseOnHover: true,
+      draggable: true,
+      closeButton: true,
+      icon: true,
+      toastClassName: 'error-toast',
+      bodyClassName: ['font-medium'],
+      onClose: () => {
+        // Rediriger vers la page de la propriété
+        if (details?.propertyId) {
+          router.push({ name: 'property-details', params: { id: details.propertyId } });
+        }
+      }
+    });
+  } else {
+    // Erreur générique
+    toast.error(
+      error?.response?.data?.message || error?.message || 'Une erreur est survenue',
+      {
+        position: POSITION.TOP_RIGHT,
+        timeout: 5000,
+        closeOnClick: true,
+        pauseOnFocusLoss: true,
+        pauseOnHover: true,
+        draggable: true,
+        closeButton: true,
+        icon: true,
+        toastClassName: 'error-toast',
+        bodyClassName: ['font-medium']
+      }
+    );
+  }
+};
 
 const submitForm = async () => {
   try {
-    // Préparer les données du formulaire selon l'interface ContractFormData
-    const formData: ContractFormData = {
-      // Informations du bailleur (tous les champs requis)
+    // Vérifier que toutes les données requises sont présentes
+    if (!form.landlord.id || !form.tenant.id || !form.contract.propertyId) {
+      const error = new Error('Veuillez remplir tous les champs obligatoires');
+      showErrorNotification(error);
+      return;
+    }
+
+    // Créer l'objet ContractFormData avec les données du formulaire
+    const contractFormData: ContractFormData = {
+      // Informations du bailleur
       landlordId: form.landlord.id,
-      landlordNationality: form.landlord.nationality || 'Non spécifiée',
-      landlordIdType: mapDocumentType(form.landlord.identity.documentType),
+      landlordNationality: form.landlord.nationality || 'Congolaise',
+      landlordIdType: form.landlord.identity.documentType,
       landlordIdNumber: form.landlord.identity.nationalId || '',
       landlordAddress: {
-        street: form.landlord.address.street || 'Non spécifiée',
-        city: form.landlord.address.city || 'Non spécifiée',
+        street: form.landlord.address.street || '',
+        city: form.landlord.address.city || '',
         postalCode: form.landlord.address.postal_code || '',
         country: form.landlord.address.country || 'RDC'
-      },
+      } as Address,
       
-      // Informations du locataire (tous les champs requis)
+      // Informations du locataire
       tenantId: form.tenant.id,
-      tenantNationality: form.tenant.nationality || 'Non spécifiée',
-      tenantIdType: mapDocumentType(form.tenant.identity.documentType),
+      tenantNationality: form.tenant.nationality || 'Congolaise',
+      tenantIdType: form.tenant.identity.documentType,
       tenantIdNumber: form.tenant.identity.nationalId || '',
       tenantAddress: {
-        street: form.tenant.address.street || 'Non spécifiée',
-        city: form.tenant.address.city || 'Non spécifiée',
+        street: form.tenant.address.street || '',
+        city: form.tenant.address.city || '',
         postalCode: form.tenant.address.postal_code || '',
         country: form.tenant.address.country || 'RDC'
-      },
+      } as Address,
       
-      // Informations du contrat (tous les champs requis)
+      // Informations du contrat
       propertyId: form.contract.propertyId,
-      usage: (form.contract.usage.toLowerCase() as PropertyUsage) || 'residentiel',
+      usage: form.contract.usage.toLowerCase() as PropertyUsage,
       rent: form.contract.rent || '0',
       currency: form.contract.currency || 'USD',
       deposit: form.contract.deposit || '0',
@@ -445,26 +607,23 @@ const submitForm = async () => {
       startDate: form.contract.startDate || new Date().toISOString().split('T')[0],
       endDate: form.contract.endDate || '',
       paymentDay: form.contract.paymentDay ? parseInt(form.contract.paymentDay.toString()) : null,
-      status: 'draft',
-      specialConditions: form.contract.specialConditions || ''
+      status: 'draft' as const,
+      specialConditions: form.contract.specialConditions || '',
+      agentId: form.contract.agentId || null
     };
 
-    console.log('Données du formulaire :', formData);
+    console.log('Données du formulaire :', contractFormData);
     
-    // Convertir les données du formulaire au format attendu par l'API
-    const contractData = mapContractToApiFormat(formData);
-    console.log('Données envoyées à l\'API :', contractData);
-
     // Utilisation du store pour créer le contrat
-    await contractStore.createContract(contractData);
+    await contractStore.createContract(contractFormData);
     
     // Redirection vers la liste des contrats
     router.push({ name: 'landlord-contracts' });
     
   } catch (error: any) {
     console.error('Erreur lors de la création du contrat :', error);
-    // Afficher un message d'erreur à l'utilisateur
-    alert(error?.message || 'Une erreur est survenue lors de la création du contrat');
+    // Afficher une notification d'erreur élégante
+    showErrorNotification(error);
   }
 };
 
