@@ -1,5 +1,63 @@
+// Interface pour la configuration de l'API
+export interface ApiConfig {
+  baseURL: string;
+  timeout: number;
+  endpoints: {
+    auth: {
+      login: string;
+      register: string;
+      me: string;
+      refresh: string;
+      verify: string;
+    };
+    properties: {
+      base: string;
+      search: string;
+      myProperties: string;
+      byOwner: (ownerId: string) => string;
+      byId: (id: string) => string;
+      uploadImage: (propertyId: string) => string;
+    };
+    metadata: {
+      propertyTypes: string;
+      propertyStatuses: string;
+      propertyEquipments: string;
+    };
+    contracts: {
+      base: string;
+      byId: (id: string | number) => string;
+      byTenant: (tenantId: string | number) => string;
+      byLandlord: (landlordId: string | number) => string;
+      byProperty: (propertyId: string | number) => string;
+      create: string;
+      update: (id: string | number) => string;
+      delete: (id: string | number) => string;
+      sign: (id: string | number) => string;
+      download: (id: string | number) => string;
+      myContracts: string;
+      tenantContracts: string;
+      landlordContracts: string;
+    };
+    messages: {
+      base: string;
+      create: string;
+    };
+  };
+  headers: {
+    [key: string]: string;
+  };
+  errorMessages: {
+    [key: string]: string;
+  };
+  tokens: {
+    accessTokenExpiry: number;
+    refreshTokenExpiry: number;
+    refreshMargin: number;
+  };
+}
+
 // Configuration de l'API
-export const apiConfig = {
+export const apiConfig: ApiConfig = {
   // URL de base de l'API - sans le /api final car il est ajouté par le serveur
   baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/+$/, ''),
   
@@ -44,7 +102,10 @@ export const apiConfig = {
       tenantContracts: '/tenant/me',
       landlordContracts: '/landlord/me'
     },
-    // Ajoutez d'autres endpoints au besoin
+    messages: {
+      base: '/messages',
+      create: '/messages'
+    }
   },
   
   // Configuration des en-têtes par défaut

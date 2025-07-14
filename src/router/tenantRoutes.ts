@@ -32,6 +32,13 @@ export const tenantRoutes = [
         meta: { title: 'Mes biens' }
       },
       {
+        path: 'properties/:id',
+        name: 'tenant-property-details',
+        component: () => import('@/views/tenant/PropertyDetailsView.vue'),
+        meta: { title: 'Détails du bien' },
+        props: true
+      },
+      {
         path: 'payments',
         name: 'tenant-payments',
         component: () => import('@/views/tenant/PaymentsView.vue'),

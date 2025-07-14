@@ -32,27 +32,10 @@
     <!-- Contenu principal -->
     <div class="flex-1 overflow-auto">
       <div class="py-6">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-          <h1 class="text-2xl font-semibold text-gray-900">Locataires avec contrats</h1>
-          <p class="mt-1 text-sm text-gray-500">
-            Liste des locataires ayant signé un contrat de location
-          </p>
-        </div>
+        
         <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
           <!-- Barre de recherche -->
-          <div class="py-4">
-            <div class="relative flex-1 max-w-md">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <i class="fas fa-search text-gray-400"></i>
-              </div>
-              <input
-                v-model="searchQuery"
-                type="text"
-                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Rechercher un locataire..."
-              />
-            </div>
-          </div>
+         
 
           <!-- Tableau des locataires avec contrats -->
           <div class="mt-4 bg-white shadow overflow-hidden sm:rounded-lg">

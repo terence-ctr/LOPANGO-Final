@@ -292,13 +292,13 @@ const authService = {
       console.log('URL de la requête:', `${apiConfig.baseURL}${apiConfig.endpoints.auth.me}`);
       
       // Vérifier si la réponse contient des données valides
-      if (!response?.data?.data) {
+      if (!response?.data) {
         console.error('Réponse invalide de l\'API:', response);
         throw new Error('Réponse invalide du serveur');
       }
       
-      console.log('Rôle de l\'utilisateur:', response.data.data.userType);
-      return response.data;
+      console.log('Rôle de l\'utilisateur:', response.data.userType);
+      return { data: response.data };
       
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 'Erreur inconnue';

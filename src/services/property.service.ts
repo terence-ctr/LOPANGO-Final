@@ -1,5 +1,7 @@
 import api from './api';
 import type { Property } from '@/types/property';
+import { useAuthStore } from '@/stores/auth';
+import { apiConfig } from '@/config/api.config';
 
 class PropertyService {
   // Créer une propriété (alias pour createProperty pour la rétrocompatibilité)
@@ -260,19 +262,43 @@ class PropertyService {
   // Récupérer une propriété par son ID
   static async getById(id: number): Promise<Property> {
     try {
-      const response = await api.get(`/properties/${id}`);
+      // Récupérer l'ID du locataire depuis le store auth
+      const authStore = useAuthStore();
+      const tenantId = authStore.user?._id;
       
+      if (!tenantId) {
+        throw new Error('ID locataire non disponible');
+      }
+
+      // Utiliser l'endpoint configuré et ajouter le tenant_id dans les en-têtes
+      const response = await api.get(apiConfig.endpoints.properties.byId(id.toString()), {
+        headers: {
+          'X-Tenant-ID': tenantId
+        }
+      });
+      
+      console.log('[PropertyService] Réponse brute du backend:', {
+        statusCode: response.status,
+        headers: response.headers,
+        data: response.data
+      });
+
       // Si la réponse contient directement la propriété
       if (response.data && response.data.id) {
+        console.log('[PropertyService] Format de réponse direct trouvé');
         return response.data;
       }
       
       // Si la propriété est dans un objet data
       if (response.data && response.data.data) {
+        console.log('[PropertyService] Format de réponse avec data trouvé');
         return response.data.data;
       }
       
       // Si nous n'avons toujours pas de données, lancer une erreur
+      console.log('[PropertyService] Format de réponse inattendu:', {
+        dataStructure: response.data
+      });
       throw new Error('Format de réponse inattendu du serveur');
     } catch (error: any) {
       console.error(`Erreur lors de la récupération de la propriété ${id}:`, error);

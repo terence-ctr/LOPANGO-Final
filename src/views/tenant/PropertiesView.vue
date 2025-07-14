@@ -20,57 +20,61 @@
     </div>
     
     <!-- Filtres et recherche -->
-    <div class="bg-white p-4 rounded-lg shadow mb-8">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white rounded-lg shadow-sm mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3">
         <!-- Barre de recherche -->
-        <div class="relative">
-          <input 
-            v-model="searchQuery"
-            type="text" 
-            placeholder="Rechercher un bien..."
-            class="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            @input="handleSearch"
-          >
-          <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+        <div>
+          <label for="search" class="block text-xs font-medium text-gray-600 mb-1">
+            Rechercher
+          </label>
+          <div class="relative">
+            <input
+              id="search"
+              v-model="searchQuery"
+              type="text"
+              placeholder="Rechercher par titre ou adresse..."
+              class="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              @input="handleSearch"
+            >
+            <i class="fas fa-search absolute right-3 top-2 text-gray-400 text-sm"></i>
+          </div>
         </div>
         
         <!-- Filtre par statut -->
-        <select 
-          v-model="statusFilter"
-          class="px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="">Tous les statuts</option>
-          <option 
-            v-for="status in propertyStatuses" 
-            :key="status.value"
-            :value="status.value"
+        <div>
+          <label for="status" class="block text-xs font-medium text-gray-600 mb-1">
+            Statut
+          </label>
+          <select
+            id="status"
+            v-model="statusFilter"
+            class="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
           >
-            {{ status.label }}
-          </option>
-        </select>
+            <option value="">Tous les statuts</option>
+            <option value="DISPONIBLE">Disponible</option>
+            <option value="LOUE">Loué</option>
+            <option value="EN_MAINTENANCE">En maintenance</option>
+          </select>
+        </div>
         
         <!-- Filtre par type -->
-        <select 
-          v-model="typeFilter"
-          class="px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="">Tous les types</option>
-          <option 
-            v-for="type in propertyTypes" 
-            :key="type.value"
-            :value="type.value"
+        <div>
+          <label for="type" class="block text-xs font-medium text-gray-600 mb-1">
+            Type
+          </label>
+          <select
+            id="type"
+            v-model="typeFilter"
+            class="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
           >
-            {{ type.label }}
-          </option>
-        </select>
-        
-        <!-- Bouton de réinitialisation -->
-        <button 
-          @click="resetFilters"
-          class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center"
-        >
-          <i class="fas fa-undo-alt mr-2"></i> Réinitialiser
-        </button>
+            <option value="">Tous les types</option>
+            <option value="APPARTEMENT">Appartement</option>
+            <option value="MAISON">Maison</option>
+            <option value="VILLA">Villa</option>
+            <option value="BUREAU">Bureau</option>
+            <option value="LOCAL_COMMERCIAL">Local commercial</option>
+          </select>
+        </div>
       </div>
     </div>
     
@@ -97,146 +101,162 @@
     </div>
     
     <!-- Liste des propriétés -->
-    <div v-else class="space-y-6">
-      <!-- En-tête de la liste -->
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div class="text-sm text-gray-600">
-          Affichage de <span class="font-medium">{{ paginatedProperties.length }}</span> biens sur <span class="font-medium">{{ filteredProperties.length }}</span>
-        </div>
-        
-        <div class="flex items-center space-x-4">
-          <!-- Boutons de vue -->
-          <div class="hidden sm:flex bg-gray-100 p-1 rounded-md">
-            <button 
-              @click="viewMode = 'grid'"
-              class="p-2 rounded-md"
-              :class="{ 'bg-white shadow-sm': viewMode === 'grid' }"
-              title="Vue en grille"
+    <div v-else class="bg-white shadow-sm overflow-hidden border border-gray-200 rounded-lg">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Propriété
+              </th>
+              <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Adresse
+              </th>
+              <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Type
+              </th>
+              <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              
+              </th>
+              <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Statut
+              </th>
+              <th scope="col" class="relative px-4 py-2">
+                <span class="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <!-- Message si pas de propriétés -->
+            <tr v-if="paginatedProperties.length === 0">
+              <td colspan="8" class="px-4 py-6 text-center text-gray-500">
+                <div class="flex flex-col items-center space-y-3">
+                  <i class="fas fa-home text-3xl text-gray-300 mb-2"></i>
+                  <p class="text-base font-medium">Aucune propriété trouvée</p>
+                  <p class="text-sm text-gray-600">
+                    Aucune propriété ne correspond à vos critères de recherche.
+                  </p>
+                  <button 
+                    @click="resetFilters"
+                    class="mt-3 px-3 py-1.5 bg-blue-600 text-white rounded-sm hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Réinitialiser les filtres
+                  </button>
+                </div>
+              </td>
+            </tr>
+            
+            <!-- Liste des propriétés -->
+            <tr 
+              v-for="property in paginatedProperties" 
+              :key="property.id || property._id"
+              class="hover:bg-gray-50"
             >
-              <i class="fas fa-th"></i>
-            </button>
-            <button 
-              @click="viewMode = 'list'"
-              class="p-2 rounded-md"
-              :class="{ 'bg-white shadow-sm': viewMode === 'list' }"
-              title="Vue en liste"
-            >
-              <i class="fas fa-list"></i>
-            </button>
-          </div>
-          
-          <!-- Sélecteur d'éléments par page -->
-          <div class="flex items-center">
-            <label for="itemsPerPage" class="text-sm text-gray-600 mr-2">Afficher :</label>
-            <select 
-              id="itemsPerPage"
-              v-model="itemsPerPage"
-              class="pl-2 pr-8 py-1 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="12">12</option>
-              <option value="24">24</option>
-              <option value="48">48</option>
-              <option value="96">96</option>
-            </select>
-          </div>
-        </div>
-      </div>
+              <!-- Propriété -->
+              <td class="px-4 py-3">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
+                    <i class="fas fa-home text-gray-500"></i>
+                  </div>
+                  <div class="ml-3">
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ property.title || 'Propriété sans nom' }}
+                    </div>
+                   
+                  </div>
+                </div>
+              </td>
+              
+              <!-- Adresse -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="text-sm text-gray-900">
+                  {{ formatAddress(property.address) }}
+                </div>
+              </td>
+              
+              <!-- Type -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="text-sm text-gray-900">
+                  {{ property.type }}
+                </div>
+              </td>
+              
+              <!-- Prix -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900">
+                  {{ formatCurrency(property.rent) }}
+                </div>
+              </td>
+              
+              <!-- Statut -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <span 
+                  :class="getStatusBadgeClass(property.status)"
+                  class="px-1.5 inline-flex text-xs leading-4 font-semibold rounded-full"
+                >
+                  {{ formatPropertyStatus(property.status) }}
+                </span>
+              </td>
+              
+              <!-- Actions -->
+              <!-- Actions -->
+              <td class="px-4 py-3">
+                <!-- Menu déroulant avec points de suspension -->
+                <div class="relative">
+                  <button 
+                    @click="selectedProperty = property; showActionMenu = !showActionMenu"
+                    class="text-blue-600 hover:text-blue-800"
+                    title="Actions"
+                  >
+                    <i class="fas fa-ellipsis-h text-sm"></i>
+                  </button>
+
+                  <!-- Menu déroulant -->
+                  <div 
+                    v-if="showActionMenu && selectedProperty === property"
+                    class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50"
+                    @click="showActionMenu = false"
+                  >
+                    <div class="py-1">
+                      <button
+                        @click="handlePropertyDetails(property)"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        <i class="fas fa-eye mr-2"></i>
+                        Détails
+                      </button>
+                      <button
+                        @click="editProperty(property)"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        <i class="fas fa-edit mr-2"></i>
+                        Modifier
+                      </button>
+                      <button
+                        @click="terminateContract(property)"
+                        class="block px-4 py-2 text-sm text-red-600 hover:bg-red-100 w-full text-left"
+                      >
+                        <i class="fas fa-times-circle mr-2"></i>
+                        Rompre le contrat
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <!-- Pagination -->
       
-      <!-- Grille des propriétés -->
-      <div v-if="viewMode === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <PropertyCard
-          v-for="property in paginatedProperties"
-          :key="property.id || property._id"
-          :property="property"
-          :is-favorite="isFavorite(property)"
-          @view-details="viewPropertyDetails"
-          @toggle-favorite="toggleFavorite"
-          @contact-owner="contactOwner"
-        />
-      </div>
-      
-      <!-- Liste des propriétés -->
-      <div v-else class="space-y-4">
-        <PropertyListItem
-          v-for="property in paginatedProperties"
-          :key="property.id || property._id"
-          :property="property"
-          :is-favorite="isFavorite(property)"
-          @view-details="viewPropertyDetails"
-          @toggle-favorite="toggleFavorite"
-        />
-      </div>
-      
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex flex-col sm:flex-row justify-between items-center mt-8 gap-4">
-        <div class="text-sm text-gray-600">
-          Page {{ currentPage }} sur {{ totalPages }}
-        </div>
-        
-        <div class="flex items-center space-x-1">
-          <button 
-            @click="currentPage = 1"
-            :disabled="currentPage === 1"
-            class="px-3 py-1 rounded-md border"
-            :class="currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
-            title="Première page"
-          >
-            <i class="fas fa-angle-double-left"></i>
-          </button>
-          
-          <button 
-            @click="currentPage--"
-            :disabled="currentPage === 1"
-            class="px-3 py-1 rounded-md border"
-            :class="currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
-            title="Page précédente"
-          >
-            <i class="fas fa-chevron-left"></i>
-          </button>
-          
-          <!-- Boutons de page -->
-          <template v-for="page in visiblePages" :key="page">
-            <button 
-              v-if="page === '...'"
-              class="px-3 py-1 text-gray-500"
-              disabled
-            >
-              {{ page }}
-            </button>
-            <button 
-              v-else
-              @click="currentPage = Number(page)"
-              class="w-10 h-8 rounded-md"
-              :class="currentPage === Number(page) ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'"
-            >
-              {{ page }}
-            </button>
-          </template>
-          
-          <button 
-            @click="currentPage++"
-            :disabled="currentPage === totalPages"
-            class="px-3 py-1 rounded-md border"
-            :class="currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
-            title="Page suivante"
-          >
-            <i class="fas fa-chevron-right"></i>
-          </button>
-          
-          <button 
-            @click="currentPage = totalPages"
-            :disabled="currentPage === totalPages"
-            class="px-3 py-1 rounded-md border"
-            :class="currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'"
-            title="Dernière page"
-          >
-            <i class="fas fa-angle-double-right"></i>
-          </button>
-        </div>
       </div>
     </div>
+    <Pagination
+          :current-page="currentPage"
+          :total-pages="totalPages"
+          :items-per-page="itemsPerPage"
+          @update:current-page="currentPage = $event"
+        />
     
-    <!-- Modal d'ajout/édition -->
     <PropertyFormModal
       v-if="showAddPropertyForm"
       :property="selectedProperty"
@@ -244,15 +264,7 @@
       @submit="handlePropertySubmit"
     />
     
-    <!-- Modal de détails -->
-    <PropertyDetailsModal
-      v-if="showPropertyDetails && selectedProperty"
-      :property="selectedProperty"
-      :is-favorite="isFavorite(selectedProperty)"
-      @close="showPropertyDetails = false"
-      @toggle-favorite="toggleFavorite"
-      @contact-owner="contactOwner"
-    />
+  
   </div>
 </template>
 
@@ -262,13 +274,16 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/auth';
 import { usePropertyStore } from '@/stores/propertyStore';
-import type { Property } from '@/types/property';
+import type { Property, PropertyStatus } from '@/types/property';
+import api from '@/services/api';
+import ContractService from '@/services/contract.service';
 
 // Composants
 const PropertyCard = defineAsyncComponent(() => import('@/components/properties/PropertyCard.vue'));
 const PropertyListItem = defineAsyncComponent(() => import('@/components/properties/PropertyListItem.vue'));
 const PropertyFormModal = defineAsyncComponent(() => import('@/components/properties/PropertyFormModal.vue'));
 const PropertyDetailsModal = defineAsyncComponent(() => import('@/components/properties/PropertyDetailsModal.vue'));
+const Pagination = defineAsyncComponent(() => import('@/components/ui/Pagination.vue'));
 
 // Store et route
 const authStore = useAuthStore();
@@ -280,7 +295,7 @@ const toast = useToast();
 // État local
 const isLoading = ref(false);
 const showAddPropertyForm = ref(false);
-const showPropertyDetails = ref(false);
+
 const selectedProperty = ref<Property | null>(null);
 const viewMode = ref<'grid' | 'list'>('grid');
 const searchQuery = ref('');
@@ -294,8 +309,52 @@ const propertyStatuses = [
   { value: '', label: 'Tous les statuts' },
   { value: 'DISPONIBLE', label: 'Disponible' },
   { value: 'LOUE', label: 'Loué' },
-  { value: 'EN_MAINTENANCE', label: 'En maintenance' }
+  { value: 'EN_MAINTENANCE', label: 'En maintenance' },
+  { value: 'EN_ENTRETIEN', label: 'En entretien' },
+  { value: 'VENDU', label: 'Vendu' },
+  { value: 'INDISPONIBLE', label: 'Indisponible' },
+  { value: 'RESERVE', label: 'Réservé' },
+  { value: 'EN_NEGOCIATION', label: 'En négociation' }
 ];
+
+// État du menu d'action
+const showActionMenu = ref(false);
+const selectedPropertyAction = ref<Property | null>(null);
+
+// Méthodes pour le menu d'action
+const handlePropertyDetails = (property: Property) => {
+  // Vérifier si l'ID est un nombre
+  const propertyId = parseInt(property.id?.toString() || property._id?.toString() || '');
+  
+  if (isNaN(propertyId)) {
+    toast.error('ID de propriété invalide');
+    return;
+  }
+  
+  router.push({ name: 'tenant-property-details', params: { id: propertyId } });
+  showActionMenu.value = false; // Fermer le menu après l'action
+};
+
+const editProperty = (property: Property) => {
+  selectedPropertyAction.value = property;
+  showAddPropertyForm.value = true;
+  showActionMenu.value = false; // Fermer le menu après l'action
+};
+
+const terminateContract = async (property: Property) => {
+  if (!property.tenantId) return;
+
+  try {
+    // Utiliser la méthode correcte pour rompre le contrat
+    await api.delete(`/contracts/tenant/${property.tenantId}`);
+    toast.success('Le contrat a été rompu avec succès');
+    await loadProperties();
+    showActionMenu.value = false; // Fermer le menu après l'action
+  } catch (error) {
+    toast.error('Erreur lors de la rupture du contrat');
+    console.error('Erreur lors de la rupture du contrat:', error);
+  }
+};
 
 const propertyTypes = [
   { value: '', label: 'Tous les types' },
@@ -399,6 +458,71 @@ const visiblePages = computed<Array<number | string>>(() => {
   return pages;
 });
 
+// Méthodes utilitaires
+const formatAddress = (address: Property['address']) => {
+  if (!address) return '';
+  
+  if (typeof address === 'string') {
+    return address;
+  }
+  
+  return `${address.street}, ${address.city} ${address.postal_code}, ${address.country}`;
+};
+
+const formatCurrency = (amount: number | undefined) => {
+  if (amount === undefined) return 'N/A';
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(amount);
+};
+
+const getStatusBadgeClass = (status: PropertyStatus) => {
+  switch (status) {
+    case 'DISPONIBLE':
+      return 'bg-green-100 text-green-800';
+    case 'LOUE':
+      return 'bg-blue-100 text-blue-800';
+    case 'EN_MAINTENANCE':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'EN_ENTRETIEN':
+      return 'bg-orange-100 text-orange-800';
+    case 'VENDU':
+      return 'bg-gray-100 text-gray-800';
+    case 'INDISPONIBLE':
+      return 'bg-red-100 text-red-800';
+    case 'RESERVE':
+      return 'bg-purple-100 text-purple-800';
+    case 'EN_NEGOCIATION':
+      return 'bg-pink-100 text-pink-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const formatPropertyStatus = (status: PropertyStatus) => {
+  switch (status) {
+    case 'DISPONIBLE':
+      return 'Disponible';
+    case 'LOUE':
+      return 'Loué';
+    case 'EN_MAINTENANCE':
+      return 'En maintenance';
+    case 'EN_ENTRETIEN':
+      return 'En entretien';
+    case 'VENDU':
+      return 'Vendu';
+    case 'INDISPONIBLE':
+      return 'Indisponible';
+    case 'RESERVE':
+      return 'Réservé';
+    case 'EN_NEGOCIATION':
+      return 'En négociation';
+    default:
+      return status;
+  }
+};
+
 // Méthodes
 const loadProperties = async () => {
   try {
@@ -438,10 +562,7 @@ const handlePropertySubmit = async (propertyData: any) => {
   }
 };
 
-const viewPropertyDetails = (property: Property) => {
-  selectedProperty.value = property;
-  showPropertyDetails.value = true;
-};
+
 
 const toggleFavorite = (property: Property) => {
   const propertyId = (property.id || property._id) as string | number;

@@ -108,23 +108,30 @@ export default class ContractService {
           return hasProperty;
         })
         .map(contract => {
-          // Créer une copie sûre de la propriété avec des valeurs par défaut
-          const property: ContractProperty = contract.property || {};
-          
           // Créer un objet de propriété sûr avec des valeurs par défaut
           const safeProperty = {
-            id: property.id || null,
-            title: property.title || 'Titre non disponible',
-            address: property.address || '',
-            street: property.street || '',
-            city: property.city || '',
-            postal_code: property.postal_code || '',
-            country: property.country || '',
-            type: property.type || 'APPARTEMENT',
-            rent: property.rent || 0,
-            deposit: property.deposit || 0,
-            currency: property.currency || 'USD',
-            status: property.status || 'available',
+            id: contract.property?.id || null,
+            title: contract.property?.title || 'Titre non disponible',
+            address: typeof contract.property?.address === 'object' 
+              ? `${contract.property.address.street}, ${contract.property.address.city} ${contract.property.address.postal_code}`
+              : contract.property?.address || '',
+            street: typeof contract.property?.address === 'object' 
+              ? contract.property.address.street || ''
+              : '',
+            city: typeof contract.property?.address === 'object' 
+              ? contract.property.address.city || ''
+              : '',
+            postal_code: typeof contract.property?.address === 'object' 
+              ? contract.property.address.postal_code || ''
+              : '',
+            country: typeof contract.property?.address === 'object' 
+              ? contract.property.address.country || ''
+              : '',
+            type: contract.property?.type || 'APPARTEMENT',
+            rent: contract.property?.rent || 0,
+            deposit: contract.property?.deposit || 0,
+            currency: contract.property?.currency || 'USD',
+            status: contract.property?.status || 'available',
             contractId: contract.id,
             contractStartDate: contract.start_date || contract.startDate,
             contractEndDate: contract.end_date || contract.endDate,
