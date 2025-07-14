@@ -25,24 +25,6 @@
               </svg>
               Retour à la liste
             </button>
-            <button
-              @click="checkAvailableProperties"
-              class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <svg class="-ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
-              </svg>
-              Voir les propriétés disponibles
-            </button>
-            <button
-              @click="fetchProperty"
-              class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <svg class="-ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-              </svg>
-              Réessayer
-            </button>
           </div>
         </div>
       </div>
@@ -61,14 +43,13 @@
         <div class="flex space-x-2">
           <router-link 
             :to="{ name: 'tenant-properties' }" 
-            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            class="inline-flex items-center px-4 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             <svg class="-ml-1 mr-2 h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
             </svg>
             Retour
           </router-link>
-         
         </div>
       </div>
 
@@ -399,36 +380,6 @@ const statusClass = computed(() => {
 });
 
 // Methods
-const handleDelete = async () => {
-  if (!property.value || typeof property.value.id === 'undefined') {
-    toast.error('Impossible de trouver l\`identifiant de la propriété.');
-    return;
-  }
-  if (!property.value || !confirm('Êtes-vous sûr de vouloir supprimer cette propriété ? Cette action est irréversible.')) {
-    return;
-  }
-  
-  try {
-    const propertyId = typeof property.value.id === 'string' ? parseInt(property.value.id) : property.value.id;
-    await PropertyService.delete(propertyId);
-    toast.success('Propriété supprimée avec succès');
-    router.push({ name: 'landlord-properties' });
-  } catch (error) {
-    console.error('Erreur lors de la suppression de la propriété:', error);
-    toast.error('Erreur lors de la suppression de la propriété');
-  }
-};
-
-const checkAvailableProperties = () => {
-  router.push({ name: 'landlord-properties', query: { status: 'available' } });
-};
-
-const editProperty = () => {
-  if (property.value) {
-    router.push({ name: 'landlord-property-edit', params: { id: property.value.id } });
-  }
-};
-
 // Data fetching
 const fetchProperty = async () => {
   try {

@@ -226,13 +226,6 @@
                         Détails
                       </button>
                       <button
-                        @click="editProperty(property)"
-                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                      >
-                        <i class="fas fa-edit mr-2"></i>
-                        Modifier
-                      </button>
-                      <button
                         @click="terminateContract(property)"
                         class="block px-4 py-2 text-sm text-red-600 hover:bg-red-100 w-full text-left"
                       >
@@ -264,24 +257,24 @@
       @submit="handlePropertySubmit"
     />
     
-  
-  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/auth';
+import { useToast } from 'vue-toastification';
+import { Property, PropertyStatus } from '@/types/property';
+import type { User } from '@/types/user';
+import { defineAsyncComponent } from 'vue';
 import { usePropertyStore } from '@/stores/propertyStore';
-import type { Property, PropertyStatus } from '@/types/property';
-import api from '@/services/api';
+import { NotificationService } from '@/services/notification.service';
 import ContractService from '@/services/contract.service';
 
 // Composants
+const PropertyFormModal = defineAsyncComponent(() => import('@/components/properties/PropertyFormModal.vue'));
 const PropertyCard = defineAsyncComponent(() => import('@/components/properties/PropertyCard.vue'));
 const PropertyListItem = defineAsyncComponent(() => import('@/components/properties/PropertyListItem.vue'));
-const PropertyFormModal = defineAsyncComponent(() => import('@/components/properties/PropertyFormModal.vue'));
 const PropertyDetailsModal = defineAsyncComponent(() => import('@/components/properties/PropertyDetailsModal.vue'));
 const Pagination = defineAsyncComponent(() => import('@/components/ui/Pagination.vue'));
 
@@ -295,7 +288,6 @@ const toast = useToast();
 // État local
 const isLoading = ref(false);
 const showAddPropertyForm = ref(false);
-
 const selectedProperty = ref<Property | null>(null);
 const viewMode = ref<'grid' | 'list'>('grid');
 const searchQuery = ref('');
@@ -319,7 +311,6 @@ const propertyStatuses = [
 
 // État du menu d'action
 const showActionMenu = ref(false);
-const selectedPropertyAction = ref<Property | null>(null);
 
 // Méthodes pour le menu d'action
 const handlePropertyDetails = (property: Property) => {
@@ -335,14 +326,56 @@ const handlePropertyDetails = (property: Property) => {
   showActionMenu.value = false; // Fermer le menu après l'action
 };
 
-const editProperty = (property: Property) => {
-  selectedPropertyAction.value = property;
-  showAddPropertyForm.value = true;
-  showActionMenu.value = false; // Fermer le menu après l'action
-};
+// La fonction editProperty a été supprimée car les locataires ne peuvent pas éditer les propriétés
 
 const terminateContract = async (property: Property) => {
-  if (!property.tenantId) return;
+  // Vérifier que la propriété a un locataire
+  if (!property.tenantId) {
+    toast.error('Cette propriété n\'a pas de locataire');
+    return;
+  }
+
+  // Vérifier que l\'utilisateur connecté est le locataire
+  if (property.tenantId !== authStore.user?._id) {
+    toast.error('Cette propriété ne vous appartient pas');
+    return;
+  }
+
+  // Confirmation avant de procéder
+  if (!confirm('Êtes-vous sûr de vouloir rompre le contrat ? Une notification sera envoyée au propriétaire pour confirmation.')) {
+    return;
+  }
+
+  try {
+    // Créer la notification pour le propriétaire
+    const notificationData = {
+      userId: property.ownerId as string,
+      type: 'CONTRACT_TERMINATION_REQUEST',
+      title: 'Demande de rupture de contrat',
+      message: `Le locataire ${getFullName(authStore.user)} souhaite rompre le contrat pour la propriété ${property.title}`,
+      data: {
+        propertyId: property._id,
+        tenantId: property.tenantId,
+        status: 'PENDING'
+      }
+    };
+
+    // Envoyer la notification au propriétaire
+    await NotificationService.createNotification(notificationData);
+    
+    // Mettre à jour le statut du contrat
+    await ContractService.updateContractStatus(property._id as string, {
+      status: 'TERMINATION_REQUESTED',
+      terminationRequestedAt: new Date()
+    });
+
+    toast.success('Votre demande de rupture de contrat a été envoyée au propriétaire. Vous serez notifié de la décision.');
+    showActionMenu.value = false; // Fermer le menu après l'action
+    await propertyStore.fetchProperties(); // Rafraîchir la liste des propriétés
+  } catch (error) {
+    console.error('Erreur lors de la demande de rupture de contrat:', error);
+    toast.error('Une erreur est survenue lors de l\'envoi de la demande');
+  }
 
   try {
     // Utiliser la méthode correcte pour rompre le contrat
