@@ -235,7 +235,29 @@ export const propertyExists = async (req: Request, res: Response, next: NextFunc
     }
 
     // Vérifier si l'utilisateur a accès à la propriété
-    if (req.user?.userType !== 'ADMIN' && property.owner_id !== req.user?.id) {
+    if (req.user?.userType !== 'ADMIN') {
+      // Vérifier si l'utilisateur est le propriétaire
+      if (property.owner_id === req.user?.id) {
+        return;
+      }
+      
+      // Vérifier si l'utilisateur est locataire de cette propriété
+      const tenantId = req.query.tenantId as string;
+      if (tenantId && parseInt(tenantId) === req.user?.id) {
+        // Vérifier si le contrat existe et est actif
+        const activeContract = await db('contracts')
+          .where({
+            tenant_id: parseInt(tenantId),
+            property_id: propertyId,
+            status: 'active'
+          })
+          .first();
+        
+        if (activeContract) {
+          return;
+        }
+      }
+      
       return next(new AppError(403, 'Cette propriété n\'est pas disponible'));
     }
 

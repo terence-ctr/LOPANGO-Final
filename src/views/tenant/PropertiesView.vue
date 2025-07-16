@@ -116,7 +116,7 @@
                 Type
               </th>
               <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              
+                Prix
               </th>
               <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Statut
@@ -162,7 +162,6 @@
                     <div class="text-sm font-medium text-gray-900">
                       {{ property.title || 'Propriété sans nom' }}
                     </div>
-                   
                   </div>
                 </div>
               </td>
@@ -199,7 +198,6 @@
               </td>
               
               <!-- Actions -->
-              <!-- Actions -->
               <td class="px-4 py-3">
                 <!-- Menu déroulant avec points de suspension -->
                 <div class="relative">
@@ -225,13 +223,7 @@
                         <i class="fas fa-eye mr-2"></i>
                         Détails
                       </button>
-                      <button
-                        @click="terminateContract(property)"
-                        class="block px-4 py-2 text-sm text-red-600 hover:bg-red-100 w-full text-left"
-                      >
-                        <i class="fas fa-times-circle mr-2"></i>
-                        Rompre le contrat
-                      </button>
+                     
                     </div>
                   </div>
                 </div>
@@ -257,16 +249,17 @@
       @submit="handlePropertySubmit"
     />
     
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { defineAsyncComponent } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
 import { Property, PropertyStatus } from '@/types/property';
 import type { User } from '@/types/user';
-import { defineAsyncComponent } from 'vue';
 import { usePropertyStore } from '@/stores/propertyStore';
 import { NotificationService } from '@/services/notification.service';
 import ContractService from '@/services/contract.service';
@@ -352,7 +345,7 @@ const terminateContract = async (property: Property) => {
       userId: property.ownerId as string,
       type: 'CONTRACT_TERMINATION_REQUEST',
       title: 'Demande de rupture de contrat',
-      message: `Le locataire ${getFullName(authStore.user)} souhaite rompre le contrat pour la propriété ${property.title}`,
+      message: `Le locataire ${formatOwnerName(authStore.user as User)} souhaite rompre le contrat pour la propriété ${property.title}`,
       data: {
         propertyId: property._id,
         tenantId: property.tenantId,
@@ -364,9 +357,10 @@ const terminateContract = async (property: Property) => {
     await NotificationService.createNotification(notificationData);
     
     // Mettre à jour le statut du contrat
-    await ContractService.updateContractStatus(property._id as string, {
-      status: 'TERMINATION_REQUESTED',
-      terminationRequestedAt: new Date()
+    await ContractService.createContract({
+      propertyId: property._id,
+      tenantId: property.tenantId,
+      status: 'TERMINATED'
     });
 
     toast.success('Votre demande de rupture de contrat a été envoyée au propriétaire. Vous serez notifié de la décision.');
@@ -379,7 +373,11 @@ const terminateContract = async (property: Property) => {
 
   try {
     // Utiliser la méthode correcte pour rompre le contrat
-    await api.delete(`/contracts/tenant/${property.tenantId}`);
+    await ContractService.createContract({
+      propertyId: property._id,
+      tenantId: property.tenantId,
+      status: 'TERMINATED'
+    });
     toast.success('Le contrat a été rompu avec succès');
     await loadProperties();
     showActionMenu.value = false; // Fermer le menu après l'action
@@ -556,6 +554,10 @@ const formatPropertyStatus = (status: PropertyStatus) => {
   }
 };
 
+const formatOwnerName = (user: User) => {
+  return `${user.firstName} ${user.lastName}`;
+};
+
 // Méthodes
 const loadProperties = async () => {
   try {
@@ -594,8 +596,6 @@ const handlePropertySubmit = async (propertyData: any) => {
     toast.error('Une erreur est survenue lors de la sauvegarde de la propriété');
   }
 };
-
-
 
 const toggleFavorite = (property: Property) => {
   const propertyId = (property.id || property._id) as string | number;

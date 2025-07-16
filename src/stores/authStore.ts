@@ -1,15 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed, Ref } from 'vue';
 
-export interface User {
-  id: string | number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;  // Ajout du numéro de téléphone optionnel
-  avatar?: string;
-  userType?: 'landlord' | 'tenant' | 'agent' | 'admin';
-}
+import { User } from '@/types/user';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
@@ -29,12 +21,21 @@ export const useAuthStore = defineStore('auth', () => {
       
       // Simulation de connexion réussie pour le développement
       user.value = {
-        id: 1,
+        _id: '1',
         firstName: 'Prénom',
         lastName: 'Nom',
         email: email,
         userType: 'landlord',
-        avatar: 'https://ui-avatars.com/api/?name=Prénom+Nom'
+        avatar: 'https://ui-avatars.com/api/?name=Prénom+Nom',
+        identity: {
+          nationalId: '123456789',
+          documentType: 'CNI'
+        },
+        phone: '123456789',
+        nationality: 'Congo',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       isAuthenticated.value = true;
       
@@ -71,12 +72,21 @@ export const useAuthStore = defineStore('auth', () => {
       
       // Simulation d'utilisateur connecté pour le développement
       user.value = {
+        _id: '1',
         id: 1,
         firstName: 'Prénom',
         lastName: 'Nom',
         email: 'exemple@email.com',
         userType: 'landlord',
-        avatar: 'https://ui-avatars.com/api/?name=Prénom+Nom'
+        avatar: 'https://ui-avatars.com/api/?name=Prénom+Nom',
+        identity: {
+          nationalId: '123456789',
+          documentType: 'CNI'
+        },
+        nationality: 'Congo',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       isAuthenticated.value = true;
       
@@ -96,6 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user,
+    getUser: () => user.value,
     isAuthenticated,
     loading,
     error,

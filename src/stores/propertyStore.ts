@@ -4,6 +4,7 @@ import type { Property, PropertyTypeMetadata, PropertyStatusMetadata, PropertyEq
 import MetadataService from '@/services/metadata.service';
 import PropertyService from '@/services/property.service';
 import ContractService from '@/services/contract.service';
+import type { PropertyStoreState, PropertyStoreGetters, PropertyStoreActions } from '@/types/stores/propertyStore';
 
 // Clé pour le stockage local
 const PROPERTY_TOKEN_KEY = 'lopango_property_token';
@@ -13,12 +14,10 @@ export const usePropertyStore = defineStore('property', () => {
   const propertyToken = ref<string | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
-
-  // Métadonnées
-  const propertyTypes = ref<PropertyTypeMetadata[]>([]);
-  const propertyStatuses = ref<PropertyStatusMetadata[]>([]);
-  const propertyEquipments = ref<PropertyEquipmentMetadata[]>([]);
-  const currencies = ref<CurrencyMetadata[]>([]);
+  const propertyTypes = ref<any[]>([]);
+  const propertyStatuses = ref<any[]>([]);
+  const propertyEquipments = ref<any[]>([]);
+  const currencies = ref<any[]>([]);
   const currentProperty = ref<Property | null>(null);
   const properties = ref<Property[]>([]);
   const tenantProperties = ref<Property[]>([]);
@@ -34,18 +33,17 @@ export const usePropertyStore = defineStore('property', () => {
   const getCurrentProperty = computed(() => currentProperty.value);
   const getProperties = computed(() => properties.value);
   const getTenantProperties = computed(() => tenantProperties.value);
-  const userProperties = computed(() => properties.value); // Alias pour la compatibilité avec le système d'alertes
+  const userProperties = computed(() => properties.value);
 
-  async function fetchProperties(onlyAvailable = false) {
+  // Actions
+  const fetchProperties = async (onlyAvailable = false) => {
     loading.value = true;
     error.value = null;
     try {
       if (onlyAvailable) {
-        // Utiliser getAvailableProperties pour ne récupérer que les propriétés disponibles
         properties.value = await PropertyService.getAvailableProperties();
       } else {
-        // Utiliser getMyProperties pour ne récupérer que les propriétés de l'utilisateur connecté
-        properties.value = await PropertyService.getMyProperties();
+        properties.value = await PropertyService.getProperties();
       }
     } catch (e: any) {
       error.value = e.message || 'Impossible de charger les propriétés';
@@ -53,14 +51,12 @@ export const usePropertyStore = defineStore('property', () => {
     } finally {
       loading.value = false;
     }
-  }
+  };
 
-  // Récupérer les propriétés liées aux contrats du locataire
-  async function fetchTenantProperties() {
+  const fetchTenantProperties = async () => {
     loading.value = true;
     error.value = null;
     try {
-      // Récupérer les propriétés liées aux contrats du locataire
       tenantProperties.value = await ContractService.getTenantProperties();
     } catch (e: any) {
       error.value = e.message || 'Impossible de charger les propriétés du locataire';
@@ -68,22 +64,29 @@ export const usePropertyStore = defineStore('property', () => {
     } finally {
       loading.value = false;
     }
-  }
+  };
 
-  async function fetchPropertyById(id: number) {
+  const fetchPropertyById = async (id: string | number, tenantId?: string) => {
     loading.value = true;
     error.value = null;
     try {
-      currentProperty.value = await PropertyService.getById(id);
-    } catch (e: any) {
-      error.value = e.message || 'Failed to fetch property';
-      console.error(`Error fetching property ${id}:`, e);
+      const property = await PropertyService.getById(id, tenantId);
+      currentProperty.value = property;
+      return property;
+    } catch (error: any) {
+      if (error.message.includes('Accès non autorisé')) {
+        error.value = 'Vous n\'avez pas les droits pour accéder à cette propriété';
+      } else {
+        error.value = error.message || 'Impossible de charger la propriété';
+      }
+      console.error(`Erreur lors de la récupération de la propriété ${id}:`, error);
+      throw error;
     } finally {
       loading.value = false;
     }
-  }
+  };
 
-  async function fetchPropertyMetadata() {
+  const fetchPropertyMetadata = async () => {
     if (loading.value) return;
     loading.value = true;
     error.value = null;
@@ -102,7 +105,6 @@ export const usePropertyStore = defineStore('property', () => {
     } catch (e) {
       error.value = 'Impossible de charger les métadonnées, utilisation des valeurs par défaut';
       console.warn('Utilisation des valeurs par défaut pour les métadonnées:', e);
-      // Utiliser des valeurs par défaut
       propertyTypes.value = [];
       propertyStatuses.value = [];
       propertyEquipments.value = [];
@@ -110,10 +112,9 @@ export const usePropertyStore = defineStore('property', () => {
     } finally {
       loading.value = false;
     }
-  }
+  };
 
-  // Actions
-  async function createProperty(propertyData: Omit<Property, 'id'>) {
+  const createProperty = async (propertyData: Omit<Property, 'id'>) => {
     loading.value = true;
     error.value = null;
     try {
@@ -127,9 +128,9 @@ export const usePropertyStore = defineStore('property', () => {
     } finally {
       loading.value = false;
     }
-  }
+  };
 
-  async function updateProperty(id: number, propertyData: Partial<Property>) {
+  const updateProperty = async (id: number, propertyData: Partial<Property>) => {
     loading.value = true;
     error.value = null;
     try {
@@ -149,9 +150,9 @@ export const usePropertyStore = defineStore('property', () => {
     } finally {
       loading.value = false;
     }
-  }
+  };
 
-  async function deleteProperty(id: number) {
+  const deleteProperty = async (id: number) => {
     loading.value = true;
     error.value = null;
     try {
@@ -164,7 +165,7 @@ export const usePropertyStore = defineStore('property', () => {
     } finally {
       loading.value = false;
     }
-  }
+  };
 
   const setPropertyToken = (token: string | null) => {
     propertyToken.value = token;
@@ -199,43 +200,34 @@ export const usePropertyStore = defineStore('property', () => {
     localStorage.removeItem(PROPERTY_TOKEN_KEY);
   };
 
-  // Mettre à jour le locataire d'une propriété
-  async function updatePropertyTenant(propertyId: number, tenantId: string) {
+  const updatePropertyTenant = async (propertyId: number, tenantId: string) => {
     loading.value = true;
     error.value = null;
     try {
-      // Trouver la propriété à mettre à jour
       const property = properties.value.find(p => p.id === propertyId);
       if (!property) {
         throw new Error('Propriété non trouvée');
       }
-      
-      // Mettre à jour la propriété avec le nouvel ID de locataire
       const updatedProperty = await PropertyService.update(propertyId, {
         ...property,
         tenantId: tenantId
       });
-      
-      // Mettre à jour la liste des propriétés
       const index = properties.value.findIndex(p => p.id === propertyId);
       if (index !== -1) {
         properties.value[index] = updatedProperty;
       }
-      
-      // Mettre à jour la propriété courante si nécessaire
       if (currentProperty.value?.id === propertyId) {
         currentProperty.value = updatedProperty;
       }
-      
       return updatedProperty;
     } catch (e: any) {
-      error.value = e.message || 'Erreur lors de la mise à jour du locataire de la propriété';
-      console.error('Erreur:', e);
+      error.value = e.message || 'Failed to update property tenant';
+      console.error(`Error updating property tenant ${propertyId}:`, e);
       throw e;
     } finally {
       loading.value = false;
     }
-  }
+  };
 
   // Initialisation
   if (typeof window !== 'undefined') {
@@ -248,12 +240,12 @@ export const usePropertyStore = defineStore('property', () => {
     propertyToken,
     loading,
     error,
-    properties,
-    currentProperty,
     propertyTypes,
     propertyStatuses,
     propertyEquipments,
     currencies,
+    currentProperty,
+    properties,
     tenantProperties,
 
     // Getters

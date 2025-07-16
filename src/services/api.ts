@@ -19,13 +19,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest'
+    'X-Requested-With': 'XMLHttpRequest',
+    'Access-Control-Allow-Headers': 'X-Tenant-ID'
   },
-  withCredentials: true, // Important pour envoyer les cookies avec les requêtes cross-origin
+  withCredentials: true,
   timeout: apiConfig.timeout,
   xsrfCookieName: 'XSRF-TOKEN',
   xsrfHeaderName: 'X-XSRF-TOKEN',
-  // Désactiver la transformation automatique des réponses
   transformResponse: [(data) => {
     try {
       return JSON.parse(data);

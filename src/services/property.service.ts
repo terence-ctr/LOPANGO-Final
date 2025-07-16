@@ -211,99 +211,6 @@ class PropertyService {
     } catch (error: any) {
       console.error('Erreur lors de la récupération des propriétés:', error);
       
-      // Améliorer le message d'erreur
-      if (error.response) {
-        if (error.response.status === 401) {
-          throw new Error('Veuillez vous connecter pour accéder à cette ressource');
-        }
-        if (error.response.data && error.response.data.message) {
-          throw new Error(error.response.data.message);
-        }
-      }
-      
-      throw new Error('Une erreur est survenue lors de la récupération des propriétés');
-    }
-  }
-
-  // Récupérer les propriétés de l'utilisateur connecté
-  static async getMyProperties(): Promise<Property[]> {
-    try {
-      const response = await api.get('/properties/my-properties');
-      
-      // Si la réponse contient un tableau de propriétés dans data
-      if (response.data && response.data.success && Array.isArray(response.data.data)) {
-        return response.data.data;
-      }
-      
-      // Si la réponse contient directement un tableau de propriétés
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      
-      // Si nous n'avons toujours pas de données, retourner un tableau vide
-      return [];
-    } catch (error: any) {
-      console.error('Erreur lors de la récupération de vos propriétés:', error);
-      
-      // Améliorer le message d'erreur
-      if (error.response) {
-        if (error.response.status === 401) {
-          throw new Error('Veuillez vous connecter pour accéder à cette ressource');
-        }
-        if (error.response.data && error.response.data.message) {
-          throw new Error(error.response.data.message);
-        }
-      }
-      
-      throw new Error('Une erreur est survenue lors de la récupération de vos propriétés');
-    }
-  }
-
-  // Récupérer une propriété par son ID
-  static async getById(id: number): Promise<Property> {
-    try {
-      // Récupérer l'ID du locataire depuis le store auth
-      const authStore = useAuthStore();
-      const tenantId = authStore.user?._id;
-      
-      if (!tenantId) {
-        throw new Error('ID locataire non disponible');
-      }
-
-      // Utiliser l'endpoint configuré et ajouter le tenant_id dans les en-têtes
-      const response = await api.get(apiConfig.endpoints.properties.byId(id.toString()), {
-        headers: {
-          'X-Tenant-ID': tenantId
-        }
-      });
-      
-      console.log('[PropertyService] Réponse brute du backend:', {
-        statusCode: response.status,
-        headers: response.headers,
-        data: response.data
-      });
-
-      // Si la réponse contient directement la propriété
-      if (response.data && response.data.id) {
-        console.log('[PropertyService] Format de réponse direct trouvé');
-        return response.data;
-      }
-      
-      // Si la propriété est dans un objet data
-      if (response.data && response.data.data) {
-        console.log('[PropertyService] Format de réponse avec data trouvé');
-        return response.data.data;
-      }
-      
-      // Si nous n'avons toujours pas de données, lancer une erreur
-      console.log('[PropertyService] Format de réponse inattendu:', {
-        dataStructure: response.data
-      });
-      throw new Error('Format de réponse inattendu du serveur');
-    } catch (error: any) {
-      console.error(`Erreur lors de la récupération de la propriété ${id}:`, error);
-      
-      // Améliorer le message d'erreur
       if (error.response) {
         if (error.response.status === 404) {
           throw new Error('Propriété non trouvée');
@@ -343,6 +250,30 @@ class PropertyService {
       return response.data;
     } catch (error) {
       console.error(`Erreur lors de la suppression de la propriété ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // Récupérer une propriété par ID
+  static async getById(id: string | number, tenantId?: string): Promise<Property> {
+    try {
+      // Si un tenantId est fourni, utiliser l'endpoint spécifique
+      if (tenantId) {
+        return await api.get(apiConfig.endpoints.properties.byIdWithTenant(id.toString(), tenantId));
+      }
+      // Sinon, utiliser l'endpoint standard
+      const response = await api.get(apiConfig.endpoints.properties.byId(id.toString()));
+      if (response.data && (response.data.id || response.data._id)) {
+        return response.data;
+      }
+      if (response.data && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error('Format de réponse inattendu du serveur');
+    } catch (error: any) {
+      if (error.response?.status === 403) {
+        throw new Error('Accès non autorisé à cette propriété');
+      }
       throw error;
     }
   }

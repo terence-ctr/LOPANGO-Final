@@ -1,5 +1,9 @@
 export type ContractStatus = 'active' | 'pending' | 'ended' | 'cancelled' | 'draft';
 
+export type PropertyType = 'APPARTEMENT' | 'MAISON' | 'VILLA' | 'CHATEAU' | 'PARKING' | 'LOCAL_COMMERCIAL' | 'BUREAU' | 'ENTREPOT' | 'TERRAIN' | 'AUTRE';
+
+export type PropertyStatus = 'DISPONIBLE' | 'LOUE' | 'EN_MAINTENANCE' | 'EN_ENTRETIEN' | 'VENDU' | 'INDISPONIBLE' | 'RESERVE' | 'EN_NEGOCIATION';
+
 // Interface pour l'adresse standardisée
 export interface StandardAddress {
   street: string;
@@ -83,8 +87,7 @@ export interface PropertyWithApartments extends Omit<Property, 'id' | 'address' 
   type: PropertyType | string;
 }
 
-import { Property as PropertyType, PropertyStatus, PropertyAddress } from './property';
-import {  Address } from './user';
+import { Address } from './user';
 
 export type User = {
   id: string;
@@ -99,43 +102,66 @@ export type User = {
 }
 
 // Aligned with backend property model
+export interface PropertyAddress {
+  street: string;
+  city: string;
+  postal_code: string;
+  country: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface Property {
-  id: string | number;
+  _id?: string;
+  id?: string | number;
+  name?: string;
   title: string;
-  // Champs d'adresse détaillés
-  // Adresse peut être une chaîne ou un objet PropertyAddress
+  description?: string;
+  slug?: string;
   address: string | PropertyAddress;
-  
-  // Détails de la propriété
   type: PropertyType;
-  rent: number;
-  charges?: number;
-  deposit: number;
-  currency?: string;
-  status?: PropertyStatus;
-  is_active?: boolean;
-  
-  // Caractéristiques
   area: number;
   rooms: number;
-  bathrooms?: number;
+  bedrooms?: number;
+  bathrooms: number;
   floor?: number | string;
-  description?: string;
-  equipment?: string[] | string; // Peut être un tableau ou une chaîne JSON
+  furnished: boolean;
+  equipment?: string[] | string;
+  heatingType?: string;
+  energyRating?: string;
+  constructionYear?: number;
+  has_air_conditioning?: boolean;
+  has_balcony?: boolean;
+  has_elevator?: boolean;
+  has_garden?: boolean;
+  has_heating?: boolean;
+  has_parking?: boolean;
+  has_pool?: boolean;
+  has_terrace?: boolean;
+  year_built?: number;
+  available_from?: number;
+  rent: number;
+  charges?: number;
+  deposit?: number;
+  currency?: string;
+  usage?: 'residentiel' | 'commercial' | 'bureau' | 'autre';
+  leaseType?: string;
+  status: PropertyStatus;
+  images?: Array<{ url: string; [key: string]: any }> | string[];
   photos?: string[];
-  
-  // Propriétaire
+  ownerId?: string | number;
   owner_id?: string | number;
-  ownerId?: string | number; // Alias pour la rétrocompatibilité
-  
-  // Dates
-  available_from?: string;
-  created_at?: string;
-  updated_at?: string;
-  published_at?: string;
-  
-  // Autres champs potentiels
-  [key: string]: any; // Pour gérer les champs supplémentaires
+  tenantId?: string | number | null;
+  customFields?: Record<string, any>;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+  publishedAt?: string | Date;
+  created_at?: string | Date;
+  updated_at?: string | Date;
+  published_at?: string | Date;
+  is_active?: boolean;
+  tags?: string[];
+  [key: string]: any;
 }
 
 // Types pour les champs du formulaire

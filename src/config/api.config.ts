@@ -16,7 +16,12 @@ export interface ApiConfig {
       myProperties: string;
       byOwner: (ownerId: string) => string;
       byId: (id: string) => string;
+      byIdWithTenant: (id: string, tenantId: string) => string;
       uploadImage: (propertyId: string) => string;
+    };
+    landlords: {
+      base: string;
+      byId: (id: string) => string;
     };
     metadata: {
       propertyTypes: string;
@@ -80,7 +85,12 @@ export const apiConfig: ApiConfig = {
       myProperties: '/properties/my-properties',
       byOwner: (ownerId: string) => `/properties/owner/${ownerId}`,
       byId: (id: string) => `/properties/${id}`,
+      byIdWithTenant: (id: string, tenantId: string) => `/properties/${id}?tenantId=${tenantId}`,
       uploadImage: (propertyId: string) => `/properties/${propertyId}/images`,
+    },
+    landlords: {
+      base: '/landlords',
+      byId: (id: string) => `/landlords/${id}`
     },
     metadata: {
       propertyTypes: '/metadata/property-types',

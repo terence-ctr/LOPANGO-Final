@@ -58,14 +58,30 @@
               </td>
               <td class="text-gray-600">{{ formatAddress(property.address) }}</td>
               <td class="text-gray-600">
-                {{ property.contracts?.[0] ? formatContractPeriod(property.contracts[0]) : '-' }}
+                {{ formatContractPeriod(property) }}
               </td>
               <td>
+                <template v-if="property.contractStatus">
+                  <span 
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+                    :class="getStatusClass(property.contractStatus)"
+                  >
+                    {{ getStatusLabel(property.contractStatus) }}
+                  </span>
+                </template>
+                <template v-else-if="property.status">
+                  <span 
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+                    :class="getStatusClass(property.status)"
+                  >
+                    {{ getStatusLabel(property.status) }}
+                  </span>
+                </template>
                 <span 
-                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
-                  :class="getStatusClass(property.contracts?.[0]?.status)"
+                  v-else
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-800"
                 >
-                  {{ getStatusLabel(property.contracts?.[0]?.status) || 'Inconnu' }}
+                  Aucun statut
                 </span>
               </td>
             </tr>
@@ -77,9 +93,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { usePropertyStore } from '@/stores/propertyStore';
 import api from '@/services/api';
 import { apiConfig } from '@/config/api.config';
 import type { Property } from '@/types/property';
@@ -123,16 +140,62 @@ interface BasePropertyData {
   [key: string]: any;
 }
 
-// Interface pour les propriétés avec contrats
-interface PropertyWithContracts extends BasePropertyData {
-  contracts: Contract[];
+// Interface pour les propriétés du locataire
+interface TenantProperty {
+  id: string | number;
+  _id?: string;
+  title: string;
+  name?: string;
+  description?: string;
+  slug?: string;
+  address: string | {
+    street: string;
+    city: string;
+    postal_code: string;
+    country: string;
+  };
+  type?: string;
+  rent?: number;
+  deposit?: number;
+  currency?: string;
+  status?: string;
+  contractId?: string | number;
+  contractStartDate?: string | Date;
+  contractEndDate?: string | Date;
+  contractStatus?: string;
+  contract?: Contract;
+  contracts?: Contract[];
+  [key: string]: any; // Pour les autres propriétés optionnelles
 }
 
 const router = useRouter();
 const authStore = useAuthStore();
-const properties = ref<PropertyWithContracts[]>([]);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const propertyStore = usePropertyStore();
+const properties = computed<TenantProperty[]>(() => {
+  const props = (propertyStore.getTenantProperties || []) as TenantProperty[];
+  console.log('Propriétés dans le computed:', props);
+  
+  return props.map(prop => {
+    console.log('Propriété:', {
+      id: prop.id,
+      title: prop.title,
+      contractStatus: prop.contractStatus,
+      status: prop.status,
+      contract: prop.contract,
+      allProps: Object.keys(prop)
+    });
+    
+    return {
+      ...prop,
+      // S'assurer que contractStatus est défini
+      contractStatus: prop.contractStatus || prop.status || 'unknown',
+      // S'assurer que les contrats sont un tableau
+      contracts: Array.isArray(prop.contracts) ? prop.contracts : (prop.contract ? [prop.contract] : [])
+    } as TenantProperty;
+  });
+});
+const loading = computed(() => propertyStore.isLoading);
+const error = computed(() => propertyStore.propertyError);
 
 // Formater une adresse
 const formatAddress = (address: string | { street?: string; city?: string; postal_code?: string; country?: string } | null | undefined): string => {
@@ -167,11 +230,11 @@ const formatDate = (dateString: string | Date | null | undefined): string => {
 };
 
 // Formater la période du contrat
-const formatContractPeriod = (contract: Contract): string => {
-  if (!contract) return 'Non spécifié';
+const formatContractPeriod = (property: any): string => {
+  if (!property) return '-';
   
-  const startDate = contract.start_date ? formatDate(contract.start_date) : 'Date inconnue';
-  const endDate = contract.end_date ? `au ${formatDate(contract.end_date)}` : 'à durée indéterminée';
+  const startDate = property.contractStartDate ? formatDate(property.contractStartDate) : 'Date inconnue';
+  const endDate = property.contractEndDate ? `au ${formatDate(property.contractEndDate)}` : 'à durée indéterminée';
   
   return `Du ${startDate} ${endDate}`;
 };
@@ -201,98 +264,79 @@ const getStatusClass = (status?: string): string => {
 };
 
 // Obtenir le libellé du statut
-const getStatusLabel = (status?: string): string => {
-  switch (status?.toLowerCase()) {
-    case 'active':
-      return 'Actif';
-    case 'pending':
-      return 'En attente';
-    case 'ended':
-      return 'Terminé';
-    default:
-      return 'Inconnu';
+const getStatusLabel = (status: any): string => {
+  console.log('getStatusLabel appelé avec:', status);
+  
+  if (!status) {
+    console.log('Aucun statut fourni');
+    return 'Inconnu (vide)';
   }
+  
+  // Si c'est un objet, essayer d'en extraire le statut
+  if (typeof status === 'object') {
+    console.log('Statut est un objet, tentative d\'extraction:', status);
+    return getStatusLabel(status.status || status.etat || status.state || status.name || status.value);
+  }
+  
+  const statusStr = String(status).toLowerCase().trim();
+  console.log('Statut normalisé:', statusStr);
+  
+  const statusMap: Record<string, string> = {
+    'active': 'Actif',
+    'actif': 'Actif',
+    'en cours': 'Actif',
+    'pending': 'En attente',
+    'en attente': 'En attente',
+    'waiting': 'En attente',
+    'ended': 'Terminé',
+    'terminé': 'Terminé',
+    'termine': 'Terminé',
+    'expiré': 'Expiré',
+    'expire': 'Expiré',
+    'cancelled': 'Annulé',
+    'annulé': 'Annulé',
+    'canceled': 'Annulé',
+    'annule': 'Annulé'
+  };
+  
+  const label = statusMap[statusStr] || ` ${status}`;
+  console.log('Libellé du statut:', label);
+  return label;
 };
-
-// La fonction viewProperty est déjà définie plus haut
 
 // Charger les propriétés du locataire
 const loadProperties = async () => {
   try {
-    loading.value = true;
-    error.value = null;
+    console.log('Début du chargement des propriétés...');
+    await propertyStore.fetchTenantProperties();
     
-    const user = authStore.user;
-    console.log('User object from authStore:', JSON.stringify(user, null, 2));
+    // Afficher les propriétés chargées pour le débogage
+    const tenantProps = propertyStore.getTenantProperties || [];
+    console.log(`Nombre de propriétés chargées: ${tenantProps.length}`);
     
-    const userId = user?._id || (user as any)?.id;
-    console.log('Extracted userId:', userId);
-    
-    if (!userId) {
-      console.error('Aucun ID utilisateur trouvé');
-      throw new Error('Utilisateur non connecté');
-    }
-    
-    // Récupérer les contrats du locataire avec les données de propriété incluses
-    console.log(`Fetching contracts for tenantId: ${userId}`);
-    const contractsResponse = await api.get(apiConfig.endpoints.contracts.byTenant(userId));
-    console.log('Contracts API response:', contractsResponse);
-    
-    const contracts = contractsResponse.data?.data || [];
-    console.log(`Found ${contracts.length} contracts`);
-    
-    // Créer un Map pour stocker les propriétés uniques
-    const propertiesMap = new Map<number, PropertyWithContracts>();
-    
-    // Parcourir les contrats pour créer les propriétés
-    contracts.forEach((contract: any) => {
-      console.log('Contrat complet:', JSON.stringify(contract, null, 2));
-      const propertyId = contract.property_id;
-      
-      // Vérifier si la propriété existe déjà dans le Map
-      if (!propertiesMap.has(propertyId)) {
-        // Créer une nouvelle propriété à partir des données du contrat
-        const property: PropertyWithContracts = {
-          id: propertyId,
-          title: contract.property_title || `Propriété ${propertyId}`,
-          address: {
-            street: contract.property_address_street || '',
-            city: contract.property_address_city || '',
-            postal_code: contract.property_address_postal_code || '',
-            country: contract.property_address_country || 'France'
-          },
-          // Utiliser property_type du contrat s'il existe, sinon utiliser 'appartement' par défaut
-          type: contract.property_type || 'appartement',
-          // Si property_type n'est pas défini, essayer de le déduire d'autres champs si nécessaire
-          // Par exemple, si vous avez un champ property_category ou similaire
-          area: contract.area || 0,
-          rooms: contract.rooms || 0,
-          bathrooms: contract.bathrooms || 0,
-          furnished: Boolean(contract.furnished),
-          status: contract.status || 'inconnu',
-          rent: Number(contract.rent) || 0,
-          charges: contract.charges !== undefined ? Number(contract.charges) : 0,
-          deposit: contract.deposit !== undefined ? Number(contract.deposit) : 0,
-          currency: contract.currency || 'EUR',
-          contracts: [contract]
-        };
+    if (tenantProps.length > 0) {
+      console.log('=== Détails des propriétés ===');
+      tenantProps.forEach((prop: any, index: number) => {
+        console.log(`--- Propriété #${index + 1} ---`);
+        console.log('Titre:', prop.title);
+        console.log('ID:', prop.id || prop._id);
+        console.log('Type:', prop.type);
+        console.log('Adresse:', prop.address);
+        console.log('Statut:', prop.status);
+        console.log('Contract Status:', prop.contractStatus);
+        console.log('Contract ID:', prop.contractId);
+        console.log('Toutes les propriétés:', Object.keys(prop));
         
-        propertiesMap.set(propertyId, property);
-      } else {
-        // Ajouter le contrat à la propriété existante
-        const existingProperty = propertiesMap.get(propertyId);
-        if (existingProperty) {
-          const contractExists = existingProperty.contracts.some((c: any) => c.id === contract.id);
-          if (!contractExists) {
-            existingProperty.contracts.push(contract);
-          }
+        // Si la propriété a un contrat, afficher ses détails
+        if (prop.contract) {
+          console.log('Détails du contrat:', prop.contract);
         }
-      }
-    });
-    
-    // Convertir le Map en tableau
-    properties.value = Array.from(propertiesMap.values());
-    console.log(`${properties.value.length} propriétés chargées à partir des contrats`);
+        if (prop.contracts && prop.contracts.length > 0) {
+          console.log('Contrats associés:', prop.contracts);
+        }
+      });
+      console.log('=== Fin des détails ===');
+    }
   } catch (err) {
     console.error('Erreur lors du chargement des propriétés:', err);
     if (err instanceof Error) {
@@ -302,10 +346,7 @@ const loadProperties = async () => {
         stack: err.stack
       });
     }
-    error.value = 'Impossible de charger les propriétés. Veuillez réessayer.';
-  } finally {
-    console.log('Finished loading properties');
-    loading.value = false;
+    // L'erreur est déjà gérée dans le store, pas besoin de la redéfinir ici
   }
 };
 

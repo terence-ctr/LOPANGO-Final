@@ -50,6 +50,9 @@
                 Propriété
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Adresse
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Bailleur
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -69,7 +72,7 @@
           <tbody class="bg-white divide-y divide-gray-200">
             <!-- État de chargement -->
             <tr v-if="loading">
-              <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+              <td colspan="7" class="px-6 py-4 text-center text-gray-500">
                 <div class="flex justify-center items-center space-x-2">
                   <i class="fas fa-circle-notch fa-spin text-blue-600"></i>
                   <span>Chargement des contrats...</span>
@@ -79,7 +82,7 @@
             
             <!-- Message d'erreur -->
             <tr v-else-if="error">
-              <td colspan="6" class="px-6 py-4 text-center text-red-500">
+              <td colspan="7" class="px-6 py-4 text-center text-red-500">
                 <div class="flex flex-col items-center space-y-2">
                   <i class="fas fa-exclamation-triangle text-xl"></i>
                   <span>{{ error }}</span>
@@ -95,7 +98,7 @@
             
             <!-- Aucun résultat -->
             <tr v-else-if="contracts.length === 0">
-              <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+              <td colspan="7" class="px-6 py-12 text-center text-gray-500">
                 <div class="flex flex-col items-center">
                   <i class="fas fa-file-contract text-4xl text-gray-300 mb-3"></i>
                   <p class="text-lg font-medium">Aucun contrat trouvé</p>
@@ -120,15 +123,15 @@
                     <div class="text-sm font-medium text-gray-900">
                       {{ contract.property_name || 'Propriété sans nom' }}
                     </div>
-                    <div v-if="contract.property_address" class="text-xs text-gray-500 mt-1 max-w-xs truncate">
-                      {{ contract.property_address }}
-                    </div>
-                    <div v-if="contract.property_status" class="mt-1">
-                      <span :class="getStatusBadgeClass(contract.property_status)" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium">
-                        {{ formatPropertyStatus(contract.property_status) }}
-                      </span>
-                    </div>
+                  
                   </div>
+                </div>
+              </td>
+              
+              <!-- Adresse -->
+              <td class="px-6 py-4">
+                <div class="text-sm text-gray-900">
+                  {{ formatAddress(contract.property_address) }}
                 </div>
               </td>
               
@@ -155,7 +158,7 @@
               <!-- Loyer -->
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-gray-900">
-                  {{ formatCurrency(contract.rent) }}
+                  {{ formatCurrency(contract.rent, normalizeCurrency(contract.currency)) }}
                 </div>
                 <div class="text-xs text-gray-500">
                   {{ contract.paymentDay ? `Le ${contract.paymentDay} de chaque mois` : 'Non spécifié' }}
@@ -173,23 +176,53 @@
               </td>
               
               <!-- Actions -->
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <div class="flex justify-end space-x-2">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="relative">
                   <button 
-                    @click="viewContract(contract.id)"
-                    class="text-blue-600 hover:text-blue-900 mr-4"
-                    title="Voir les détails"
+                    @click="(e) => {
+                      e.stopPropagation();
+                      selectedContract = contract;
+                      showActionMenu = !showActionMenu;
+                    }"
+                    class="text-blue-600 hover:text-blue-800"
+                    title="Options"
                   >
-                    <i class="fas fa-eye"></i>
+                    <i class="fas fa-ellipsis-h text-sm"></i>
                   </button>
-                  <button 
-                    v-if="contract.status === 'active'"
-                    @click="downloadContract(contract.id)"
-                    class="text-gray-600 hover:text-gray-900"
-                    title="Télécharger le contrat"
+
+                  <!-- Menu déroulant -->
+                  <div 
+                    v-if="showActionMenu && selectedContract === contract"
+                    class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50"
+                    @click.stop
                   >
-                    <i class="fas fa-download"></i>
-                  </button>
+                    <div class="py-1">
+                      <button
+                        @click="viewContract(contract.id)"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        <i class="fas fa-eye mr-2"></i>
+                        Voir
+                      </button>
+                      <button 
+                        v-if="contract.status === 'active'"
+                        @click="downloadContract(contract.id)"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        <i class="fas fa-download mr-2"></i>
+                        Télécharger
+                      </button>
+                      <div v-if="contract.status === 'active'" class="border-t border-gray-200 my-1"></div>
+                      <button 
+                        v-if="contract.status === 'active'"
+                        @click="terminateContract(contract.id)"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        <i class="fas fa-times mr-2"></i>
+                        Rompre
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -280,6 +313,57 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import type { Contract, ContractStatus } from '@/types/contract';
 import { useRouter } from 'vue-router';
 import { useContractStore } from '@/stores/contractStore';
+import { useToast } from 'vue-toastification';
+
+// Fonction pour corriger l'encodage des caractères spéciaux
+const fixEncoding = (text: string): string => {
+  return text
+    .replace(/Ã©/g, 'é')
+    .replace(/Ã¨/g, 'è')
+    .replace(/Ãª/ig, 'ê')
+    .replace(/Ã«/g, 'ë')
+    .replace(/Ã®/g, 'î')
+    .replace(/Ã¯/g, 'ï')
+    .replace(/Ã±/g, 'ñ')
+    .replace(/Ã³/ig, 'ó')
+    .replace(/Ã´/g, 'ô')
+    .replace(/Ã¶/g, 'ö')
+    .replace(/Ã¼/ig, 'ü')
+    .replace(/Ã§/g, 'ç');
+};
+
+// Normaliser le nom d'une devise
+const normalizeCurrency = (currency: string): string => {
+  if (!currency) return 'EUR';
+  
+  const normalized = fixEncoding(currency.toLowerCase().trim());
+  
+  // Mappage des devises
+  const currencyMap: Record<string, string> = {
+    'euros': 'EUR',
+    'euro': 'EUR',
+    '€': 'EUR',
+    'dollars': 'USD',
+    'dollar': 'USD',
+    'usd': 'USD',
+    '$': 'USD',
+    'us dollar': 'USD',
+    'us dollars': 'USD',
+    'dollars amÃ©ricain': 'USD',
+    'dollars amÃ©ricains': 'USD'
+  };
+  
+  // Vérifier si le code de devise est valide
+  const validCurrencies = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD'];
+  const normalizedCode = normalized.toUpperCase();
+  
+  if (validCurrencies.includes(normalizedCode)) {
+    return normalizedCode;
+  }
+  
+  // Utiliser la valeur mappée ou EUR par défaut
+  return currencyMap[normalized] || 'EUR';
+};
 
 export default {
   name: 'TenantContractsView',
@@ -295,13 +379,57 @@ export default {
     const itemsPerPage = ref(10);
     const searchQuery = ref('');
     const searchTimeout = ref<number | null>(null);
+    const activeDropdown = ref<string | null>(null);
     
-    // Filtres
+    // Filtres de recherche
     const filters = ref({
-      status: '',
-      // Ajoutez d'autres filtres si nécessaire
+      status: null as ContractStatus | null,
+      search: ''
     });
+
+    // Référence pour le menu déroulant
+    const showActionMenu = ref(false);
+    const selectedContract = ref<Contract | null>(null);
+    const selectedStatus = ref<ContractStatus | null>(null);
+    const selectedSort = ref<string>('startDate');
     
+    // État de la pagination
+
+    // Fermer le menu déroulant lors d'un clic en dehors
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!showActionMenu.value) return;
+      
+      const menu = document.querySelector('.z-50');
+      const button = event.target as HTMLElement;
+      
+      // Vérifier si le clic est sur le bouton de menu
+      const isMenuButton = button.closest('.text-blue-600');
+      
+      if (menu && !menu.contains(event.target as Node) && !isMenuButton) {
+        showActionMenu.value = false;
+        selectedContract.value = null;
+      }
+    };
+
+    // Fermer le menu déroulant lors d'une touche d'échappement
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showActionMenu.value) {
+        showActionMenu.value = false;
+        selectedContract.value = null;
+      }
+    };
+
+    // Gestion des événements de clic et de touche
+    onMounted(() => {
+      document.addEventListener('click', handleOutsideClick);
+      document.addEventListener('keydown', handleEscape);
+    });
+
+    onUnmounted(() => {
+      document.removeEventListener('click', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    });
+
     // Charger les contrats
     const loadContracts = async () => {
       try {
@@ -320,17 +448,44 @@ export default {
     };
     
     // Gestion de la recherche avec debounce
-    const onSearchInput = () => {
+    const onSearchInput = (event: Event) => {
+      const target = event.target as HTMLInputElement;
+      const value = target.value;
+      
       if (searchTimeout.value) {
         clearTimeout(searchTimeout.value);
       }
       
       searchTimeout.value = window.setTimeout(() => {
-        currentPage.value = 1; 
+        filters.value.search = value;
         loadContracts();
-      }, 500);
+      }, 300);
     };
-    
+
+    // Gestion du filtre par statut
+    const handleStatusFilter = (status: ContractStatus | null) => {
+      selectedStatus.value = status;
+      loadContracts();
+    };
+
+    // Gestion du tri
+    const handleSortChange = (field: string) => {
+      selectedSort.value = field;
+      loadContracts();
+    };
+
+    // Gestion de la pagination
+    const handlePageChange = (page: number) => {
+      currentPage.value = page;
+      loadContracts();
+    };
+
+    // Gestion du nombre d'éléments par page
+    const handlePageSizeChange = (size: number) => {
+      itemsPerPage.value = size;
+      loadContracts();
+    };
+
     // Formater une date au format JJ/MM/AAAA
     const formatDate = (dateString: string) => {
       if (!dateString) return 'Non spécifié';
@@ -375,14 +530,54 @@ export default {
       return statusClasses[status.toLowerCase()] || 'bg-gray-100 text-gray-800';
     };
 
-    // Formater un montant en euros
-    const formatCurrency = (amount: number) => {
+    // Normaliser le nom d'une devise
+    const normalizeCurrency = (currency: string): string => {
+      if (!currency) return 'EUR';
+      
+      const normalized = currency.toLowerCase().trim();
+      
+      // Mappage des devises
+      const currencyMap: Record<string, string> = {
+        'euros': 'EUR',
+        'euro': 'EUR',
+        '€': 'EUR',
+        'dollars': 'USD',
+        'dollar': 'USD',
+        'usd': 'USD',
+        '$': 'USD',
+        'us dollar': 'USD',
+        'us dollars': 'USD',
+        'dollars amÃ©ricain': 'USD', // Gestion du cas spécifique avec encodage incorrect
+        'dollars amÃ©ricains': 'USD'
+      };
+      
+      // Vérifier si le code de devise est valide
+      const validCurrencies = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD'];
+      const normalizedCode = normalized.toUpperCase();
+      
+      if (validCurrencies.includes(normalizedCode)) {
+        return normalizedCode;
+      }
+      
+      // Utiliser la valeur mappée ou EUR par défaut
+      return currencyMap[normalized] || 'EUR';
+    };
+
+    // Formater un montant avec la devise appropriée
+    const formatCurrency = (amount: number, currency: string = 'EUR') => {
       if (amount === undefined || amount === null) return 'N/A';
-      return new Intl.NumberFormat('fr-FR', {
-        style: 'currency',
-        currency: 'EUR',
-        minimumFractionDigits: 2
-      }).format(amount);
+      
+      try {
+        const normalizedCurrency = normalizeCurrency(currency);
+        return new Intl.NumberFormat('fr-FR', {
+          style: 'currency',
+          currency: normalizedCurrency,
+          minimumFractionDigits: 2
+        }).format(amount);
+      } catch (error) {
+        console.error('Erreur lors de la formatage du montant:', error);
+        return 'N/A';
+      }
     };
     
     // Formater une adresse à partir d'une chaîne ou d'un objet d'adresse
@@ -391,24 +586,14 @@ export default {
       city?: string;
       postalCode?: string;
       country?: string;
-      property_address_street?: string;
-      property_address_city?: string;
-      property_address_postal_code?: string;
-      property_address_country?: string;
     } | undefined) => {
-      if (!address) return 'Adresse non disponible';
+      if (typeof address === 'string') {
+        return address;
+      }
+
+      const { street, city, postalCode, country } = address || {};
       
-      // Si l'adresse est une chaîne, on la retourne telle quelle
-      if (typeof address === 'string') return address;
-      
-      // Sinon, on gère l'objet d'adresse
-      const street = address.street || address.property_address_street || '';
-      const city = address.city || address.property_address_city || '';
-      const postalCode = address.postalCode || address.property_address_postal_code || '';
-      const country = address.country || address.property_address_country || '';
-      
-      const parts = [street, postalCode, city, country].filter(Boolean);
-      return parts.length > 0 ? parts.join(', ') : 'Adresse non disponible';
+      return `${street}${street && (city || postalCode) ? ', ' : ''}${city}${city && postalCode ? ' ' : ''}${postalCode}${country ? ', ' + country : ''}`.trim();
     };
     
     // Obtenir le libellé du statut
@@ -429,20 +614,28 @@ export default {
     
     // Navigation vers la page de détail d'un contrat
     const viewContract = (contractId: string | number | undefined) => {
-      if (contractId === undefined) return;
-      const id = typeof contractId === 'number' ? contractId : Number(contractId);
-      if (!isNaN(id)) {
-        router.push({ name: 'tenant-contract-detail', params: { id: String(id) } });
-      }
+      if (!contractId) return;
+      router.push({ name: 'tenant-contract-detail', params: { id: String(contractId) } });
     };
-    
 
-    // Télécharger un contrat
-    const downloadContract = (contractId: string | number | undefined) => {
-      if (contractId === undefined) return;
-      // Implémentez la logique de téléchargement ici
-      console.log('Téléchargement du contrat:', contractId);
-      // Exemple: contractStore.downloadContract(contractId);
+    // Méthode pour télécharger un contrat
+    const downloadContract = async (contractId: string | number | undefined) => {
+      if (!contractId) return;
+      
+      try {
+        loading.value = true;
+        const url = await contractStore.generateContractPdf(String(contractId));
+        window.open(url, '_blank');
+        const toast = useToast();
+        toast.success('PDF du contrat ouvert dans un nouvel onglet');
+      } catch (error: any) {
+        console.error('Erreur lors du téléchargement du contrat:', error);
+        const toast = useToast();
+        const errorMessage = error?.response?.data?.message || error.message || 'Erreur lors du téléchargement du contrat';
+        toast.error(fixEncoding(errorMessage));
+      } finally {
+        loading.value = false;
+      }
     };
     
     // Calcul des propriétés dérivées
@@ -476,31 +669,54 @@ export default {
       }
     });
     
+    // Méthode pour rompre un contrat
+    const terminateContract = async (contractId: string | number | undefined) => {
+      try {
+        const confirmed = window.confirm('Êtes-vous sûr de vouloir rompre ce contrat ? Cette action est irréversible.');
+        if (!confirmed) return;
+
+        await contractStore.updateContractStatus(String(contractId), 'terminated' as ContractStatus);
+        await loadContracts();
+        const toast = useToast();
+        toast.success('Contrat rompu avec succès');
+      } catch (error) {
+        console.error('Erreur lors de la rupture du contrat:', error);
+        const toast = useToast();
+        toast.error('Erreur lors de la rupture du contrat');
+      }
+    };
+
     return {
-      // État
+      contracts,
       loading,
       error,
       currentPage,
       itemsPerPage,
-      searchQuery,
-      filters,
-      
-      // Données
-      contracts,
-      totalItems,
       totalPages,
-      
-      // Méthodes
+      searchQuery,
+      selectedStatus,
+      selectedSort,
+      filters,
+      viewContract,
+      downloadContract,
+      terminateContract,
       loadContracts,
-      onSearchInput,
-      formatAddress,
+      getStatusLabel,
+      getStatusBadgeClass,
       formatDate,
       formatCurrency,
-      getStatusBadgeClass,
-      getStatusLabel,
-      formatPropertyStatus,
-      viewContract,
-      downloadContract
+      formatAddress,
+      normalizeCurrency,
+      onSearchInput,
+      handleStatusFilter,
+      handleSortChange,
+      handlePageChange,
+      handlePageSizeChange,
+      showActionMenu,
+      selectedContract,
+      handleOutsideClick,
+      handleEscape,
+      totalItems
     };
   }
 };

@@ -58,6 +58,13 @@ export const landlordRoutes = [
         component: ContractsView,
         meta: { title: 'Gestion des contrats' }
       },
+      {
+        path: 'contracts/:id',
+        name: 'landlord-contract-details',
+        component: () => import('@/views/landlord/ContractDetailsView.vue'),
+        meta: { title: 'Détails du contrat' },
+        props: true
+      },
 
       {
         path: 'payments',

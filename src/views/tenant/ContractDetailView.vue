@@ -27,7 +27,7 @@
           <div>
             <h1 class="text-3xl font-bold text-gray-900">Contrat de location</h1>
             <p class="mt-1 text-sm text-gray-500">
-              Référence #{{ contract?.id || '...' }}
+              Référence #{{ currentContract?.id || '...' }}
             </p>
           </div>
           
@@ -35,10 +35,10 @@
             <span 
               :class="[
                 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
-                getStatusClass(contract?.status)
+                getStatusClass(currentContract?.status)
               ]"
             >
-              {{ getStatusLabel(contract?.status) }}
+              {{ getStatusLabel(currentContract?.status) }}
             </span>
           </div>
         </div>
@@ -68,7 +68,7 @@
       </div>
 
       <!-- Contenu du contrat -->
-      <div v-else-if="contract && contract.property" class="space-y-8">
+      <div v-else-if="currentContract && currentContract.property" class="space-y-8">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Colonne principale -->
         <div class="lg:col-span-2 space-y-8">
@@ -85,19 +85,19 @@
                 <div class="text-center p-4 bg-indigo-50 rounded-lg">
                   <p class="text-sm font-medium text-indigo-600">Date de début</p>
                   <p class="mt-1 text-lg font-semibold text-gray-900">
-                    {{ formatDate(contract.startDate || contract.start_date) }}
+                    {{ formatDate(currentContract.startDate || currentContract.start_date) }}
                   </p>
                 </div>
                 <div class="text-center p-4 bg-indigo-50 rounded-lg">
                   <p class="text-sm font-medium text-indigo-600">Date de fin</p>
                   <p class="mt-1 text-lg font-semibold text-gray-900">
-                    {{ contract.endDate ? formatDate(contract.endDate) : 'Indéterminée' }}
+                    {{ currentContract.endDate ? formatDate(currentContract.endDate) : 'Indéterminée' }}
                   </p>
                 </div>
                 <div class="text-center p-4 bg-indigo-50 rounded-lg">
                   <p class="text-sm font-medium text-indigo-600">Durée</p>
                   <p class="mt-1 text-lg font-semibold text-gray-900">
-                    {{ contract.duration || 'Non spécifiée' }}
+                    {{ currentContract.duration || 'Non spécifiée' }}
                   </p>
                 </div>
               </div>
@@ -120,7 +120,7 @@
                     <div>
                       <p class="text-sm font-medium text-gray-500">Loyer mensuel</p>
                       <p class="mt-1 text-2xl font-bold text-gray-900">
-                        {{ formatCurrency(contract.rent) }}
+                        {{ formatCurrency(currentContract.rent) }}
                       </p>
                     </div>
                     <div class="p-2 bg-green-100 rounded-full">
@@ -136,7 +136,7 @@
                     <div>
                       <p class="text-sm font-medium text-gray-500">Dépôt de garantie</p>
                       <p class="mt-1 text-2xl font-bold text-gray-900">
-                        {{ contract.deposit ? formatCurrency(contract.deposit) : 'Non spécifié' }}
+                        {{ currentContract.deposit ? formatCurrency(currentContract.deposit) : 'Non spécifié' }}
                       </p>
                     </div>
                     <div class="p-2 bg-amber-100 rounded-full">
@@ -151,7 +151,7 @@
                     <div>
                       <p class="text-sm font-medium text-gray-500">Jour de paiement</p>
                       <p class="mt-1 text-2xl font-bold text-gray-900">
-                        {{ contract.paymentDay ? contract.paymentDay : '--' }}
+                        {{ currentContract.paymentDay ? currentContract.paymentDay : '--' }}
                       </p>
                     </div>
                     <div class="p-2 bg-blue-100 rounded-full">
@@ -163,13 +163,13 @@
               </div>
               
               <!-- Conditions particulières -->
-              <div v-if="contract.specialConditions" class="mt-6 pt-6 border-t border-gray-100">
+              <div v-if="currentContract.specialConditions" class="mt-6 pt-6 border-t border-gray-100">
                 <h3 class="text-sm font-medium text-gray-700 mb-2 flex items-center">
                   <i class="fas fa-file-contract text-indigo-500 mr-2"></i>
                   Conditions particulières
                 </h3>
                 <div class="bg-indigo-50 p-4 rounded-lg">
-                  <p class="text-gray-700 whitespace-pre-line">{{ contract.specialConditions }}</p>
+                  <p class="text-gray-700 whitespace-pre-line">{{ currentContract.specialConditions }}</p>
                 </div>
               </div>
               
@@ -198,10 +198,10 @@
                   Détails du bien
                 </h2>
                 <span 
-                  v-if="getPropertyType(contract.property)" 
+                  v-if="getPropertyType(currentContract.property)" 
                   class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800"
                 >
-                  {{ getPropertyType(contract.property) }}
+                  {{ getPropertyType(currentContract.property) }}
                 </span>
               </div>
             </div>
@@ -210,24 +210,24 @@
               <!-- En-tête avec titre et usage -->
               <div class="mb-6">
                 <h3 class="text-xl font-bold text-gray-900 mb-1">
-                  {{ getPropertyTitle(contract.property) }}
+                  {{ getPropertyTitle(currentContract.property) }}
                 </h3>
-                <p v-if="getPropertyUsage(contract.property)" class="text-sm text-indigo-600 font-medium">
-                  {{ getPropertyUsage(contract.property) }}
+                <p v-if="getPropertyUsage(currentContract.property)" class="text-sm text-indigo-600 font-medium">
+                  {{ getPropertyUsage(currentContract.property) }}
                 </p>
               </div>
               
               <!-- Adresse -->
               <div class="mb-8">
                 <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Adresse</h4>
-                <div v-if="hasAddress(contract.property)" class="flex items-start group">
+                <div v-if="hasAddress(currentContract)" class="flex items-start group">
                   <div class="flex-shrink-0 p-2 bg-indigo-50 rounded-full mr-3 mt-0.5">
                     <i class="fas fa-map-marker-alt text-indigo-500"></i>
                   </div>
                   <div>
-                    <p class="text-gray-800 font-medium">{{ formatAddress(contract.property) }}</p>
-                    <p v-if="getPropertyFloor(contract.property) !== 'Non spécifié'" class="text-sm text-gray-500 mt-1">
-                      <i class="fas fa-layer-group mr-1"></i> Étage {{ getPropertyFloor(contract.property) }}
+                    <p class="text-gray-800 font-medium">{{ currentContract?.property_address || 'Aucune adresse' }}</p>
+                    <p v-if="getPropertyFloor(currentContract?.property) !== 'Non spécifié'" class="text-sm text-gray-500 mt-1">
+                      <i class="fas fa-layer-group mr-1"></i> Étage {{ getPropertyFloor(currentContract?.property) }}
                     </p>
                   </div>
                 </div>
@@ -246,7 +246,7 @@
                       <i class="fas fa-vector-square text-indigo-500"></i>
                     </div>
                     <p class="text-xs text-gray-500">Surface</p>
-                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyArea(contract.property) }}</p>
+                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyArea(currentContract.property) }}</p>
                   </div>
                   
                   <div class="text-center p-3 bg-gray-50 rounded-lg hover:bg-indigo-50 transition-colors">
@@ -254,7 +254,7 @@
                       <i class="fas fa-door-open text-indigo-500"></i>
                     </div>
                     <p class="text-xs text-gray-500">Pièces</p>
-                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyRooms(contract.property) }}</p>
+                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyRooms(currentContract.property) }}</p>
                   </div>
                   
                   <div class="text-center p-3 bg-gray-50 rounded-lg hover:bg-indigo-50 transition-colors">
@@ -262,36 +262,36 @@
                       <i class="fas fa-bath text-indigo-500"></i>
                     </div>
                     <p class="text-xs text-gray-500">Salles de bain</p>
-                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyBathrooms(contract.property) }}</p>
+                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyBathrooms(currentContract.property) }}</p>
                   </div>
                   
                   <div 
-                    v-if="getPropertyFloor(contract.property) !== 'Non spécifié'" 
+                    v-if="getPropertyFloor(currentContract.property) !== 'Non spécifié'" 
                     class="text-center p-3 bg-gray-50 rounded-lg hover:bg-indigo-50 transition-colors"
                   >
                     <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-indigo-100 flex items-center justify-center">
                       <i class="fas fa-layer-group text-indigo-500"></i>
                     </div>
                     <p class="text-xs text-gray-500">Étage</p>
-                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyFloor(contract.property) }}</p>
+                    <p class="text-sm font-semibold text-gray-800">{{ getPropertyFloor(currentContract.property) }}</p>
                   </div>
                 </div>
               </div>
               
               <!-- Description et équipements -->
               <div class="space-y-6">
-                <div v-if="contract.property.description">
+                <div v-if="currentContract.property.description">
                   <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Description</h4>
                   <div class="prose prose-sm max-w-none text-gray-600">
-                    {{ contract.property.description }}
+                    {{ currentContract.property.description }}
                   </div>
                 </div>
                 
-                <div v-if="contract.property.equipment && contract.property.equipment.length > 0">
+                <div v-if="currentContract.property.equipment && currentContract.property.equipment.length > 0">
                   <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Équipements</h4>
                   <div class="flex flex-wrap gap-2">
                     <span 
-                      v-for="(equipment, index) in contract.property.equipment" 
+                      v-for="(equipment, index) in currentContract.property.equipment" 
                       :key="index"
                       class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition-colors"
                     >
@@ -301,7 +301,7 @@
                   </div>
                 </div>
                 
-                <div v-if="contract.property.availableFrom" class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                <div v-if="currentContract.property.availableFrom" class="bg-blue-50 p-3 rounded-lg border border-blue-100">
                   <div class="flex items-start">
                     <div class="flex-shrink-0">
                       <i class="fas fa-calendar-check text-blue-500 mt-0.5"></i>
@@ -309,7 +309,7 @@
                     <div class="ml-3">
                       <p class="text-sm font-medium text-blue-800">Disponible à partir du</p>
                       <p class="text-sm text-blue-700 font-semibold mt-0.5">
-                        {{ formatDate(contract.property.availableFrom) }}
+                        {{ formatDate(currentContract.property.availableFrom) }}
                       </p>
                     </div>
                   </div>
@@ -317,6 +317,9 @@
               </div>
             </div>
           </div>
+
+          <!-- Colonne de droite - Parties prenantes -->
+        
         </div>
 
         <!-- Colonne de droite - Parties prenantes -->
@@ -330,14 +333,14 @@
               </h2>
             </div>
             <div class="p-6">
-              <div v-if="contract.landlord" class="space-y-4">
+              <div v-if="currentContract.landlord" class="space-y-4">
                 <div class="flex items-center">
                   <div class="flex-shrink-0 h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
                     <i class="fas fa-user text-indigo-500 text-xl"></i>
                   </div>
                   <div class="ml-3">
                     <p class="text-base font-medium text-gray-900">
-                      {{ contract.landlord.firstName }} {{ contract.landlord.lastName }}
+                      {{ currentContract.landlord.firstName }} {{ currentContract.landlord.lastName }}
                     </p>
                     <p class="text-sm text-indigo-600">Bailleur</p>
                   </div>
@@ -351,19 +354,19 @@
                     <div class="ml-3">
                       <p class="text-sm text-gray-500">Email</p>
                       <p class="text-sm font-medium text-gray-900 break-all">
-                        {{ contract.landlord.email || 'Non disponible' }}
+                        {{ currentContract.landlord.email || 'Non disponible' }}
                       </p>
                     </div>
                   </div>
                   
-                  <div v-if="contract.landlord.telephone" class="flex items-start">
+                  <div v-if="currentContract.landlord.phone" class="flex items-start">
                     <div class="flex-shrink-0 mt-0.5">
                       <i class="fas fa-phone text-gray-400"></i>
                     </div>
                     <div class="ml-3">
                       <p class="text-sm text-gray-500">Téléphone</p>
                       <p class="text-sm font-medium text-gray-900">
-                        {{ contract.landlord.telephone }}
+                        {{ currentContract.landlord.phone }}
                       </p>
                     </div>
                   </div>
@@ -494,7 +497,7 @@
           </div>
           
           <!-- Section de débogage (uniquement en développement) -->
-          <div v-if="isDevelopment && contract?.property" class="bg-white overflow-hidden shadow rounded-lg">
+          <div v-if="isDevelopment && currentContract" class="bg-white overflow-hidden shadow rounded-lg">
             <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
               <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">
                 <i class="fas fa-bug text-gray-400 mr-2"></i>
@@ -504,20 +507,20 @@
             <div class="p-4">
               <div class="space-y-4">
                 <div>
-                  <h4 class="text-xs font-medium text-gray-500 mb-1">Données de la propriété :</h4>
-                  <pre class="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto max-h-48">{{ JSON.stringify(contract.property, null, 2) }}</pre>
+                  <h4 class="text-xs font-medium text-gray-500 mb-1">Données du contrat :</h4>
+                  <pre class="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto max-h-48">{{ JSON.stringify(currentContract, null, 2) }}</pre>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p class="text-xs font-medium text-gray-500 mb-1">hasAddress :</p>
                     <div class="text-xs bg-gray-50 p-2 rounded border border-gray-200">
-                      {{ hasAddress(contract.property) }}
+                      {{ hasAddress(currentContract) }}
                     </div>
                   </div>
                   <div>
-                    <p class="text-xs font-medium text-gray-500 mb-1">formatAddress :</p>
+                    <p class="text-xs font-medium text-gray-500 mb-1">Adresse :</p>
                     <div class="text-xs bg-gray-50 p-2 rounded border border-gray-200">
-                      {{ formatAddress(contract.property) }}
+                      {{ currentContract.property_address || 'Aucune adresse' }}
                     </div>
                   </div>
                 </div>
@@ -532,22 +535,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, ref, Ref, onMounted } from 'vue';
 import { useRoute, useRouter, type Router } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useContractStore } from '@/stores/contractStore';
-import type { Contract } from '@/types/contract';
+import { useLandlordStore } from '@/stores/landlordStore';
+import type { Contract, PropertyWithApartments, PropertyType } from '@/types/contract';
+import type { FormLandlord, FormTenant } from '@/types/contract';
 
 const route = useRoute();
 const router: Router = useRouter();
 const authStore = useAuthStore();
 const contractStore = useContractStore();
+const landlordStore = useLandlordStore();
 const toast = useToast();
 
 // Récupérer l'ID du contrat depuis l'URL
 const contractId = computed(() => parseInt(route.params.id as string));
+
+const currentContract = ref<Contract | null>(null);
 
 // Fonctions d'aide pour l'affichage des propriétés
 const getPropertyType = (property: any): string => {
@@ -597,44 +605,7 @@ const getPropertyUsage = (property: any): string => {
   return property.usage || property.property_usage || '';
 };
 
-// Récupérer le contrat correspondant depuis le store
-const contract = computed<Contract | undefined>(() => {
-  const foundContract = contractStore.contracts.find((c: Contract) => c.id === contractId.value);
-  
-  // Log pour le débogage
-  if (foundContract && foundContract.property) {
-    console.log('=== DÉBOGAGE: Structure complète de la propriété ===');
-    console.log('Propriété complète:', JSON.parse(JSON.stringify(foundContract.property)));
-    console.log('--- Détails de l\'adresse ---');
-    console.log('Adresse brute:', foundContract.property.address);
-    console.log('Champs d\'adresse:', {
-      street: foundContract.property.street,
-      city: foundContract.property.city,
-      postal_code: foundContract.property.postal_code,
-      country: foundContract.property.country,
-      quartier: foundContract.property.quartier,
-      commune: foundContract.property.commune,
-      property_address_street: foundContract.property.property_address_street,
-      property_address_city: foundContract.property.property_address_city,
-      property_address_postal_code: foundContract.property.property_address_postal_code,
-      property_address_country: foundContract.property.property_address_country
-    });
-    console.log('--- Autres propriétés ---');
-    console.log('Titre:', foundContract.property.title);
-    console.log('Type:', foundContract.property.type);
-    console.log('Superficie:', foundContract.property.area);
-    console.log('Pièces:', foundContract.property.rooms);
-    console.log('Salles de bain:', foundContract.property.bathrooms);
-    console.log('Étage:', foundContract.property.floor);
-    console.log('==================================');
-  } else if (foundContract) {
-    console.warn('Aucune propriété trouvée dans le contrat:', foundContract);
-  } else {
-    console.warn('Aucun contrat trouvé avec l\'ID:', contractId.value);
-  }
-  
-  return foundContract;
-});
+
 
 const loading = ref(true);
 const error = ref<string | null>(null);
@@ -678,10 +649,28 @@ const fetchContract = async () => {
       await contractStore.fetchContracts();
     }
     
+    // Charger les bailleurs si ce n'est pas déjà fait
+    if (landlordStore.landlords.length === 0) {
+      await landlordStore.fetchLandlords();
+    }
+    
     // Vérifier si le contrat existe dans la liste
-    if (!contract.value) {
+    const foundContract = contractStore.contracts.find(c => c.id === contractId.value);
+    if (!foundContract) {
       throw new Error('Contrat non trouvé ou accès non autorisé');
     }
+    
+    // Mettre à jour currentContract avec foundContract
+    currentContract.value = foundContract;
+    
+    // Trouver le bailleur correspondant
+    const landlord = landlordStore.landlords.find(l => l._id === foundContract.landlordId);
+    if (landlord) {
+      foundContract.landlord = landlord;
+    }
+    
+    // Afficher l'adresse du contrat dans la console
+    console.log('Adresse du contrat:', foundContract.property_address);
     
   } catch (err: any) {
     console.error('Erreur lors du chargement du contrat:', err);
@@ -700,82 +689,12 @@ const fetchContract = async () => {
   }
 };
 
-// Vérifier si la propriété a une adresse valide
-const hasAddress = (property: any): boolean => {
-  if (!property) return false;
-  
-  // Vérifier si l'adresse est un objet valide
-  if (property.address && typeof property.address === 'object') {
-    const addr = property.address;
-    return Boolean(addr.street && addr.city && addr.country);
-  }
-  
-  // Vérifier les champs d'adresse directs
-  const hasRequiredFields = Boolean(
-    property.street && 
-    property.city && 
-    property.country
-  );
-  
-  // Vérifier si l'adresse est une chaîne non vide
-  const hasStringAddress = typeof property.address === 'string' && property.address.trim().length > 0;
-  
-  return hasRequiredFields || hasStringAddress;
-};
+// Vérifier si le contrat a une adresse valide
+const hasAddress = (contract: any): boolean => {
+  if (!contract) return false;
+  return Boolean(contract?.property_address?.trim().length > 0);
+}
 
-// Formater une adresse à partir des données de la propriété
-const formatAddress = (property: any): string => {
-  if (!property) return 'Adresse non disponible';
-  
-  // Si l'adresse est un objet avec des propriétés
-  if (property.address && typeof property.address === 'object') {
-    const addr = property.address;
-    const parts = [
-      addr.street,
-      addr.postal_code,
-      addr.city,
-      addr.country
-    ].filter(Boolean);
-    
-    return parts.join(', ').trim();
-  }
-  
-  // Construire l'adresse à partir des champs individuels du modèle standardisé
-  const addressParts = [
-    property.street,
-    property.postal_code,
-    property.city,
-    property.country
-  ].filter(Boolean);
-  
-  if (addressParts.length === 0) {
-    // Si aucun champ d'adresse n'est trouvé, vérifier si l'adresse est une chaîne simple
-    if (typeof property.address === 'string' && property.address.trim().length > 0) {
-      return property.address.trim();
-    }
-    return 'Adresse non disponible';
-  }
-  
-  // Si on a un code postal et une ville, on les regroupe
-  const formattedAddress = [];
-  let i = 0;
-  
-  while (i < addressParts.length) {
-    const part = addressParts[i];
-    const nextPart = addressParts[i + 1];
-    
-    // Si la partie actuelle est un code postal et la suivante une ville, on les combine
-    if (nextPart && /^\d{5,}$/.test(part) && typeof nextPart === 'string' && nextPart.length > 0) {
-      formattedAddress.push(`${part} ${nextPart}`);
-      i += 2;
-    } else {
-      formattedAddress.push(part);
-      i += 1;
-    }
-  }
-  
-  return formattedAddress.join(', ');
-};
 
 // Libellé du type de propriété
 const getPropertyTypeLabel = (type: string): string => {
@@ -827,7 +746,7 @@ const formatCurrency = (amount: number | string | undefined): string => {
   
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
-    currency: contract.value?.currency || 'EUR'
+    currency: currentContract.value?.currency || 'EUR'
   }).format(numAmount);
 };
 
@@ -873,12 +792,12 @@ const downloadContract = () => {
 
 // Contacter le propriétaire
 const contactLandlord = () => {
-  if (!contract.value) return;
+  if (!currentContract.value) return;
   
   // Implémentez la logique de contact ici
-  const email = contract.value.landlord_email;
+  const email = currentContract.value.landlord_email;
   if (email) {
-    window.location.href = `mailto:${email}?subject=À propos du contrat #${contract.value.id}`;
+    window.location.href = `mailto:${email}?subject=À propos du contrat #${currentContract.value.id}`;
   } else {
     alert('Aucune adresse email disponible pour ce propriétaire');
   }
@@ -898,8 +817,8 @@ const isDevelopment = ref(import.meta.env.DEV);
 onMounted(async () => {
   try {
     await fetchContract();
-    console.log('Détails de la propriété:', contract.value?.property);
-    console.log('Adresse de la propriété:', contract.value?.property?.address);
+    console.log('Détails de la propriété:', currentContract.value?.property);
+    console.log('Adresse de la propriété:', currentContract.value?.property?.address);
   } catch (error) {
     console.error('Erreur lors du chargement du contrat:', error);
   }

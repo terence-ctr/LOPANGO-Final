@@ -337,7 +337,7 @@ interface PropertyType {
 }
 
 interface Property {
-  id: string | number;
+  id?: string | number;  // Made optional to match the data structure
   title: string;
   description?: string;
   address: string | PropertyAddress;

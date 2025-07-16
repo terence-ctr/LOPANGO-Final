@@ -1,11 +1,79 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { apiClient as api } from '@/services/api';
 import { apiConfig } from '@/config/api.config';
 import { useAuthStore } from './authStore';
 import type { Contract, ContractFormData, ContractStatus } from '@/types/contract';
+import type { Property } from '@/types/property';
+
+interface ContractStore {
+  contracts: Contract[]
+  loading: boolean
+  error: string | null
+  fetchContracts: () => Promise<void>
+  createContract: (contractData: ContractFormData) => Promise<Contract>
+  fetchAllProperties: () => Promise<Property[]>
+  updateContractStatus: (contractId: string | number, status: ContractStatus) => Promise<Contract>
+  generateContractPdf: (contractId: string | number) => Promise<string>
+  releasePdfUrl: (contractId: string | number) => void
+}
+
+const fixEncoding = (text: string): string => {
+  return text
+    .replace(/Ã©/g, 'é')
+    .replace(/Ã¨/g, 'è')
+    .replace(/Ãª/ig, 'ê')
+    .replace(/Ã«/g, 'ë')
+    .replace(/Ã®/g, 'î')
+    .replace(/Ã¯/g, 'ï')
+    .replace(/Ã±/g, 'ñ')
+    .replace(/Ã³/ig, 'ó')
+    .replace(/Ã´/g, 'ô')
+    .replace(/Ã¶/g, 'ö')
+    .replace(/Ã¼/ig, 'ü')
+    .replace(/Ã§/g, 'ç');
+};
+
+// Normaliser le nom d'une devise
+const normalizeCurrency = (currency: string): string => {
+  if (!currency) return 'EUR';
+  
+  const normalized = currency.toLowerCase().trim();
+  
+  // Mappage des devises
+  const currencyMap: Record<string, string> = {
+    'euros': 'EUR',
+    'euro': 'EUR',
+    '€': 'EUR',
+    'dollars': 'USD',
+    'dollar': 'USD',
+    'usd': 'USD',
+    '$': 'USD',
+    'us dollar': 'USD',
+    'us dollars': 'USD',
+    'dollars amÃ©ricain': 'USD',
+    'dollars amÃ©ricains': 'USD'
+  };
+  
+  // Vérifier si le code de devise est valide
+  const validCurrencies = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD'];
+  const normalizedCode = normalized.toUpperCase();
+  
+  if (validCurrencies.includes(normalizedCode)) {
+    return normalizedCode;
+  }
+  
+  // Utiliser la valeur mappée ou EUR par défaut
+  return currencyMap[normalized] || 'EUR';
+};
 
 export const useContractStore = defineStore('contract', () => {
+  // Gestionnaire d'erreurs global
+  const handleError = (error: any, defaultMessage: string = 'Une erreur est survenue') => {
+    console.error('Erreur dans le store:', error);
+    error.value = fixEncoding(error?.response?.data?.message || error.message || defaultMessage);
+    throw error;
+  };
   const authStore = useAuthStore();
   const contracts = ref<Contract[]>([]);
   const loading = ref(false);
@@ -71,7 +139,7 @@ export const useContractStore = defineStore('contract', () => {
           end_date: contract.end_date,
           rent: Number(contract.rent),
           deposit: Number(contract.deposit),
-          currency: contract.currency || 'EUR',
+          currency: normalizeCurrency(contract.currency || 'EUR'),
           duration: contract.duration || '',
           status: contract.status as ContractStatus,
           specialConditions: contract.specialConditions || '',
@@ -89,12 +157,50 @@ export const useContractStore = defineStore('contract', () => {
           tenant_last_name: contract.tenant_last_name,
           tenant_email: contract.tenant_email,
           tenant_phone: contract.tenant_phone,
-          landlord: contract.landlord,
-          tenant: contract.tenant,
-          agent: contract.agent,
+          // Affichage des IDs du bailleur pour débogage
+          // Utiliser les données du bailleur avec la même structure que dans landlordStore
+          landlord: {
+            id: String(contract.landlord_id || contract.landlordId || ''),
+            firstName: contract.landlord_first_name || contract.landlord?.firstName || '',
+            lastName: contract.landlord_last_name || contract.landlord?.lastName || '',
+            email: contract.landlord_email || contract.landlord?.email || '',
+            phone: contract.landlord_phone || contract.landlord?.phone || '',
+            identity: {
+              nationalId: contract.landlord?.identity?.nationalId || '',
+              documentType: contract.landlord?.identity?.documentType || 'carte_electeur'
+            },
+            address: {
+              street: contract.landlord_address_street || contract.landlord?.address?.street || '',
+              city: contract.landlord_address_city || contract.landlord?.address?.city || '',
+              postal_code: contract.landlord_address_postal_code || contract.landlord?.address?.postal_code || '',
+              country: contract.landlord_address_country || contract.landlord?.address?.country || 'RDC'
+            }
+          },
+          // Données du locataire
+          tenant: {
+            id: String(contract.tenant_id || contract.tenantId || ''),
+            firstName: contract.tenant_first_name || contract.tenant?.firstName || '',
+            lastName: contract.tenant_last_name || contract.tenant?.lastName || '',
+            email: contract.tenant_email || contract.tenant?.email || '',
+            phone: contract.tenant_phone || contract.tenant?.phone || ''
+          },
+          // Données de l'agent
+          agent: contract.agent_id || contract.agent ? {
+            id: String(contract.agent_id || contract.agent?.id || contract.agent?._id || ''),
+            firstName: contract.agent_first_name || contract.agent?.firstName || contract.agent?.first_name || '',
+            lastName: contract.agent_last_name || contract.agent?.lastName || contract.agent?.last_name || '',
+            email: contract.agent_email || contract.agent?.email || '',
+            phone: contract.agent_phone || contract.agent?.phone || ''
+          } : null,
           paymentDay: contract.paymentDay || contract.payment_day,
           paymentFrequency: contract.paymentFrequency
         };
+        
+        console.log('=== DÉBOGAGE BAILLEUR ===');
+        console.log('landlordId:', contract.landlordId);
+        console.log('landlord_id:', contract.landlord_id);
+        console.log('ID complet:', String(contract.landlordId || contract.landlord_id || ''));
+        
 
         // Ajouter les données de l'agent si disponibles
         if (contract.agent_id || contract.agent) {
@@ -129,7 +235,7 @@ export const useContractStore = defineStore('contract', () => {
               type: contract.property.type || 'appartement',
               rent: contract.property.rent || 0,
               deposit: contract.property.deposit || 0,
-              currency: contract.property.currency || 'USD',
+              currency: normalizeCurrency(contract.property.currency || 'USD'),
               status: contract.property.status || 'draft',
               address: {
                 street: contract.property.street || '',
@@ -153,7 +259,7 @@ export const useContractStore = defineStore('contract', () => {
               type: contract.property_type || 'appartement',
               rent: contract.property_rent || 0,
               deposit: contract.property_deposit || 0,
-              currency: contract.property_currency || 'USD',
+              currency: normalizeCurrency(contract.property_currency || 'USD'),
               status: contract.property_status || 'draft',
               address: {
                 street: contract.property_address_street || '',
@@ -185,27 +291,7 @@ export const useContractStore = defineStore('contract', () => {
       contracts.value = formattedContracts;
       
     } catch (err: any) {
-      let errorMessage = 'Erreur inconnue';
-      
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      } else if (err?.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (typeof err === 'string') {
-        errorMessage = err;
-      }
-      
-      error.value = `Erreur lors de la récupération des contrats: ${errorMessage}`;
-      console.error('Erreur détaillée:', err);
-      
-      // Vérifier si c'est une erreur d'authentification
-      if (err?.response?.status === 401) {
-        error.value = 'Votre session a expiré. Veuillez vous reconnecter.';
-        // Rediriger vers la page de connexion
-        // router.push('/login');
-      }
-      
-      throw err; // Re-throw to be caught in the component
+      handleError(err, 'Erreur lors de la récupération des contrats');
     } finally {
       loading.value = false;
     }
@@ -231,23 +317,7 @@ export const useContractStore = defineStore('contract', () => {
       contracts.value.push(response.data);
       return response.data;
     } catch (err: any) {
-      let errorMessage = 'Erreur lors de la création du contrat.';
-      
-      if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
-        errorMessage = 'Le serveur met trop de temps à répondre. Veuillez réessayer plus tard.';
-      } else if (err.response) {
-        // Erreur de réponse du serveur
-        console.error('Erreur du serveur:', err.response.data);
-        errorMessage = `Erreur du serveur: ${err.response.data?.message || 'Erreur inconnue'}`;
-      } else if (err.request) {
-        // La requête a été faite mais aucune réponse n'a été reçue
-        console.error('Aucune réponse du serveur:', err.request);
-        errorMessage = 'Impossible de joindre le serveur. Vérifiez votre connexion internet.';
-      }
-      
-      error.value = errorMessage;
-      console.error('Erreur lors de la création du contrat :', err);
-      throw new Error(errorMessage); // Re-throw avec un message plus clair
+      handleError(err, 'Erreur lors de la création du contrat');
     } finally {
       loading.value = false;
     }
@@ -366,15 +436,56 @@ export const useContractStore = defineStore('contract', () => {
       return properties;
       
     } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || err.message || 'Erreur inconnue';
-      error.value = `Erreur lors de la récupération des propriétés: ${errorMessage}`;
-      console.error('Erreur détaillée:', err);
-      throw err;
+      handleError(err, 'Erreur lors de la récupération des propriétés');
     } finally {
       loading.value = false;
     }
   };
 
+  // Stockage des URLs des PDFs pour libération
+  const pdfUrls = new Map<string, string>();
+
+  // Actions pour le store
+  const generateContractPdf = async (contractId: string | number): Promise<string> => {
+    try {
+      // Libérer l'URL précédente si elle existe
+      const previousUrl = pdfUrls.get(String(contractId));
+      if (previousUrl) {
+        URL.revokeObjectURL(previousUrl);
+      }
+
+      const response = await api.get(`/contracts/${contractId}/pdf`, {
+        responseType: 'blob'
+      });
+      const blob = response.data;
+      const url = URL.createObjectURL(blob);
+      
+      // Stocker la nouvelle URL
+      pdfUrls.set(String(contractId), url);
+      return url;
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      handleError(error, 'Erreur lors de la génération du PDF');
+      return '';
+    }
+  };
+
+  // Nettoyer les URLs lors de la destruction du store
+  const cleanupPdfUrls = () => {
+    pdfUrls.forEach(url => URL.revokeObjectURL(url));
+    pdfUrls.clear();
+  };
+
+  // Libérer une URL de PDF spécifique
+  const releasePdfUrl = (contractId: string | number) => {
+    const url = pdfUrls.get(String(contractId));
+    if (url) {
+      URL.revokeObjectURL(url);
+      pdfUrls.delete(String(contractId));
+    }
+  };
+
+  // Action pour mettre à jour le statut d'un contrat
   const updateContractStatus = async (contractId: string | number, status: ContractStatus) => {
     try {
       loading.value = true;
@@ -390,9 +501,7 @@ export const useContractStore = defineStore('contract', () => {
       
       return response.data;
     } catch (err: any) {
-      error.value = `Erreur lors de la mise à jour du statut: ${err?.response?.data?.message || err.message || 'Erreur inconnue'}`;
-      console.error('Erreur détaillée:', err);
-      throw err;
+      handleError(err, 'Erreur lors de la mise à jour du statut du contrat');
     } finally {
       loading.value = false;
     }
@@ -406,5 +515,7 @@ export const useContractStore = defineStore('contract', () => {
     createContract,
     fetchAllProperties,
     updateContractStatus,
+    generateContractPdf,
+    releasePdfUrl
   };
 });
