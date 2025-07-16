@@ -542,6 +542,7 @@ import api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useContractStore } from '@/stores/contractStore';
 import { useLandlordStore } from '@/stores/landlordStore';
+import { Identity, StandardAddress } from '@/types/contract';
 import type { Contract, PropertyWithApartments, PropertyType } from '@/types/contract';
 import type { FormLandlord, FormTenant } from '@/types/contract';
 
@@ -666,7 +667,31 @@ const fetchContract = async () => {
     // Trouver le bailleur correspondant
     const landlord = landlordStore.landlords.find(l => l._id === foundContract.landlordId);
     if (landlord) {
-      foundContract.landlord = landlord;
+      // Créer un objet avec toutes les propriétés requises
+      const landlordData = {
+        id: landlord._id,
+        _id: landlord._id,
+        firstName: landlord.firstName,
+        lastName: landlord.lastName,
+        email: landlord.email || '', // Forcer l'email à être une chaîne
+        phone: '', // Ajout du champ phone requis
+        identity: landlord.identity,
+        address: landlord.address,
+        userType: landlord.userType
+      };
+      
+      // Assurer que l'objet est de type FormLandlord
+      foundContract.landlord = landlordData as {
+        id: string;
+        _id?: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone: string;
+        identity: Identity;
+        address: StandardAddress;
+        userType?: string;
+      };
     }
     
     // Afficher l'adresse du contrat dans la console
