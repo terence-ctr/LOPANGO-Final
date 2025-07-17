@@ -15,21 +15,25 @@
             iconClass="fas fa-user-tie"
             :value="loading ? '...' : dashboardData.stats.landlords"
             label="Bailleurs"
+            description="Bailleurs actifs"
           />
           <StatsCard 
             iconClass="fas fa-user"
             :value="loading ? '...' : dashboardData.stats.tenants"
             label="Locataires"
+            description="Locataires uniques"
           />
           <StatsCard 
             iconClass="fas fa-home"
             :value="loading ? '...' : dashboardData.stats.properties"
             label="Propriétés"
+            description="Propriétés gérées"
           />
           <StatsCard 
             iconClass="fas fa-file-contract"
             :value="loading ? '...' : dashboardData.stats.contracts"
             label="Contrats actifs"
+            description="Contrats en cours"
           />
         </div>
         
@@ -153,19 +157,25 @@ const loadDashboardData = async () => {
     
     // Mettre à jour les données réactives avec la réponse du serveur
     if (response.data) {
+      const data = response.data.data || response.data; // Gérer les deux formats de réponse
+      
       dashboardData.value = {
         stats: {
-          landlords: response.data.totalProperties || 0,
-          tenants: response.data.totalTenants || 0,
-          properties: response.data.totalProperties || 0,
-          contracts: response.data.activeContracts || 0,
-          totalProperties: response.data.totalProperties || 0,
-          activeContracts: response.data.activeContracts || 0,
-          pendingPayments: response.data.pendingPayments || 0,
-          totalTenants: response.data.totalTenants || 0
+          // Données principales
+          landlords: data.totalLandlords || 0,
+          tenants: data.totalTenants || 0,
+          properties: data.totalProperties || 0,
+          contracts: data.activeContracts || 0,
+          
+          // Données complémentaires (pour référence)
+          totalLandlords: data.totalLandlords || 0,
+          totalTenants: data.totalTenants || 0,
+          totalProperties: data.totalProperties || 0,
+          activeContracts: data.activeContracts || 0,
+          pendingPayments: 0 // À implémenter si nécessaire
         },
-        recentTransactions: response.data.recentTransactions || [],
-        upcomingEvents: response.data.upcomingVisits || [],
+        recentTransactions: data.recentTransactions || [],
+        upcomingEvents: data.upcomingVisits || [],
         alerts: [] // Les alertes seront gérées séparément
       };
       

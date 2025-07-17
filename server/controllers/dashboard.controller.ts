@@ -56,96 +56,113 @@ export const getAgentDashboard = async (req: Request, res: Response): Promise<vo
     await db.raw('SELECT 1');
     logger.debug('Connexion à la base de données établie avec succès');
 
-    // Exécution en parallèle des requêtes
-    const [
-      totalProperties,
-      activeContracts,
-      totalTenants,
-      totalLandlords
-    ] = await Promise.all([
-      // Nombre total de propriétés gérées par l'agent
-      db('properties')
-        .where('agent_id', userId)
-        .count('* as count')
-        .first()
-        .then((result: any) => {
-          if (!result) return 0;
-          const count = parseInt(result.count || '0', 10);
-          return isNaN(count) ? 0 : count;
-        })
-        .catch((error: DbError) => {
-          logger.error('Erreur lors du comptage des propriétés:', {
-            error: error.message,
-            userId,
-            sql: error.sql
-          });
-          return 0;
-        }),
-      
-      // Nombre de contrats actifs (non expirés ou sans date de fin)
-      db('contracts')
-        .where('agent_id', userId)
-        .andWhere(function() {
-          this.where('end_date', '>=', db.fn.now())
-             .orWhereNull('end_date');
-        })
-        .count('* as count')
-        .first()
-        .then((result: any) => {
-          if (!result) return 0;
-          const count = parseInt(result.count || '0', 10);
-          return isNaN(count) ? 0 : count;
-        })
-        .catch((error: DbError) => {
-          logger.error('Erreur lors du comptage des contrats actifs:', {
-            error: error.message,
-            userId,
-            sql: error.sql
-          });
-          return 0;
-        }),
-      
-      // Nombre de locataires uniques
-      db('contracts')
-        .distinct('tenant_id')
-        .where('agent_id', userId)
-        .count('* as count')
-        .first()
-        .then((result: any) => {
-          if (!result) return 0;
-          const count = parseInt(result.count || '0', 10);
-          return isNaN(count) ? 0 : count;
-        })
-        .catch((error: DbError) => {
-          logger.error('Erreur lors du comptage des locataires uniques:', {
-            error: error.message,
-            userId,
-            sql: error.sql
-          });
-          return 0;
-        }),
-      
-      // Nombre de bailleurs uniques
-      db('properties')
-        .distinct('owner_id')
-        .where('agent_id', userId)
-        .count('* as count')
-        .first()
-        .then((result: any) => {
-          if (!result) return 0;
-          const count = parseInt(result.count || '0', 10);
-          return isNaN(count) ? 0 : count;
-        })
-        .catch((error: DbError) => {
-          logger.error('Erreur lors du comptage des bailleurs uniques:', {
-            error: error.message,
-            userId,
-            sql: error.sql
-          });
-          return 0;
-        })
-    ]);
+    // Exécution séquentielle des requêtes pour un meilleur débogage
+    logger.info(`=== DÉBUT DES REQUÊTES POUR L'AGENT ID: ${userId} ===`);
+    
+    // 1. Nombre total de propriétés
+    logger.info('\n=== REQUÊTE: Nombre total de propriétés ===');
+    const totalProperties = await db('properties')
+      .where('agent_id', userId)
+      .where('is_active', 1)  // Uniquement les propriétés actives
+      .count('* as count')
+      .first()
+      .then((result: any) => {
+        const count = result ? parseInt(result.count || '0', 10) : 0;
+        const finalCount = isNaN(count) ? 0 : count;
+        logger.info(`Résultat: ${finalCount} propriétés trouvées`);
+        return finalCount;
+      })
+      .catch((error: DbError) => {
+        logger.error('Erreur lors du comptage des propriétés:', {
+          error: error.message,
+          userId,
+          sql: error.sql
+        });
+        return 0;
+      });
 
+    // 2. Contrats actifs (avec status 'LOUE' ou 'rented' et date de fin non dépassée)
+    logger.info('\n=== REQUÊTE: Contrats actifs ===');
+    const activeContracts = await db('contracts')
+      .where('agent_id', userId)
+      .whereIn('status', ['LOUE', 'rented'])  // Les deux statuts possibles pour un contrat actif
+      .andWhere(function() {
+        this.where('end_date', '>=', db.fn.now())
+           .orWhereNull('end_date');
+      })
+      .count('* as count')
+      .first()
+      .then((result: any) => {
+        const count = result ? parseInt(result.count || '0', 10) : 0;
+        const finalCount = isNaN(count) ? 0 : count;
+        logger.info(`Résultat: ${finalCount} contrats actifs trouvés`);
+        return finalCount;
+      })
+      .catch((error: DbError) => {
+        logger.error('Erreur lors du comptage des contrats actifs:', {
+          error: error.message,
+          userId,
+          sql: error.sql
+        });
+        return 0;
+      });
+
+    // 3. Nombre de locataires uniques avec contrats actifs
+    logger.info('\n=== REQUÊTE: Nombre de locataires uniques ===');
+    const totalTenants = await db('contracts')
+      .distinct('tenant_id')
+      .where('agent_id', userId)
+      .whereIn('status', ['LOUE', 'rented'])  // Uniquement les locataires avec contrats actifs
+      .andWhere(function() {
+        this.where('end_date', '>=', db.fn.now())
+           .orWhereNull('end_date');
+      })
+      .count('* as count')
+      .first()
+      .then((result: any) => {
+        const count = result ? parseInt(result.count || '0', 10) : 0;
+        const finalCount = isNaN(count) ? 0 : count;
+        logger.info(`Résultat: ${finalCount} locataires uniques trouvés`);
+        return finalCount;
+      })
+      .catch((error: DbError) => {
+        logger.error('Erreur lors du comptage des locataires uniques:', {
+          error: error.message,
+          userId,
+          sql: error.sql
+        });
+        return 0;
+      });
+
+    // 4. Nombre de bailleurs uniques avec propriétés actives
+    logger.info('\n=== REQUÊTE: Nombre de bailleurs uniques ===');
+    const totalLandlords = await db('properties')
+      .distinct('owner_id')
+      .where('agent_id', userId)
+      .where('is_active', 1)  // Uniquement les propriétés actives
+      .count('* as count')
+      .first()
+      .then((result: any) => {
+        const count = result ? parseInt(result.count || '0', 10) : 0;
+        const finalCount = isNaN(count) ? 0 : count;
+        logger.info(`Résultat: ${finalCount} bailleurs uniques trouvés`);
+        return finalCount;
+      })
+      .catch((error: DbError) => {
+        logger.error('Erreur lors du comptage des bailleurs uniques:', {
+          error: error.message,
+          userId,
+          sql: error.sql
+        });
+        return 0;
+      });
+    
+    logger.info('\n=== RÉCAPITULATIF DES DONNÉES ===');
+    logger.info(`- Propriétés: ${totalProperties}`);
+    logger.info(`- Contrats actifs: ${activeContracts}`);
+    logger.info(`- Locataires uniques: ${totalTenants}`);
+    logger.info(`- Bailleurs uniques: ${totalLandlords}`);
+    
     // Mettre à jour les données de la réponse
     response.data = {
       totalProperties: totalProperties || 0,
@@ -155,6 +172,34 @@ export const getAgentDashboard = async (req: Request, res: Response): Promise<vo
       recentTransactions: [],
       upcomingVisits: []
     };
+
+    // Afficher les requêtes SQL pour référence
+    logger.info('\n=== REQUÊTES SQL POUR RÉFÉRENCE ===');
+    logger.info('1. Propriétés totales:');
+    logger.info('   SELECT COUNT(*) as count FROM properties WHERE agent_id = ?', [userId]);
+    
+    logger.info('\n2. Contrats actifs:');
+    logger.info('   SELECT COUNT(*) as count FROM contracts WHERE agent_id = ? AND (end_date >= CURRENT_TIMESTAMP OR end_date IS NULL)', [userId]);
+    
+    logger.info('\n3. Locataires uniques:');
+    logger.info('   SELECT COUNT(DISTINCT tenant_id) as count FROM contracts WHERE agent_id = ?', [userId]);
+    
+    logger.info('\n4. Bailleurs uniques:');
+    logger.info('   SELECT COUNT(DISTINCT owner_id) as count FROM properties WHERE agent_id = ?', [userId]);
+    
+    // Log des données finales
+    logger.info('\n=== DONNÉES FINALES À ENVOYER ===');
+    logger.info(JSON.stringify({
+      success: true,
+      data: {
+        totalProperties,
+        activeContracts,
+        totalTenants,
+        totalLandlords,
+        recentTransactions: [],
+        upcomingVisits: []
+      }
+    }, null, 2));
 
     logger.info(`Tableau de bord récupéré avec succès pour l'agent ID: ${userId}`);
     res.status(200).json(response);
