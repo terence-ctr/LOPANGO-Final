@@ -228,37 +228,62 @@ export const authenticateJWT: RequestHandler = async (req, res, next) => {
 
   console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Début authentification`, logContext);
 
-  const publicRoutes = ['/auth/login', '/auth/register', '/auth/refresh-token'];
+  const publicRoutes = [
+    '/auth/login', 
+    '/auth/register', 
+    '/auth/refresh-token',
+    '/api/auth/refresh-token',
+    '/api/auth/login',
+    '/api/auth/register'
+  ];
+
+  // Vérifier si la route est publique
   if (publicRoutes.some(route => req.originalUrl.startsWith(route))) {
     console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Route publique, authentification non requise`);
     return next();
   }
 
+  // Extraire le token de l'en-tête Authorization
   const authHeader = req.headers.authorization;
-
+  
+  // Vérifier la présence de l'en-tête d'autorisation
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log('Aucun en-tête d\'autorisation valide trouvé');
+    console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Aucun en-tête d'autorisation valide trouvé`);
     return next(new AppError(401, 'Authentification requise'));
   }
 
   const token = authHeader.split(' ')[1];
+  
+  if (!token) {
+    console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Token manquant`);
+    return next(new AppError(401, 'Token manquant'));
+  }
 
   try {
+    // Vérifier et décoder le token
     const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
-
+    
+    // Vérifier le type de token
     if (decoded.type !== 'access') {
+      console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Type de token invalide: ${decoded.type}`);
       return next(new AppError(401, 'Type de token invalide pour cette opération'));
     }
 
+    // Récupérer l'utilisateur depuis la base de données
     const user = await db('users')
-      .where({ id: decoded.id, is_active: true })
+      .where({ 
+        id: decoded.id, 
+        is_active: true 
+      })
       .select('id', 'email', 'first_name', 'last_name', 'user_type', 'is_active', 'email_verified')
       .first();
 
     if (!user) {
+      console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Utilisateur non trouvé ou inactif: ${decoded.id}`);
       return next(new AppError(401, 'Utilisateur non trouvé ou compte inactif'));
     }
 
+    // Ajouter les informations utilisateur à la requête
     req.user = {
       id: user.id,
       email: user.email,
@@ -268,27 +293,54 @@ export const authenticateJWT: RequestHandler = async (req, res, next) => {
       email_verified: !!user.email_verified
     };
 
-    // Refresh near-expiry token
+    // Rafraîchir le token si nécessaire (moins de 5 minutes avant expiration)
     if (decoded.exp) {
       const now = Math.floor(Date.now() / 1000);
       const expiresIn = decoded.exp - now;
-      if (expiresIn < 300) { // 5 minutes
+      
+      // Si le token expire dans moins de 5 minutes, en générer un nouveau
+      if (expiresIn < 300) { 
         const { token: newToken, expiresAt } = generateAccessToken(user.id, user.user_type);
+        
+        // Ajouter les nouveaux tokens aux en-têtes de la réponse
         res.setHeader('X-New-Token', newToken);
         res.setHeader('X-Token-Expires-At', expiresAt);
+        
+        console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Nouveau token généré pour l'utilisateur: ${user.id}`);
       }
     }
     
-    console.log('Utilisateur authentifié avec succès:', { userId: user.id, userType: user.user_type });
+    console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Utilisateur authentifié avec succès`, { 
+      userId: user.id, 
+      userType: user.user_type 
+    });
+    
+    // Poursuivre avec le prochain middleware
     next();
   } catch (error) {
+    // Gestion des erreurs spécifiques JWT
     if (error instanceof jwt.TokenExpiredError) {
       console.log(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Token expiré, tentative de rafraîchissement`);
       return handleExpiredToken(req, res, next, token);
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      console.error(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Erreur de format de token:`, error.message);
+      return next(new AppError(401, 'Format de token invalide'));
+    } else if (error instanceof jwt.NotBeforeError) {
+      console.error(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Token utilisé avant sa date de validité:`, error.message);
+      return next(new AppError(401, 'Token pas encore valide'));
     }
     
+    // Log des autres erreurs
     console.error(`[${new Date().toISOString()}] [${requestId}] [authenticateJWT] Erreur de vérification du token:`, error);
-    return next(new AppError(401, 'Token invalide ou corrompu'));
+    
+    // Supprimer les cookies en cas d'erreur
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+    
+    return next(new AppError(401, 'Token invalide ou corrompu. Veuillez vous reconnecter.'));
   }
 };
 

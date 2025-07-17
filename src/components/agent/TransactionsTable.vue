@@ -28,7 +28,7 @@
 
 <script setup lang="ts">
 interface Transaction {
-  id: string
+  id: number
   property: string
   amount: string
   guarantee: boolean

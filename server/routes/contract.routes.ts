@@ -1,6 +1,7 @@
 import { Router, RequestHandler } from 'express';
 import { authenticateJWT as authenticate } from '../middleware/auth.middleware';
 import * as contractController from '../controllers/contract.controller';
+import * as paymentController from '../controllers/payment.controller';
 
 const router = Router();
 
@@ -32,9 +33,23 @@ router.post('/', (req, res, next) => {
   contractController.createContract(req, res).catch(next);
 });
 
+// Récupérer les contrats d'un agent spécifique
+router.get('/agent/:agentId', (req, res, next) => {
+  contractController.getAgentContracts(req, res).catch(next);
+});
+
 // Récupérer la liste des agents immobiliers
 router.get('/agents', (req, res, next) => {
   contractController.getAgents(req, res).catch(next);
+});
+
+// Route pour créer un paiement
+router.post('/payments', (req, res, next) => {
+  paymentController.createPayment(req, res).catch(next);
+});
+// Route pour lister les paiements
+router.get('/payments', (req, res, next) => {
+  paymentController.getPayments(req, res).catch(next);
 });
 
 // Gestion des erreurs globales

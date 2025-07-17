@@ -3,6 +3,12 @@ export interface ApiConfig {
   baseURL: string;
   timeout: number;
   endpoints: {
+    dashboard: {
+      agent: string;
+      admin: string;
+      landlord: string;
+      tenant: string;
+    };
     auth: {
       login: string;
       register: string;
@@ -33,6 +39,7 @@ export interface ApiConfig {
       byId: (id: string | number) => string;
       byTenant: (tenantId: string | number) => string;
       byLandlord: (landlordId: string | number) => string;
+      byAgent: (agentId: string | number) => string;
       byProperty: (propertyId: string | number) => string;
       create: string;
       update: (id: string | number) => string;
@@ -72,6 +79,12 @@ export const apiConfig: ApiConfig = {
   // Configuration des endpoints
   // Les endpoints sont définis sans le préfixe /api car il est déjà inclus dans la baseURL
   endpoints: {
+    dashboard: {
+      agent: '/dashboard/agent',
+      admin: '/dashboard/admin',
+      landlord: '/dashboard/landlord',
+      tenant: '/dashboard/tenant'
+    },
     auth: {
       login: '/auth/login',
       register: '/auth/register',
@@ -98,16 +111,17 @@ export const apiConfig: ApiConfig = {
       propertyEquipments: '/metadata/property-equipments'
     },
     contracts: {
-      base: '',
-      byId: (id: string | number) => `/${id}`,
-      byTenant: (tenantId: string | number) => `?tenantId=${tenantId}`,
-      byLandlord: (landlordId: string | number) => `?landlordId=${landlordId}`,
-      byProperty: (propertyId: string | number) => `?propertyId=${propertyId}`,
+      base: '/contracts',
+      byId: (id: string | number) => `/contracts/${id}`,
+      byTenant: (tenantId: string | number) => `/contracts/tenant/${tenantId}`,
+      byLandlord: (landlordId: string | number) => `/contracts/landlord/${landlordId}`,
+      byAgent: (agentId: string | number) => `/contracts/agent/${agentId}`,
+      byProperty: (propertyId: string | number) => `/contracts/property/${propertyId}`,
       create: '',
-      update: (id: string | number) => `/${id}`,
-      delete: (id: string | number) => `/${id}`,
-      sign: (id: string | number) => `/${id}/sign`,
-      download: (id: string | number) => `/${id}/download`,
+      update: (id: string | number) => `/contracts/${id}`,
+      delete: (id: string | number) => `/contracts/${id}`,
+      sign: (id: string | number) => `/contracts/${id}/sign`,
+      download: (id: string | number) => `/contracts/${id}/download`,
       myContracts: '/me',
       tenantContracts: '/tenant/me',
       landlordContracts: '/landlord/me'

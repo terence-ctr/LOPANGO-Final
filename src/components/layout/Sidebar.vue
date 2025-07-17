@@ -110,6 +110,7 @@ const agentMenu = [
   { to: '/agent/dashboard', title: 'Tableau de bord', icon: ['fas', 'chart-line'] },
   { to: '/agent/properties', title: 'Propriétés', icon: ['fas', 'building'] },
   { to: '/agent/contracts', title: 'Contrats', icon: ['fas', 'file-contract'] },
+  { to: '/agent/payments', title: 'Paiements', icon: ['fas', 'money-bill'] },
   { to: '/agent/clients', title: 'Clients', icon: ['fas', 'users'] },
   { to: '/agent/commission', title: 'Commission', icon: ['fas', 'percentage'] },
 ];
@@ -132,14 +133,22 @@ const landlordMenu = [
 ];
 
 // Données utilisateur
-const userType = computed(() => authStore.user?.role || '');
-const userName = computed(() => authStore.user?.name || '');
+const userType = computed(() => authStore.user?.userType || '');
+const userName = computed(() => {
+  const user = authStore.user;
+  return user ? `${user.firstName} ${user.lastName}` : '';
+});
 
 const userInitials = computed(() => {
-  const name = authStore.user?.name || '';
-  return name
-    .split(' ')
-    .map(n => n[0])
+  const user = authStore.user;
+  if (!user) return '';
+  
+  const firstName = user.firstName || '';
+  const lastName = user.lastName || '';
+  
+  return [firstName, lastName]
+    .filter(Boolean)
+    .map(name => name[0])
     .join('')
     .toUpperCase()
     .substring(0, 2);

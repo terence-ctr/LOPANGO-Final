@@ -17,6 +17,7 @@ import propertyRoutes from './routes/property.routes';
 import propertyMetadataRoutes from './routes/propertyMetadata.routes';
 import contractRoutes from './routes/contract.routes';
 import userRoutes from './routes/user.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 // Les imports et initialisations liés aux paiements ont été supprimés
 
 // Les routes suivantes sont commentées car les fichiers correspondants n'existent pas encore
@@ -75,123 +76,39 @@ class App {
     // Servir les fichiers statiques depuis le dossier uploads
     this.app.use('/uploads', express.static('uploads'));
     
-    // Configuration CORS complète
-    const corsOptions = {
-      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        const allowedOrigins = [
-          'http://localhost:5173',
-          'http://127.0.0.1:5173',
-          'http://localhost:3000',
-          config.frontendUrl,
-          ...(process.env.NODE_ENV === 'development' ? [
-            'http://localhost:3000',
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
-            'http://localhost:8080',
-            'http://127.0.0.1:8080',
-            'http://localhost:8081',
-            'http://127.0.0.1:8081'
-          ] : [])
-        ];
-
-        // En développement, accepter toutes les origines pour faciliter les tests
-        if (process.env.NODE_ENV === 'development') {
-          return callback(null, true);
-        }
-
-        // En production, vérifier l'origine
-        if (!origin || allowedOrigins.includes(origin) || config.cors?.origin === '*') {
-          callback(null, true);
-        } else {
-          console.warn(`[CORS] Origine non autorisée: ${origin}`);
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    // Configuration CORS
+    this.app.use(cors({
+      origin: 'http://localhost:5173',
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: [
-        'Origin',
-        'X-Requested-With',
         'Content-Type',
-        'Accept',
         'Authorization',
+        'X-Requested-With',
         'X-Request-ID',
-        'X-Auth-Token',
-        'X-Refresh-Token',
-        'Accept-Encoding',
-        'Content-Length',
         'Cache-Control',
         'Pragma',
-        'If-Modified-Since',
-        'X-CSRF-Token',
-        'Access-Control-Allow-Origin',
-        'Access-Control-Allow-Headers',
-        'Access-Control-Allow-Methods',
-        'Access-Control-Allow-Credentials',
-        'Set-Cookie',
-        'Cookie',
-        ...(config.cors.allowedHeaders || [])
+        'access-control-allow-headers',
+        'access-control-allow-methods',
+        'access-control-allow-origin',
+        'x-new-token',
+        'x-token-expires-at'
       ],
       exposedHeaders: [
-        'Content-Length',
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
         'X-Request-ID',
-        'Content-Disposition',
-        'X-Filename',
-        'X-Auth-Token',
-        'X-Refresh-Token',
-        'X-Total-Count',
-        'X-Pagination',
-        'Set-Cookie',
-        'Authorization'
+        'Cache-Control',
+        'Pragma',
+        'X-New-Token',
+        'X-Token-Expires-At',
+        'X-New-Refresh-Token'
       ],
       credentials: true,
-      optionsSuccessStatus: 204, // Certains navigateurs ont des problèmes avec 200
-      maxAge: 86400, // 24 heures
       preflightContinue: false,
-      optionsPreflight: true
-    };
+      optionsSuccessStatus: 204
+    }));
 
-    // Configuration CORS pour les requêtes OPTIONS (pré-vol)
-    this.app.options('*', cors(corsOptions));
-    
-    // Configuration CORS pour toutes les autres requêtes
-    this.app.use(cors(corsOptions));
-    
-    // Middleware pour ajouter les en-têtes CORS manuellement
-    this.app.use((req: Request, res: Response, next: NextFunction): void => {
-      // Définir les en-têtes CORS
-      const origin = req.headers.origin || '';
-      
-      // Vérifier si l'origine est autorisée
-      const allowedOrigins = [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:3000',
-        config.frontendUrl
-      ];
-      
-      const isOriginAllowed = allowedOrigins.includes(origin) || 
-        (Array.isArray(corsOptions.origin) && corsOptions.origin.some(o => 
-          typeof o === 'string' && o === origin
-        ));
-      
-      if (isOriginAllowed) {
-        res.header('Access-Control-Allow-Origin', origin);
-      }
-      
-      res.header('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
-      res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Expose-Headers', corsOptions.exposedHeaders.join(', '));
-      
-      // Répondre immédiatement aux requêtes OPTIONS (pré-vol)
-      if (req.method === 'OPTIONS') {
-        res.status(204).end();
-        return;
-      }
-      
-      next();
-    });
-    
     // Middleware pour logger les en-têtes CORS (en développement)
     if (process.env.NODE_ENV === 'development') {
       this.app.use((req: Request, res: Response, next: NextFunction): void => {
@@ -228,16 +145,10 @@ class App {
     // Middleware de compression
     this.app.use(compression());
     
-    // Middleware pour configurer les en-têtes CORS et les cookies
+    // Middleware pour configurer les cookies
     this.app.use((req: Request, res: Response, next: NextFunction): void => {
-      // Définir les en-têtes CORS
-      const origin = req.headers.origin;
-      if (origin) {
-        res.header('Access-Control-Allow-Origin', origin);
-        res.header('Access-Control-Allow-Credentials', 'true');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-      }
+      // La configuration CORS est déjà gérée par le middleware cors()
+      // Nous ne configurons que les cookies ici
       
       // Gérer les requêtes OPTIONS (prévol)
       if (req.method === 'OPTIONS') {
@@ -306,6 +217,7 @@ class App {
     this.app.use('/api/property-metadata', propertyMetadataRoutes);
     this.app.use('/api/contracts', contractRoutes);
     this.app.use('/api/users', userRoutes);
+    this.app.use('/api/dashboard', dashboardRoutes);
     
     // Route de test
     this.app.get('/api/health', (req: Request, res: Response) => {

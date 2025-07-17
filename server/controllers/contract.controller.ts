@@ -79,20 +79,40 @@ interface LocalContractQueryResult {
   deposit_status: string;
   created_at: string;
   updated_at: string;
-  property_title: string | null;
-  property_address_street: string | null;
-  property_address_city: string | null;
-  property_address_postal_code: string | null;
-  property_address_country: string | null;
-  landlord_first_name: string | null;
-  landlord_last_name: string | null;
-  landlord_email: string | null;
-  agent_first_name: string | null;
-  agent_last_name: string | null;
-  agent_email: string | null;
-  tenant_first_name: string | null;
-  tenant_last_name: string | null;
-  tenant_email: string | null;
+}
+
+interface LocalContractQueryResult {
+  // Champs de la table contracts
+  id: number;
+  property_id: number;
+  tenant_id: number;
+  owner_id: number;
+  agent_id: number | null;
+  start_date: string;
+  end_date: string;
+  status: string;
+  payment_day: number | null;
+  rent_amount: number;
+  deposit_amount: number;
+  deposit_status: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Champs joints depuis d'autres tables
+  property_title?: string;
+  property_street?: string;
+  property_city?: string;
+  property_postal_code?: string;
+  property_country?: string;
+  landlord_first_name?: string;
+  landlord_last_name?: string;
+  landlord_email?: string;
+  agent_first_name?: string;
+  agent_last_name?: string;
+  agent_email?: string;
+  tenant_first_name?: string;
+  tenant_last_name?: string;
+  tenant_email?: string;
 }
 
 interface FormattedContract {
@@ -100,7 +120,7 @@ interface FormattedContract {
   name: string;
   property: {
     id: number;
-    name: string;
+    title: string;
     address: {
       street: string;
       city: string;
@@ -376,6 +396,267 @@ export const getTenantContracts = async (req: LocalContractRequest, res: Respons
         undefined,
       timestamp: new Date().toISOString()
     });
+  }
+};
+
+/**
+ * Récupère les contrats d'un agent spécifique
+ */
+export const getAgentContracts = async (req: LocalContractRequest, res: Response): Promise<Response> => {
+  const requestId = req.headers['x-request-id'] || 'no-request-id';
+  const logContext = {
+    url: req.originalUrl,
+    method: req.method,
+    ip: req.ip,
+    params: req.params,
+    query: req.query,
+    user: req.user ? { 
+      id: req.user.id, 
+      email: req.user.email, 
+      userType: req.user.userType 
+    } : 'non authentifié'
+  };
+
+  console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] getAgentContracts - Début de la requête`, logContext);
+  
+  try {
+    // Vérifier que l'utilisateur est authentifié
+    if (!req.user) {
+      console.error(`[${new Date().toISOString()}] [${requestId}] [ContractController] Erreur: Utilisateur non authentifié`);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentification requise' 
+      });
+    }
+
+    // Récupérer l'ID de l'agent depuis les paramètres de la requête
+    const agentId = parseInt(req.params.agentId, 10);
+    
+    // Vérifier que l'ID de l'agent est valide
+    if (isNaN(agentId)) {
+      console.error(`[${new Date().toISOString()}] [${requestId}] [ContractController] Erreur: ID agent invalide:`, req.params.agentId);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID agent invalide' 
+      });
+    }
+    
+    console.log(`[ContractController] Récupération des contrats pour l'agent ID: ${agentId}`);
+    
+    // Vérifier si l'utilisateur a le droit d'accéder à ces contrats
+    if (req.user.userType !== 'admin' && req.user.id !== agentId) {
+      console.error(`[${new Date().toISOString()}] [${requestId}] [ContractController] Erreur: Accès non autorisé pour l'utilisateur:`, {
+        userId: req.user.id,
+        userType: req.user.userType,
+        requestedAgentId: agentId
+      });
+      
+      return res.status(403).json({ 
+        success: false,
+        message: 'Non autorisé à accéder à ces contrats',
+        error: 'FORBIDDEN',
+        details: {
+          requiredRole: 'admin ou propriétaire',
+          userRole: req.user.userType,
+          isOwner: req.user.id === agentId
+        }
+      });
+    }
+    
+    console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] Récupération des contrats pour l'agent ID: ${agentId}`);
+    
+    // Exécuter la requête pour récupérer les contrats
+    console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] Exécution de la requête pour l'agent ID: ${agentId}`);
+    
+    const contracts = await db('contracts')
+      .select(
+        'contracts.*',
+        'properties.title as property_title',
+        'properties.address as property_address',
+        'properties.city as property_city',
+        'properties.postal_code as property_postal_code',
+        'properties.country as property_country',
+        'landlords.first_name as landlord_first_name',
+        'landlords.last_name as landlord_last_name',
+        'landlords.email as landlord_email',
+        'agents.first_name as agent_first_name',
+        'agents.last_name as agent_last_name',
+        'agents.email as agent_email',
+        'tenants.first_name as tenant_first_name',
+        'tenants.last_name as tenant_last_name',
+        'tenants.email as tenant_email'
+      )
+      .leftJoin('properties', 'contracts.property_id', 'properties.id')
+      .leftJoin('users as landlords', 'properties.owner_id', 'landlords.id')
+      .leftJoin('users as agents', 'contracts.agent_id', 'agents.id')
+      .leftJoin('users as tenants', 'contracts.tenant_id', 'tenants.id')
+      .where('contracts.agent_id', agentId);
+      
+    console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] ${contracts.length} contrats trouvés pour l'agent ID: ${agentId}`);
+    
+    if (!contracts || contracts.length === 0) {
+      console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] Aucun contrat trouvé pour l'agent ID: ${agentId}`);
+      return res.status(200).json({
+        success: true,
+        data: []
+      });
+    }
+    
+    // Formater les contrats pour la réponse
+    console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] Formatage de ${contracts.length} contrats...`);
+    const formattedContracts = contracts.map(contract => {
+      const paymentStatus = getPaymentStatus(contract.payment_day, contract.start_date);
+      
+      const property = {
+        id: contract.property_id,
+        title: contract.property_title || 'Sans titre',
+        address: {
+          street: contract.property_address || '',
+          city: contract.property_city || '',
+          postalCode: contract.property_postal_code || '',
+          country: contract.property_country || ''
+        },
+        landlord: {
+          id: contract.owner_id,
+          firstName: contract.landlord_first_name || '',
+          lastName: contract.landlord_last_name || '',
+          email: contract.landlord_email || ''
+        },
+        agent: contract.agent_id ? {
+          id: contract.agent_id,
+          firstName: contract.agent_first_name || '',
+          lastName: contract.agent_last_name || '',
+          email: contract.agent_email || ''
+        } : null
+      };
+
+      const formattedContract: FormattedContract = {
+        id: contract.id,
+        name: `Contrat #${contract.id}`,
+        property,
+        tenant: {
+          id: contract.tenant_id,
+          firstName: contract.tenant_first_name || '',
+          lastName: contract.tenant_last_name || '',
+          email: contract.tenant_email || ''
+        },
+        agent: contract.agent_id ? {
+          id: contract.agent_id,
+          firstName: contract.agent_first_name || '',
+          lastName: contract.agent_last_name || '',
+          email: contract.agent_email || ''
+        } : null,
+        startDate: contract.start_date,
+        endDate: contract.end_date,
+        status: contract.status,
+        paymentStatus: paymentStatus.status,
+        paymentDays: paymentStatus.days,
+        paymentAlert: paymentStatus.alert,
+        rentAmount: contract.rent_amount,
+        depositAmount: contract.deposit_amount,
+        depositStatus: contract.deposit_status,
+        paymentDay: contract.payment_day,
+        createdAt: contract.created_at,
+        updatedAt: contract.updated_at
+      };
+      
+      console.log(`[ContractController] Contrat formaté ID: ${formattedContract.id}`, {
+        property: formattedContract.property.title,
+        tenant: `${formattedContract.tenant.firstName} ${formattedContract.tenant.lastName}`,
+        status: formattedContract.status,
+        paymentStatus: formattedContract.paymentStatus
+      });
+      
+      return formattedContract;
+    });
+    
+    console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] ${formattedContracts.length} contrats formatés avec succès`);
+    
+    // Trier les contrats par date de début
+    const sortedContracts = formattedContracts.sort(sortContractsByStartDate);
+    
+    // Préparer la réponse
+    const responseData = {
+      success: true,
+      data: sortedContracts,
+      meta: {
+        total: sortedContracts.length,
+        active: sortedContracts.filter(c => c.status === 'active').length,
+        pending: sortedContracts.filter(c => c.status === 'pending').length,
+        ended: sortedContracts.filter(c => c.status === 'ended').length
+      }
+    };
+    
+    console.log(`[${new Date().toISOString()}] [${requestId}] [ContractController] Envoi de la réponse avec succès`, {
+      totalContracts: responseData.meta.total,
+      active: responseData.meta.active,
+      pending: responseData.meta.pending,
+      ended: responseData.meta.ended
+    });
+    
+    return res.status(200).json(responseData);
+    
+  } catch (error: unknown) {
+    const errorContext = {
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : 'Erreur inconnue',
+      request: {
+        method: req.method,
+        url: req.originalUrl,
+        params: req.params,
+        query: req.query,
+        user: req.user ? { 
+          id: req.user.id, 
+          email: req.user.email, 
+          userType: req.user.userType 
+        } : 'non authentifié'
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    console.error(`[${new Date().toISOString()}] [${requestId}] [ContractController] Erreur lors de la récupération des contrats de l'agent:`, errorContext);
+
+    // Log des erreurs de base de données
+    if (error && typeof error === 'object') {
+      const dbError = error as any;
+      if ('code' in dbError) {
+        console.error(`[${new Date().toISOString()}] [${requestId}] [ContractController] Erreur base de données:`, {
+          code: dbError.code,
+          errno: dbError.errno,
+          sqlMessage: dbError.message,
+          sql: dbError.sql,
+          sqlState: dbError.sqlState
+        });
+      }
+    }
+    
+    // Préparer la réponse d'erreur
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const errorResponse: any = {
+      success: false,
+      message: 'Une erreur est survenue lors de la récupération des contrats',
+      error: 'INTERNAL_SERVER_ERROR',
+      requestId
+    };
+    
+    // Ajouter des détails de débogage en développement
+    if (isDevelopment) {
+      errorResponse.debug = {
+        message: error instanceof Error ? error.message : 'Erreur inconnue',
+        type: error?.constructor?.name,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Ne pas exposer la stack trace en production
+      if (error instanceof Error) {
+        errorResponse.debug.stack = error.stack;
+      }
+    }
+    
+    return res.status(500).json(errorResponse);
   }
 };
 

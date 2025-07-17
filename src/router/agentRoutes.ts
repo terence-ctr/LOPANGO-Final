@@ -5,6 +5,7 @@ import DashboardView from '@/views/agent/DashboardView.vue';
 import ClientsView from '@/views/agent/ClientsView.vue';
 import CommissionView from '@/views/agent/CommissionView.vue';
 import PropertiesView from '@/views/agent/PropertiesView.vue';
+import PaymentsView from '@/views/agent/PaymentsView.vue';
 
 export const agentRoutes = [
   {
@@ -41,6 +42,12 @@ export const agentRoutes = [
         name: 'agent-appointments',
         component: () => import('@/views/agent/AppointmentsView.vue'), // TODO: Créer ce composant
         meta: { title: 'Rendez-vous' }
+      },
+      {
+        path: 'payments',
+        name: 'agent-payments',
+        component: PaymentsView,
+        meta: { title: 'Paiements - Agent', requiresAuth: true, userType: 'agent' }
       },
       {
         path: 'profile',

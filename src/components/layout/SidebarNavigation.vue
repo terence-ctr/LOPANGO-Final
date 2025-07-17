@@ -49,6 +49,11 @@ const navigationItems = computed<NavigationItem[]>(() => {
       route: 'landlord-properties'
     },
     { 
+      name: 'Paiements', 
+      icon: 'credit-card', 
+      route: 'agent-payments'
+    },
+    { 
       name: 'Tenants', 
       icon: 'users', 
       route: 'landlord-tenants'

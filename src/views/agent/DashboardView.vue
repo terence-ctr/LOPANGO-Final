@@ -1,192 +1,277 @@
 <template>
-  <div class="min-h-screen flex flex-col bg-white text-gray-900">
+  <div class="min-h-screen flex flex-col bg-gray-50 text-gray-900">
     <!-- Main content -->
-    <main class="flex-1 p-6 md:p-10 max-w-full overflow-x-auto">
+    <main class="flex-1 p-4 md:p-6 lg:p-8 max-w-full overflow-x-auto">
       <div class="max-w-7xl mx-auto">
-        <h1 class="text-lg font-bold mb-1 select-none">
-          Tableau de bord
-        </h1>
-        <p class="text-xs text-gray-700 mb-6 select-none">
-          Heureux de vous revoir Mr Lokenye Jeffr !
-        </p>
+        <!-- En-tête -->
+        <div class="mb-6 md:mb-8">
+          <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Tableau de bord</h1>
+          <p class="text-gray-600 mt-1">Vue d'ensemble de votre activité</p>
+        </div>
+        
         <!-- Stats cards -->
-        <div class="flex flex-wrap gap-4 mb-8">
-          <div class="flex items-center space-x-3 border border-gray-300 rounded-lg px-5 py-4 min-w-[140px] max-w-[180px]">
-            <div class="bg-[#1E4DB7] p-2 rounded-full text-white">
-              <i class="fas fa-file-alt text-sm">
-              </i>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+          <StatsCard 
+            iconClass="fas fa-user-tie"
+            :value="loading ? '...' : dashboardData.stats.landlords"
+            label="Bailleurs"
+          />
+          <StatsCard 
+            iconClass="fas fa-user"
+            :value="loading ? '...' : dashboardData.stats.tenants"
+            label="Locataires"
+          />
+          <StatsCard 
+            iconClass="fas fa-home"
+            :value="loading ? '...' : dashboardData.stats.properties"
+            label="Propriétés"
+          />
+          <StatsCard 
+            iconClass="fas fa-file-contract"
+            :value="loading ? '...' : dashboardData.stats.contracts"
+            label="Contrats actifs"
+          />
+        </div>
+        
+        <!-- Message d'erreur -->
+        <div v-if="error" class="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <i class="fas fa-exclamation-circle text-red-500"></i>
             </div>
-            <div>
-              <p class="text-lg font-bold leading-none select-none">
-                35K
-              </p>
-              <p class="text-xs text-gray-600 select-none">
-                Nombre total des propriétés
-              </p>
-            </div>
-          </div>
-          <div class="flex items-center space-x-3 border border-gray-300 rounded-lg px-5 py-4 min-w-[140px] max-w-[180px]">
-            <div class="bg-[#1E4DB7] p-2 rounded-full text-white">
-              <i class="fas fa-file-alt text-sm">
-              </i>
-            </div>
-            <div>
-              <p class="text-lg font-bold leading-none select-none">
-                5K
-              </p>
-              <p class="text-xs text-gray-600 select-none">
-                Nombre total des Bailleurs
-              </p>
-            </div>
-          </div>
-          <div class="flex items-center space-x-3 border border-gray-300 rounded-lg px-5 py-4 min-w-[140px] max-w-[180px]">">
-            <div class="bg-[#1E4DB7] p-2 rounded-full text-white">
-              <i class="fas fa-file-alt text-sm">
-              </i>
-            </div>
-            <div>
-              <p class="text-lg font-bold leading-none select-none">
-                1,2K
-              </p>
-              <p class="text-xs text-gray-600 select-none">
-                Nombre total des commissionnaires
-              </p>
-            </div>
-          </div>
-          <div class="flex items-center space-x-3 border border-gray-300 rounded-lg px-5 py-4 min-w-[140px] max-w-[180px]">">
-            <div class="bg-[#1E4DB7] p-2 rounded-full text-white">
-              <i class="fas fa-file-alt text-sm">
-              </i>
-            </div>
-            <div>
-              <p class="text-lg font-bold leading-none select-none">
-                869
-              </p>
-              <p class="text-xs text-gray-600 select-none">
-                Plaintes en cours
-              </p>
+            <div class="ml-3">
+              <p class="text-sm text-red-700">{{ error }}</p>
             </div>
           </div>
         </div>
         
         <div class="flex flex-col lg:flex-row gap-6">
-          <!-- Left side: Recent transactions -->
-          <section class="flex-1 bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-            <h2 class="font-semibold text-base mb-4 select-none">
-              Les transactions récentes
-            </h2>
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs text-gray-700 border-collapse border border-gray-200 rounded-lg">
-                <thead>
-                  <tr class="bg-gray-50 border-b border-gray-200">
-                    <th class="py-2 px-3 border-r border-gray-200 w-8 font-semibold select-none">#</th>
-                    <th class="py-2 px-3 border-r border-gray-200 font-semibold select-none">Propriété</th>
-                    <th class="py-2 px-3 border-r border-gray-200 font-semibold select-none">Montant</th>
-                    <th class="py-2 px-3 border-r border-gray-200 font-semibold select-none">A utilisé sa garantie ?</th>
-                    <th class="py-2 px-3 font-semibold select-none">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(transaction, index) in transactions" :key="index" class="border-b border-gray-200">
-                    <td class="py-2 px-3 border-r border-gray-200 font-semibold select-none">{{ index + 1 }}</td>
-                    <td class="py-2 px-3 border-r border-gray-200 select-none">{{ transaction.property }}</td>
-                    <td class="py-2 px-3 border-r border-gray-200 select-none">{{ transaction.amount }}</td>
-                    <td class="py-2 px-3 border-r border-gray-200 select-none">{{ transaction.warrantyUsed ? 'Oui' : 'Non' }}</td>
-                    <td class="py-2 px-3 select-none">{{ transaction.date }}</td>
-                  </tr>
-                </tbody>
-              </table>
+          <!-- Côté gauche : Transactions récentes -->
+          <div class="flex-1">
+            <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
+              <h2 class="text-lg font-semibold text-gray-900 mb-4">Transactions récentes</h2>
+              <TransactionsTable :transactions="dashboardData.recentTransactions" />
             </div>
-          </section>
+          </div>
           
-          <!-- Right side: Calendar and Alerts -->
-          <aside class="w-full lg:w-80 flex flex-col gap-6">
-            <!-- Calendar -->
-            <section class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm select-none">
-              <div class="flex justify-between items-center mb-4 text-xs text-gray-600 font-semibold">
-                <div>Avril</div>
-                <div>2021</div>
-              </div>
-              <div class="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 font-semibold mb-2">
-                <div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div><div>Su</div>
-              </div>
-              <div class="grid grid-cols-7 gap-1 text-center text-xs text-gray-700">
-                <div v-for="(day, dayIndex) in calendarDays" :key="dayIndex" :class="{'text-gray-300': !day.currentMonth, 'bg-[#1E4DB7] text-white rounded-full w-6 h-6 mx-auto flex items-center justify-center': day.today}">
-                  {{ day.day }}
-                </div>
-              </div>
-            </section>
+          <!-- Côté droit : Calendrier et Alertes -->
+          <aside class="w-full lg:w-96 flex flex-col gap-6">
+            <div class="bg-white rounded-lg shadow p-4 md:p-6">
+              <h2 class="text-lg font-semibold text-gray-900 mb-4">Calendrier</h2>
+              <Calendar />
+            </div>
             
-            <!-- Alerts -->
-            <section class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-              <h3 class="font-semibold text-sm mb-4 select-none">Alertes</h3>
-              <div class="space-y-3 text-xs">
-                <div v-for="(alert, index) in alerts" :key="index" :class="`flex items-start space-x-2 ${alert.type === 'error' ? 'bg-red-100 border-red-300 text-red-600' : 'bg-yellow-100 border-yellow-300 text-yellow-700'} border rounded p-2`">
-                  <i class="fas fa-exclamation-triangle mt-0.5"></i>
-                  <p><span class="font-semibold">{{ alert.user }}</span> {{ alert.message }}</p>
-                </div>
-              </div>
-            </section>
+            <div class="bg-white rounded-lg shadow p-4 md:p-6">
+              <h2 class="text-lg font-semibold text-gray-900 mb-4">Alertes</h2>
+              <Alerts :alerts="dashboardData.alerts" />
+            </div>
           </aside>
         </div>
       </div>
     </main>
-    
-    <!-- Top right icons (bell and avatar) -->
-    <div class="fixed top-6 right-6 flex flex-col items-center space-y-4 z-20">
-      <button aria-label="Notifications" class="text-gray-600 hover:text-gray-900 focus:outline-none">
-        <i class="far fa-bell text-lg"></i>
-      </button>
-      <img alt="Avatar" class="w-8 h-8 rounded-full object-cover" src="https://storage.googleapis.com/a1aa/image/112448e1-2c54-4e66-0733-892b4ae06d6e.jpg"/>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import StatsCard from '@/components/agent/StatsCard.vue';
+import TransactionsTable from '@/components/agent/TransactionsTable.vue';
+import Calendar from '@/components/agent/Calendar.vue';
+import Alerts from '@/components/agent/Alerts.vue';
+import { api } from '@/config/axios';
+import { apiConfig } from '@/config/api.config';
 
-// Données de test pour les transactions
-const transactions = ref([
-  { property: 'Appartement B20', amount: '450$', warrantyUsed: false, date: '30/03/2024' },
-  { property: 'Appartement B20', amount: '450$', warrantyUsed: false, date: '30/02/2024' },
-  { property: 'Appartement B20', amount: '450$', warrantyUsed: true, date: '30/01/2024' },
-  { property: 'Appartement B20', amount: '450$', warrantyUsed: false, date: '30/12/2023' },
-  { property: 'Appartement B20', amount: '450$', warrantyUsed: false, date: '30/11/2023' },
-]);
+// Types pour les données du tableau de bord
+interface DashboardStats {
+  landlords: number;
+  tenants: number;
+  properties: number;
+  contracts: number;
+  [key: string]: number;
+}
+
+interface Transaction {
+  id: number;
+  property: string;
+  amount: string;
+  guarantee: boolean;
+  date: string;
+  type: string;
+  status: string;
+  [key: string]: any;
+}
+
+interface Alert {
+  id: number;
+  name: string;
+  message: string;
+  type: string;
+  colorClass: string;
+  [key: string]: any;
+}
+
+interface DashboardData {
+  stats: DashboardStats;
+  recentTransactions: Array<Transaction & { [key: string]: any }>;
+  upcomingEvents: any[];
+  alerts: (Alert & { type: string; message: string })[];
+  [key: string]: any;
+}
+
+// Références réactives pour les données
+const loading = ref(true);
+const error = ref('');
+const dashboardData = ref<DashboardData>({
+  stats: {
+    landlords: 0,
+    tenants: 0,
+    properties: 0,
+    contracts: 0,
+    totalProperties: 0,
+    activeContracts: 0,
+    pendingPayments: 0,
+    totalTenants: 0
+  },
+  recentTransactions: [],
+  upcomingEvents: [],
+  alerts: []
+});
+
+const router = useRouter();
+
+// Fonction pour charger les données du tableau de bord
+const loadDashboardData = async () => {
+  try {
+    console.log('[DashboardView] Début du chargement des données du tableau de bord...');
+    loading.value = true;
+    error.value = '';
+    
+    // Récupérer les données du tableau de bord depuis l'API
+    const response = await api.get('/dashboard/agent');
+    console.log('Réponse du serveur:', response.data);
+    
+    // Mettre à jour les données réactives avec la réponse du serveur
+    if (response.data) {
+      dashboardData.value = {
+        stats: {
+          landlords: response.data.totalProperties || 0,
+          tenants: response.data.totalTenants || 0,
+          properties: response.data.totalProperties || 0,
+          contracts: response.data.activeContracts || 0,
+          totalProperties: response.data.totalProperties || 0,
+          activeContracts: response.data.activeContracts || 0,
+          pendingPayments: response.data.pendingPayments || 0,
+          totalTenants: response.data.totalTenants || 0
+        },
+        recentTransactions: response.data.recentTransactions || [],
+        upcomingEvents: response.data.upcomingVisits || [],
+        alerts: [] // Les alertes seront gérées séparément
+      };
+      
+      console.log('Données du tableau de bord mises à jour:', dashboardData.value);
+    }
+    
+  } catch (err: any) {
+    console.error('[DashboardView] Erreur lors du chargement des données:', {
+      error: err,
+      response: err.response?.data,
+      status: err.response?.status
+    });
+    
+    // Gestion des erreurs
+    if (err.response) {
+      if (err.response.status === 401 || err.response.status === 403) {
+        error.value = 'Votre session a expiré. Vous allez être redirigé vers la page de connexion...';
+        setTimeout(() => {
+          router.push({ name: 'login', query: { session: 'expired' } });
+        }, 2000);
+        return;
+      }
+      
+      error.value = `Erreur serveur (${err.response.status}): ${err.response.data?.message || 'Veuillez réessayer plus tard.'}`;
+    } else if (err.request) {
+      error.value = 'Impossible de se connecter au serveur. Vérifiez votre connexion internet.';
+    } else {
+      error.value = `Erreur lors de la configuration de la requête: ${err.message}`;
+    }
+    
+    // Valeurs par défaut en cas d'erreur
+    dashboardData.value = {
+      stats: {
+        landlords: 0,
+        tenants: 0,
+        properties: 0,
+        contracts: 0,
+        totalProperties: 0,
+        activeContracts: 0,
+        pendingPayments: 0,
+        totalTenants: 0
+      },
+      recentTransactions: [],
+      upcomingEvents: [],
+      alerts: []
+    };
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Charger les données au montage du composant
+onMounted(() => {
+  loadDashboardData();
+});
+
+// Computed properties basées sur les données du tableau de bord
+const nbBailleurs = computed(() => dashboardData.value.stats.landlords);
+const nbLocataires = computed(() => dashboardData.value.stats.tenants);
+const nbProprietesAvecAgent = computed(() => dashboardData.value.stats.properties);
+const transactions = computed(() => dashboardData.value.recentTransactions);
+const alerts = computed(() => dashboardData.value.alerts);
 
 // Données pour le calendrier
-const calendarDays = ref([
-  { day: 29, currentMonth: false, today: false },
-  { day: 30, currentMonth: false, today: false },
-  { day: 31, currentMonth: false, today: false },
-  { day: 1, currentMonth: true, today: true },
-  { day: 2, currentMonth: true, today: false },
-  // ... autres jours du mois
-]);
+interface CalendarEvent {
+  id: number | string;
+  title: string;
+  start: string;
+  end: string;
+  color: string;
+  [key: string]: any;
+}
 
-// Données pour les alertes
-const alerts = ref([
-  { 
-    user: 'Marcel Senga', 
-    message: 'a dépassé son ultimatum de loyer.',
-    type: 'error'
+const calendarEvents = ref<CalendarEvent[]>([
+  {
+    id: 1,
+    title: 'Visite propriété',
+    start: '2023-11-10',
+    end: '2023-11-10',
+    color: 'blue'
   },
-  { 
-    user: 'Marcel Senga',
-    message: 'est très proche de son ultimatum de loyer',
-    type: 'warning'
-  },
-  { 
-    user: 'Jason Isamene',
-    message: 'est très proche de son ultimatum de loyer',
-    type: 'warning'
-  },
-  { 
-    user: 'Elie Ono',
-    message: 'est très proche de son ultimatum de loyer',
-    type: 'warning'
+  {
+    id: 2,
+    title: 'Signature contrat',
+    start: '2023-11-15',
+    end: '2023-11-15',
+    color: 'green'
   }
 ]);
+
+// Charger les données au montage du composant
+onMounted(() => {
+  console.log('[DashboardView] Composant monté, chargement des données...');
+  loadDashboardData();
+});
+
+// Log quand les données sont mises à jour
+watch(dashboardData, (newData: DashboardData) => {
+  console.log('[DashboardView] Données du tableau de bord mises à jour:', {
+    stats: newData.stats,
+    transactionsCount: newData.recentTransactions?.length,
+    alertsCount: newData.alerts?.length
+  });
+}, { deep: true });
+
+// Les transactions et alertes sont maintenant gérées via les données du tableau de bord
 </script>
 
 <style scoped>

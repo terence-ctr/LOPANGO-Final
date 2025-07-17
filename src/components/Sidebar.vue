@@ -123,6 +123,7 @@ const agentMenu = [
   { to: '/agent/properties', icon: 'home', label: 'Propriétés' },
   { to: '/agent/contracts', icon: 'file-contract', label: 'Contrats' },
   { to: '/agent/clients', icon: 'users', label: 'Clients' },
+  { to: '/agent/payments', label: 'Paiements', icon: ['fas', 'money-bill'] },
   { to: '/agent/visits', icon: 'calendar-check', label: 'Visites' },
   { to: '/agent/commission', icon: 'percentage', label: 'Commissions' },
   { to: '/agent/messages', icon: 'envelope', label: 'Messages' },
