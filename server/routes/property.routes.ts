@@ -35,7 +35,7 @@ router.get('/my-properties', asyncHandler(async (req, res) => {
 }));
 
 // Récupérer une propriété spécifique par son ID
-router.get('/:id(\\d+)', propertyExists, isPropertyOwner, asyncHandler(async (req, res) => {
+router.get('/:id(\\d+)', propertyExists, asyncHandler(async (req, res) => {
   await propertyController.getPropertyById(req, res);
 }));
 

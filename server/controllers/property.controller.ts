@@ -580,6 +580,15 @@ export const getPropertyById = async (req: Request, res: Response) => {
 
     console.log(`[CONTROLLER] Propriété trouvée: ${property.title}`);
     
+    // Vérifier si l'utilisateur a accès à la propriété
+    if (!req.property) {
+      console.log('[CONTROLLER] Accès refusé - propriété non disponible');
+      return res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé à cette propriété'
+      });
+    }
+    
     // Créer un objet d'adresse standardisé
     const address: Address = {
       street: property.address || '',

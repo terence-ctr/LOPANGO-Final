@@ -216,59 +216,83 @@ export const validatePropertyData = (req: Request, res: Response, next: NextFunc
 
   next();
 };
-
-// Vérifie si la propriété existe et est accessible
 export const propertyExists = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const propertyId = parseInt(req.params.id, 10);
+    console.log(`[propertyExists] Vérification de la propriété ID: ${propertyId}`);
 
     if (isNaN(propertyId)) {
+      console.log('[propertyExists] ID invalide');
       return next(new AppError(400, 'ID de propriété invalide'));
     }
 
     const property = await db('properties')
       .where({ id: propertyId })
       .first();
+    console.log(`[propertyExists] Propriété trouvée: ${property ? 'oui' : 'non'}`);
 
     if (!property) {
+      console.log('[propertyExists] Propriété non trouvée');
       return next(new AppError(404, 'Propriété non trouvée'));
     }
 
+    console.log(`[propertyExists] Statut de la propriété: ${property.status}`);
+    console.log(`[propertyExists] Type utilisateur: ${req.user?.userType}`);
+
     // Vérifier si l'utilisateur a accès à la propriété
     if (req.user?.userType !== 'ADMIN') {
+      console.log('[propertyExists] Ce n\'est pas un admin, vérification des droits...');
+      
+      // Si l'utilisateur est un agent, il peut voir toutes les propriétés
+      if (req.user?.userType === 'agent') {
+        console.log('[propertyExists] Utilisateur est agent, accès autorisé');
+        return;
+      }
+
       // Vérifier si l'utilisateur est le propriétaire
       if (property.owner_id === req.user?.id) {
+        console.log('[propertyExists] Utilisateur est propriétaire, accès autorisé');
         return;
       }
       
-      // Vérifier si l'utilisateur est locataire de cette propriété
-      const tenantId = req.query.tenantId as string;
-      if (tenantId && parseInt(tenantId) === req.user?.id) {
-        // Vérifier si le contrat existe et est actif
-        const activeContract = await db('contracts')
-          .where({
-            tenant_id: parseInt(tenantId),
-            property_id: propertyId,
-            status: 'active'
-          })
-          .first();
-        
-        if (activeContract) {
-          return;
+      // Vérifier si la propriété a un contrat actif
+      if (property.status === 'LOUE') {
+        console.log('[propertyExists] Propriété est louée, vérification du locataire...');
+        // Vérifier si l'utilisateur est le locataire de cette propriété
+        const tenantId = req.query.tenantId as string;
+        if (tenantId && parseInt(tenantId) === req.user?.id) {
+          console.log('[propertyExists] Utilisateur est locataire, vérification du contrat...');
+          // Vérifier si le contrat existe et est actif
+          const activeContract = await db('contracts')
+            .where({
+              tenant_id: parseInt(tenantId),
+              property_id: propertyId,
+              status: 'active'
+            })
+            .first();
+          
+          if (activeContract) {
+            console.log('[propertyExists] Contrat actif trouvé, accès autorisé');
+            return;
+          }
+          console.log('[propertyExists] Pas de contrat actif trouvé');
         }
+        console.log('[propertyExists] Utilisateur n\'est pas locataire');
+        return next(new AppError(403, 'Cette propriété n\'est pas disponible'));
       }
-      
-      return next(new AppError(403, 'Cette propriété n\'est pas disponible'));
+    } else {
+      console.log('[propertyExists] Utilisateur est admin, accès autorisé');
+      return next(new AppError(403, 'Non autorisé à accéder à cette propriété'));
     }
 
     // Ajouter la propriété à la requête pour une utilisation ultérieure
     req.property = property;
+    console.log('[propertyExists] Accès autorisé');
     next();
   } catch (error) {
     next(error);
   }
 };
-
 // Vérifie si l'utilisateur peut modifier la propriété
 export const canEditProperty = async (req: Request, res: Response, next: NextFunction) => {
   // Si l'utilisateur est admin, il peut tout modifier

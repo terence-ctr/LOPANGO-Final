@@ -56,6 +56,53 @@ export default class ContractService {
     }
   }
 
+  // Récupérer les contrats d'un agent spécifique
+  static async getAgentContracts(filters?: { page?: number; status?: string; landlordId?: string; search?: string }): Promise<{ 
+    success: boolean; 
+    data: Contract[]; 
+    meta: { 
+      total: number; 
+      active: number; 
+      pending: number; 
+      ended: number; 
+    } 
+  }> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.page) params.append('page', filters.page.toString());
+      if (filters?.status) params.append('status', filters.status);
+      if (filters?.landlordId) params.append('landlordId', filters.landlordId);
+      if (filters?.search) params.append('search', filters.search);
+      
+      const response = await api.get(`/contracts/agent/me?${params.toString()}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Erreur lors de la récupération des contrats:', error);
+      throw error;
+    }
+  }
+
+  // Récupérer la liste des bailleurs
+  static async getLandlords(): Promise<any[]> {
+    try {
+      const response = await api.get('/landlords');
+      return response.data;
+    } catch (error: any) {
+      console.error('Erreur lors de la récupération des bailleurs:', error);
+      throw error;
+    }
+  }
+
+  // Terminer un contrat
+  static async terminateContract(contractId: string | number): Promise<void> {
+    try {
+      await api.put(`/contracts/${contractId}/terminate`);
+    } catch (error: any) {
+      console.error('Erreur lors de la terminaison du contrat:', error);
+      throw error;
+    }
+  }
+
   // Récupérer les contrats du locataire connecté
   static async getTenantContracts(): Promise<Contract[]> {
     try {

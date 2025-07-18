@@ -85,10 +85,23 @@ export const useContractStore = defineStore('contract', () => {
     try {
       console.log('Début de la récupération des contrats...');
       
-      // Récupérer les contrats de l'utilisateur connecté
-      const endpoint = authStore.user?.userType === 'landlord' 
-        ? `/contracts${apiConfig.endpoints.contracts.landlordContracts}`
-        : `/contracts${apiConfig.endpoints.contracts.tenantContracts}`;
+      // Récupérer les contrats en fonction du type d'utilisateur
+      let endpoint = '';
+      const userType = authStore.user?.userType;
+      
+      switch (userType) {
+        case 'landlord':
+          endpoint = `/contracts/landlord/me`;
+          break;
+        case 'agent':
+          // Utiliser l'ID de l'utilisateur connecté pour récupérer les contrats de l'agent
+          endpoint = `/contracts/agent/${authStore.user?.id}`;
+          break;
+        case 'tenant':
+        default:
+          endpoint = `/contracts/tenant/me`;
+          break;
+      }
       
       console.log('Utilisation de l\'endpoint:', endpoint);
       const response = await api.get(endpoint);
@@ -125,6 +138,9 @@ export const useContractStore = defineStore('contract', () => {
       
       // Mapper les données de l'API vers le format attendu par le frontend
       const formattedContracts = response.data.data.map((contract: any) => {
+        console.log('=== CONTRAT BRUT ===', JSON.stringify(contract, null, 2));
+        console.log('Valeur de rent brute:', contract.rent, 'Type:', typeof contract.rent);
+        
         const result: any = {
           ...contract,
           _id: String(contract._id || contract.id),
@@ -137,7 +153,7 @@ export const useContractStore = defineStore('contract', () => {
           start_date: contract.start_date,
           endDate: contract.endDate || contract.end_date,
           end_date: contract.end_date,
-          rent: Number(contract.rent),
+          rent: contract.rent !== undefined ? Number(contract.rent) : 0,
           deposit: Number(contract.deposit),
           currency: normalizeCurrency(contract.currency || 'EUR'),
           duration: contract.duration || '',

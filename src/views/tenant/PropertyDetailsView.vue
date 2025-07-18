@@ -403,24 +403,31 @@ const fetchProperty = async () => {
       return;
     }
     
-    console.log(`Récupération de la propriété ID: ${propertyId} depuis la liste des propriétés de l'utilisateur.`);
-
-    const allUserProperties = await PropertyService.getProperties();
-    console.log('Données complètes des propriétés récupérées:', allUserProperties);
-    const foundProperty = allUserProperties.find(p => p.id === propertyId);
-
-    if (foundProperty) {
-      property.value = foundProperty;
-      console.log(`Propriété ID: ${propertyId} trouvée et affichée.`);
-    } else {
-      throw new Error(`Vous n'avez pas accès à la propriété avec l'ID ${propertyId} ou elle n'existe pas.`);
+    console.log(`Récupération de la propriété ID: ${propertyId}`);
+    
+    // Utiliser getById avec l'ID de locataire si c'est un locataire
+    const tenantId = authStore.user?.userType === 'tenant' ? String(authStore.user.id) : undefined;
+    
+    try {
+      property.value = await PropertyService.getById(propertyId, tenantId);
+      console.log('Propriété récupérée:', property.value);
+    } catch (err) {
+      // Gérer spécifiquement l'erreur si l'utilisateur n'est pas défini
+      if (!authStore.user) {
+        error.value = 'Utilisateur non défini. Veuillez vous reconnecter.';
+        toast.error('Session invalide');
+        authStore.logout();
+        router.push({ name: 'login' });
+        return;
+      }
+      throw err;
     }
-    // payments.value = [];
+    console.log('Propriété récupérée:', property.value);
   } catch (err: any) {
     console.error('Erreur lors de la récupération des données:', err);
     
     if (err.response?.status === 403) {
-      error.value = 'Vous n\'êtes pas autorisé à accéder à cette propriété. Elle ne vous appartient peut-être pas ou n\'existe pas.';
+      error.value = 'Vous n\'êtes pas autorisé à accéder à cette propriété.';
       toast.error('Accès refusé à cette propriété');
     } else if (err.response?.status === 401) {
       error.value = 'Votre session a expiré. Veuillez vous reconnecter.';

@@ -65,73 +65,86 @@
         <p class="text-gray-500">Aucune propriété ne correspond à vos critères de recherche.</p>
       </div>
       <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="min-w-full divide-y divide-gray-200 text-xs">
           <thead class="bg-gray-50">
-            <tr>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <tr class="text-xs">
+              <th scope="col" class="px-2 py-2 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider w-32">
                 Titre
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Type
+              <th scope="col" class="px-2 py-2 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider w-36">
+                Bailleur
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Surface
+              <th scope="col" class="px-2 py-2 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider w-36">
+                Locataire
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Prix
+              <th scope="col" class="px-2 py-2 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider w-48">
+                Adresse
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" class="px-2 py-2 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider w-20">
                 Statut
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" class="px-2 py-2 text-right text-[10px] font-medium text-gray-500 uppercase tracking-wider w-20">
                 Actions
               </th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             <tr v-for="property in paginatedProperties" :key="property.id">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-md overflow-hidden">
-                    <img v-if="property.images && property.images[0]" :src="property.images[0]" :alt="property.title" class="h-full w-full object-cover">
+              <td class="px-2 py-1 whitespace-nowrap text-xs">
+                <div>
+                  <div class="font-medium text-gray-900">{{ property.title || 'Sans titre' }}</div>
+                   </div>
+              </td>
+              <td class="px-2 py-1 whitespace-nowrap text-xs">
+                <div v-if="property.landlord" class="text-sm">
+                  <div class="font-medium text-gray-900 truncate text-xs">
+                    {{ [property.landlord.firstName, property.landlord.lastName].filter(Boolean).join(' ') || 'Propriétaire' }}
                   </div>
-                  <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">{{ property.title }}</div>
-                    <div class="text-sm text-gray-500">{{ property.street }}</div>
-                  </div>
+                 
+                </div>
+                <div v-else class="text-sm text-gray-400 italic">
+                  Non spécifié
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ formatPropertyType(property.type) }}
+              <td class="px-1 py-1 whitespace-nowrap text-xs">
+                <div v-if="property.tenant" class="text-sm">
+                  <div class="font-medium text-gray-900">
+                    {{ [property.tenant.firstName, property.tenant.lastName].filter(Boolean).join(' ') || 'Locataire' }}
+                  </div>
+                </div>
+                <div v-else class="text-sm text-gray-400 italic">
+                  Aucun locataire
+                </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ property.surface }} m²
+              <td class="px-1 py-1 whitespace-nowrap text-xs">
+                <div class="text-xs text-gray-900">
+                  <div class="font-medium">{{ property.street || 'Adresse non spécifiée' }}</div>
+                </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ formatCurrency(property.rent) }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="getStatusBadgeClass(property.status)">
+            
+              <td class="px-2 py-1 whitespace-nowrap text-xs">
+                <span :class="['px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full', getStatusBadgeClass(property.status)]">
                   {{ formatStatus(property.status) }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button @click="toggleDropdown(property.id)" 
-                        class="text-gray-400 hover:text-gray-500"
-                        :aria-expanded="activeDropdown === property.id">
-                  <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                  </svg>
-                </button>
-                <div v-if="activeDropdown === property.id" 
-                     class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
-                  <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                    <a href="#" @click="viewPropertyDetails(property.id)" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                      Voir les détails
-                    </a>
-                    <a href="#" @click="reportProperty(property.id)" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                      Signaler
-                    </a>
+              <td class="px-2 py-1 whitespace-nowrap text-right text-xs font-medium">
+                <div class="relative inline-block text-left" v-click-away="() => activeDropdown === property.id ? activeDropdown = null : null">
+                  <button @click="toggleDropdown(property.id)" class="text-gray-400 hover:text-gray-600 focus:outline-none p-1 rounded hover:bg-gray-100">
+                    <i class="fas fa-ellipsis-h text-sm"></i>
+                  </button>
+                  <div v-if="activeDropdown === property.id" class="origin-top-right absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                    <div class="py-1" role="menu" aria-orientation="vertical">
+                      <router-link 
+                        :to="{ name: 'agent-property-detail', params: { id: property.id } }"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        role="menuitem"
+                      >
+                        <i class="fas fa-eye mr-2 text-gray-400 w-4 text-center"></i> Voir les détails
+                      </router-link>
+                      <button @click="reportProperty(property.id)" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" role="menuitem">
+                        <i class="fas fa-flag mr-2 text-gray-400 w-4 text-center"></i> Signaler un problème
+                      </button>
+                    </div>
                   </div>
                 </div>
               </td>
@@ -180,8 +193,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import api from '@/services/api';
+import { useContractStore } from '@/stores/contractStore';
 import { useAuthStore } from '@/stores/auth';
+import { directive as vClickAway } from 'vue3-click-away';
+import { api } from '@/config/axios';
+import { apiConfig } from '@/config/api.config';
 
 // Types constants
 const PROPERTY_TYPES = {
@@ -204,25 +220,53 @@ const STATUS_TYPES = {
 
 type StatusType = keyof typeof STATUS_TYPES;
 
+// Interface pour un locataire
+interface Tenant {
+  id?: string | number;
+  _id?: string | number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+// Interface pour un propriétaire
+interface Landlord {
+  id?: string | number;
+  _id?: string | number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
 // Interface pour une propriété
 interface Property {
-  id: number;
+  id: string | number;
+  _id?: string | number;
   title: string;
+  type: keyof typeof PROPERTY_TYPES;
+  status: keyof typeof STATUS_TYPES;
   street: string;
   city: string;
   postal_code: string;
   country: string;
-  type: PropertyType;
-  status: StatusType;
-  rent: number;
   surface: number;
   rooms: number;
+  rent: number;
+  description?: string;
   images?: string[];
+  created_at?: string;
+  updated_at?: string;
+  contractId?: string | number;
+  tenant?: Tenant;
+  landlord?: Landlord;
+  rentFrequency?: 'monthly' | 'yearly';
 }
 
 const router = useRouter();
 const authStore = useAuthStore();
-
 
 
 // Hooks
@@ -236,8 +280,7 @@ const properties = ref<Property[]>([]);
 const isLoading = ref(true);
 const currentPage = ref(1);
 const itemsPerPage = 10;
-// Correction du typage de activeDropdown
-const activeDropdown = ref<number | null>(null);
+const activeDropdown = ref<string | number | null>(null);
 
 // Filtres
 const filters = ref({
@@ -294,11 +337,40 @@ const formatPropertyType = (type: string) => {
   return types[type as keyof typeof types] || type || 'Non spécifié';
 };
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR'
-  }).format(amount || 0);
+// Formater l'adresse complète
+const formatAddress = (property: Property) => {
+  const parts = [
+    property.street,
+    property.postal_code,
+    property.city,
+    property.country
+  ].filter(Boolean);
+  
+  return parts.length > 0 ? parts.join(', ') : 'Adresse non disponible';
+};
+
+const formatCurrency = (amount: number, currencyCode: string = 'EUR') => {
+  try {
+    // Nettoyer le code de devise (enlever les espaces et convertir en majuscules)
+    const cleanCurrency = (currencyCode || 'EUR')
+      .toString()
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '');
+    
+    // Vérifier si la devise est valide (au moins 3 lettres)
+    const currency = cleanCurrency.length >= 3 ? cleanCurrency.substring(0, 3) : 'EUR';
+    
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount || 0);
+  } catch (error) {
+    console.error('Erreur de formatage de la devise:', error);
+    return `${amount || 0} ${currencyCode || 'EUR'}`;
+  }
 };
 
 const formatStatus = (status: string) => {
@@ -322,29 +394,111 @@ const getStatusBadgeClass = (status: string) => {
 };
 
 // Méthodes de gestion
-const toggleDropdown = (propertyId: number) => {
+const toggleDropdown = (propertyId: string | number) => {
   activeDropdown.value = activeDropdown.value === propertyId ? null : propertyId;
 };
 
-const viewPropertyDetails = async (propertyId: number) => {
+const viewPropertyDetails = async (propertyId: string | number) => {
   // Navigation vers la page de détails
   await router.push(`/agent/property/${propertyId}`);
 };
 
-const reportProperty = async (propertyId: number) => {
+const reportProperty = async (propertyId: string | number) => {
   // Logique de signalement
   console.log('Signalement de la propriété:', propertyId);
   // Ici, vous pouvez ajouter la logique d'API pour envoyer le signalement
 };
 
+const contractStore = useContractStore();
+
 const refreshProperties = async () => {
   try {
     isLoading.value = true;
-    if (!authStore.user?._id) {
-      throw new Error('Utilisateur non authentifié');
+    
+    // Vérifier si l'utilisateur est authentifié
+    if (!authStore.isAuthenticated) {
+      console.log('Utilisateur non authentifié, redirection vers la page de connexion');
+      await router.push('/login');
+      return;
     }
-    const response = await api.get(`/properties/agent/${authStore.user._id}`);
-    properties.value = response.data as Property[];
+    
+    // Vérifier que l'utilisateur est bien un agent
+    if (authStore.userType !== 'agent') {
+      console.error('Accès non autorisé : utilisateur non agent');
+      await router.push('/unauthorized');
+      return;
+    }
+    
+    // Récupérer l'ID utilisateur en toute sécurité
+    const userId = (authStore.user as any)?.id || (authStore.user as any)?._id;
+    if (!userId) {
+      console.error('ID utilisateur manquant dans le store');
+      console.log('Objet utilisateur actuel:', authStore.user);
+      return;
+    }
+    
+    // Récupérer d'abord les contrats de l'agent
+    await contractStore.fetchContracts();
+    
+    // Extraire les propriétés uniques des contrats
+    const propertiesFromContracts = contractStore.contracts
+      .filter((contract: any) => contract?.property)
+      .map((contract: any) => {
+        const prop = contract.property || {};
+        const address = prop.address || {};
+        
+        // Extraire les valeurs de surface et loyer, en priorisant celles du contrat puis de la propriété
+        // La surface peut être dans contract.area ou prop.area ou prop.surface
+        const surfaceValue = !isNaN(contract.area) ? Number(contract.area) : 
+                           (!isNaN(prop.area) ? Number(prop.area) : 
+                           (!isNaN(prop.surface) ? Number(prop.surface) : 0));
+        
+        // Le loyer doit être dans contract.rent
+        const rentValue = !isNaN(contract.rent) ? Number(contract.rent) : 
+                         (!isNaN(prop.rent) ? Number(prop.rent) : 0);
+        
+        return {
+          ...prop,
+          id: prop.id || prop._id || '', // Gérer à la fois id et _id
+          status: contract.status === 'active' ? 'LOUE' : 'DISPONIBLE',
+          contractId: contract.id || contract._id || '',
+          tenant: contract.tenant || {},
+          rentFrequency: contract.paymentFrequency || contract.rentFrequency || 'monthly',
+          // Assurer que tous les champs requis sont présents avec des valeurs par défaut
+          street: prop.street || address?.street || '',
+          city: prop.city || address?.city || '',
+          postal_code: prop.postal_code || prop.postalCode || address?.postal_code || '',
+          country: prop.country || address?.country || '',
+          // Informations du bailleur avec valeurs par défaut
+          landlord: {
+            id: (contract.landlord?.id || contract.landlord?._id || prop.landlord?.id || prop.landlord?._id || '').toString(),
+            firstName: contract.landlord?.firstName || prop.landlord?.firstName || 'Propriétaire',
+            lastName: contract.landlord?.lastName || prop.landlord?.lastName || 'Inconnu',
+            email: contract.landlord?.email || prop.landlord?.email || ''
+          },
+          // Utiliser area pour la surface qui est le champ standard dans l'interface Property
+          area: surfaceValue,
+          // Garder surface pour la rétrocompatibilité
+          surface: surfaceValue,
+          rooms: Number(prop.rooms) || 0,
+          rent: rentValue,
+          // S'assurer que la devise est définie
+          currency: contract.currency || prop.currency || 'EUR',
+          // Ajout de champs optionnels avec des valeurs par défaut
+          description: prop.description || '',
+          images: Array.isArray(prop.images) ? prop.images : [],
+          created_at: prop.created_at || new Date().toISOString(),
+          updated_at: prop.updated_at || new Date().toISOString()
+        } as Property; // Type assertion pour correspondre à l'interface Property
+      });
+    
+    // Éviter les doublons de propriétés
+    const uniqueProperties = Array.from(new Map(
+      propertiesFromContracts.map(prop => [prop.id, prop])
+    ).values()) as unknown as Property[];
+    
+    console.log('Propriétés chargées:', JSON.parse(JSON.stringify(uniqueProperties)));
+    properties.value = uniqueProperties;
   } catch (error) {
     console.error('Erreur lors du chargement des propriétés:', error);
     properties.value = [];

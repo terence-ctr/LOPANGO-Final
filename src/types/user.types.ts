@@ -5,7 +5,8 @@ export type UserType = 'tenant' | 'landlord' | 'agent' | 'admin';
 export type Gender = 'male' | 'female' | 'other';
 
 export interface User {
-  _id?: string;
+  id?: string | number;
+  _id?: string | number;
   email: string;
   password: string;
   firstName: string;

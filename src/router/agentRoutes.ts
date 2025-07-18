@@ -5,6 +5,7 @@ import DashboardView from '@/views/agent/DashboardView.vue';
 import ClientsView from '@/views/agent/ClientsView.vue';
 import CommissionView from '@/views/agent/CommissionView.vue';
 import PropertiesView from '@/views/agent/PropertiesView.vue';
+import PropertyDetailView from '@/views/agent/PropertyDetailView.vue';
 import PaymentsView from '@/views/agent/PaymentsView.vue';
 
 export const agentRoutes = [
@@ -36,6 +37,13 @@ export const agentRoutes = [
         name: 'agent-properties',
         component: PropertiesView,
         meta: { title: 'Gestion des biens' }
+      },
+      {
+        path: 'properties/:id',
+        name: 'agent-property-detail',
+        component: PropertyDetailView,
+        meta: { title: 'Détails de la propriété' },
+        props: true
       },
       {
         path: 'appointments',
